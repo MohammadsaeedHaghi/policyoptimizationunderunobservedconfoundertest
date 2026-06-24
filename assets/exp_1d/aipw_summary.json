@@ -1,0 +1,10 @@
+{
+ "mode": "bern",
+ "AIPW": {
+  "rt_train": 0.7274,
+  "rt_test": 0.7023,
+  "obj": 0.8265,
+  "treat_rate": 0.476
+ },
+ "IPW_rt": 0.6611
+}

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R-OW — robust Odds-box ∩ Wasserstein value maximiser</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#d62728; --border:#e2e2e2; --soft:#fbecec; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>R-OW</h1>
+<p class="muted">Robust, <strong>O</strong>dds-box ∩ <strong>W</strong>asserstein value maximiser — the project's
+RW method (formerly <code>srpo.multiarm.solve_rw_multiarm</code>) in the code-1.1 clean form. This page states
+<strong>exactly the in-sample optimisation problem</strong> the two implementations in this folder solve:
+<code>Capped/r_ow_capped.py</code> and <code>Uncapped/r_ow_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> R-OW learns the treatment policy that maximises the <strong>worst-case</strong>
+inverse-propensity-weighted value on the training sample, where the worst case ranges over a set of
+re-weightings that captures (i) <em>unobserved confounding</em> (a Rosenbaum/Tan sensitivity box of size \(\Gamma\))
+and (ii) <em>covariate imbalance</em> (a per-arm Wasserstein ball of radius \(\varepsilon_k\)) — optionally
+subject to per-arm <em>capacity</em>.
+</div>
+
+<h2>1 · Inputs (all fixed before the optimiser runs)</h2>
+<p>The method does <strong>no statistical preprocessing</strong>; it consumes quantities prepared by
+<code>common/</code>:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i,\;T_i,\;Y_i\)</td><td>covariates, observed arm, observed outcome of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\) (arm 0 = control)</td><td>data</td></tr>
+<tr><td>\(\hat w_i = 1/\hat P(T_i\mid x_i)\)</td><td><strong>nominal</strong> inverse weight, per-arm Hájek-normalised (\(\sum_{i:T_i=k}\hat w_i=n\)). <strong>Estimated from \((X,T)\) — never the true propensity.</strong></td><td><code>common.ipw_weights_from_data</code></td></tr>
+<tr><td>\(\Gamma\ge 1\)</td><td>marginal-sensitivity level (how far the true weights may deviate). \(\Gamma=1\) ⇒ no confounding assumed.</td><td><code>common.matched_gamma</code> (\(=e^{\gamma/2}\))</td></tr>
+<tr><td>\([a_i,b_i]\)</td><td>per-unit MSM interval around \(\hat w_i\) (the "odds box")</td><td><code>common.marginal_sensitivity_box(\hat w,\Gamma)</code></td></tr>
+<tr><td>\(D_{ij}=\lVert x_i-x_j\rVert\)</td><td>covariate ground cost for the Wasserstein term (z-scored first when <code>zscore=True</code>)</td><td><code>common.distance_matrix</code></td></tr>
+<tr><td>\(\varepsilon_k\)</td><td>per-arm Wasserstein radius (tight \(\times\) <code>c_eps</code>)</td><td><code>common.tight_epsilon</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (<strong>capped version only</strong>)</td><td>caller</td></tr>
+</table>
+
+<h2>2 · The decision: a policy on the (discretised) support</h2>
+<p>We learn \(\pi_k(x)\in[0,1]\), the probability of assigning arm \(k\) at covariate \(x\), with
+\(\sum_{k}\pi_k(x)=1\). The <code>discretize</code>/<code>mesh</code> arguments fix <em>where</em> \(\pi\) is
+defined: with <code>discretize=True</code> the covariates are <strong>snapped onto a <code>mesh</code>-level grid</strong>
+(<code>common.support</code>), and units that share a grid cell are <strong>tied</strong> to one policy value — so
+\(\pi\) is a genuine piecewise-constant function of \(x\). With <code>discretize=False</code> the raw covariates are
+used (every unit its own cell), which on continuous \(x\) is the degenerate "singleton" regime.</p>
+
+<h2>3 · The in-sample problem (primal: worst-case value)</h2>
+<p>For a re-weighting \(W=(W_1,\dots,W_n)\) of the sample, the IPW value of \(\pi\) is</p>
+<div class="eq">\[ V(\pi,W)\;=\;\frac1n\sum_{i=1}^{n} W_i\,Y_i\,\pi_{T_i}(x_i). \]</div>
+<p>The nominal weighting is \(W=\hat w\). Because of the <strong>unobserved confounder</strong> the true weighting
+is unknown; R-OW only assumes it lies in the uncertainty set \(\mathcal U(\Gamma,\varepsilon)\) and optimises the
+<strong>worst case</strong> over it:</p>
+<div class="eq">\[
+\boxed{\;\pi^\star \;=\; \arg\max_{\pi\in\Pi}\ \min_{W\in\mathcal U(\Gamma,\varepsilon)}\ \frac1n\sum_{i=1}^{n} W_i\,Y_i\,\pi_{T_i}(x_i)\;}
+\]</div>
+<p>where the feasible policy set \(\Pi\) is</p>
+<div class="eq">\[
+\Pi:\quad \pi_k(x_i)\ge 0,\qquad \sum_{k=0}^{K-1}\pi_k(x_i)=1\ \ \forall i,\qquad
+\underbrace{\tfrac1n\sum_{i=1}^{n}\pi_k(x_i)\;\le\;\mathrm{cap}_k\ \ \forall k}_{\textbf{capped version only}} ,
+\]</div>
+<p>plus the tie constraints (\(\pi\) constant on each grid cell). The uncertainty set combines two pieces:</p>
+<div class="eq">\[
+\mathcal U(\Gamma,\varepsilon)\;=\;\underbrace{\Big\{\,W:\ a_i\le W_i\le b_i\ \ \forall i\,\Big\}}_{\textbf{(O) odds / MSM box — unobserved confounding}}\ \cap\
+\underbrace{\Big\{\,W:\ \mathcal W_{D}\big(\text{emp. law},\,W\text{-reweighted arm-}k\text{ law}\big)\le \varepsilon_k\ \ \forall k\,\Big\}}_{\textbf{(W) Wasserstein balls — covariate balance}} .
+\]</div>
+<p class="muted">The <strong>(O) box</strong> is the Rosenbaum/Tan marginal-sensitivity model: under an unobserved
+confounder shifting the treatment odds by at most \(\Gamma\), the true inverse weight of each unit stays in
+\([a_i,b_i]\). The <strong>(W) balls</strong> additionally forbid the adversary from re-weighting in a way that
+distorts the within-arm covariate distribution by more than \(\varepsilon_k\) in Wasserstein distance (using the
+ground cost \(D\)) — this is the covariate-balance term, the "W" that distinguishes R-OW from R-O.</p>
+
+<h2>4 · What is actually solved (dual LP)</h2>
+<p>Dualising the inner \(\min_W\) turns the max–min into a single linear program — the LP these files build and
+hand to Gurobi. Variables: the policy \(\pi_k(x_i)\); \(\beta_k\ge0\); \(\gamma_{k,i}\); \(\theta_{k,j}\) (for
+factual \(j\in I_k=\{i:T_i=k\}\)); \(\mu_i\ge0\); \(\nu_i\ge0\).</p>
+<div class="eq">\[
+\max_{\pi,\beta,\gamma,\theta,\mu,\nu}\ \ \sum_{k}\Big(-\beta_k\,\varepsilon_k+\frac1n\sum_i \gamma_{k,i}\Big)\;+\;\sum_i\big(\mu_i\,a_i-\nu_i\,b_i\big)
+\]</div>
+<p>subject to</p>
+<div class="eq">\[
+\begin{aligned}
+&\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(valid policy)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k;
+&&\textbf{(capacity — capped only)}\\[2pt]
+&\textstyle\frac1n\,\pi_k(x_i)\,Y_i+\frac1n\,\theta_{k,i}-\mu_i+\nu_i\ \ge\ 0\quad \forall k,\ \forall i\in I_k;
+&&\text{(dual feasibility, factual rows)}\\[2pt]
+&\beta_k\,D_{ij}-\gamma_{k,i}-\theta_{k,j}\ \ge\ 0\quad \forall k,\ \forall i,\ \forall j\in I_k;
+&&\text{(transport / Wasserstein geometry)}\\[2pt]
+&\beta_k\ge 0,\quad \mu_i\ge 0,\quad \nu_i\ge 0.
+\end{aligned}
+\]</div>
+<table>
+<tr><th>dual variable</th><th>meaning (saved as the dual certificate per the saving spec)</th></tr>
+<tr><td>\(\beta_k\ge0\)</td><td>price of the Wasserstein radius \(\varepsilon_k\) (the "W" multiplier)</td></tr>
+<tr><td>\(\mu_i,\ \nu_i\ge0\)</td><td>multipliers on the box lower/upper bounds \(a_i,b_i\) (the "O" box)</td></tr>
+<tr><td>\(\gamma_{k,i},\ \theta_{k,j}\)</td><td>transport "demand"/"factual" duals certifying the optimal worst-case coupling</td></tr>
+</table>
+<p class="muted">This LP is reproduced <strong>exactly</strong> from <code>srpo.multiarm.solve_rw_multiarm</code> — verified
+numerically: on identical inputs the new and old policies/objective/duals agree to machine precision
+(\(\max|\Delta\pi|=0\)).</p>
+
+<h2>5 · How it is solved — dualising the box ∩ Wasserstein adversary</h2>
+<p>R-OW is solved as <strong>one</strong> linear program, exactly like R-O, but the inner adversary now also moves a
+<strong>transport plan</strong>: it may re-weight the sample (the box) <em>and</em> re-couple it across covariates
+(the Wasserstein balls). The five steps below show how the max–min of section&nbsp;3 collapses into the dual LP of
+section&nbsp;4.</p>
+
+<p><strong>Step 1 — the primal max–min.</strong> Start from the worst-case value of section&nbsp;3, written with the
+adversary moving the re-weighting \(w\) inside the intersection of the box set and the Wasserstein set:</p>
+<div class="eq">\[
+\max_{\pi\in\Pi}\ \min_{w\,\in\,\mathcal U_{\mathrm{box}}\,\cap\,\mathcal U_{\mathrm W}}\ V(\pi,w),
+\qquad V(\pi,w)=\frac1n\sum_{i=1}^{n}\pi_{T_i}(x_i)\,w_i\,Y_i .
+\]</div>
+
+<p><strong>Step 2 — the Wasserstein set as a transport program.</strong> For each arm \(k\) the balance ball is
+expressed through a coupling \(\zeta^{k}_{ij}\ge0\), where \(i\) runs over <em>all</em> units and \(j\) over the
+arm-\(k\) factual units \(I_k=\{i:T_i=k\}\). It must match a uniform demand marginal, the \(w\)-induced supply
+marginal, and stay within the transport budget \(\varepsilon_k\):</p>
+<div class="eq">\[
+\begin{aligned}
+&\zeta^{k}_{ij}\ge 0\quad \forall i,\ \forall j\in I_k;
+&&\text{(coupling)}\\[2pt]
+&\textstyle\sum_{j\in I_k}\zeta^{k}_{ij}=\tfrac1n\quad \forall i;
+&&\text{(demand marginals)}\\[2pt]
+&\textstyle\sum_{i}\zeta^{k}_{ij}=\tfrac{w_j}{n}\quad \forall j\in I_k;
+&&\text{(supply marginals — couple to }w_j)\\[2pt]
+&\textstyle\sum_{i,j} D_{ij}\,\zeta^{k}_{ij}\ \le\ \varepsilon_k .
+&&\text{(transport budget)}
+\end{aligned}
+\]</div>
+<p>So the inner problem is a joint minimisation over <strong>both</strong> the re-weighting \(w\) and the transport
+plans \(\zeta\): \(\ \min_{w,\zeta}\,V(\pi,w)\) subject to the box on \(w\) and the constraints above.</p>
+
+<p><strong>Step 3 — dualise the inner LP.</strong> Attach multipliers to each inner constraint: \(\beta_k\ge0\) on the
+budget \(\varepsilon_k\); \(\gamma_{k,i}\) (free) on the demand marginals; \(\theta_{k,j}\) (free) on the supply
+marginals — these are the ones that couple back to \(w_j\); and \(\mu_i\ge0,\ \nu_i\ge0\) on the box bounds
+\(a_i,b_i\). Eliminating the coupling \(\zeta\) leaves the transport-metric inequalities, and eliminating \(w\)
+against its box leaves the factual-row dual-feasibility conditions:</p>
+<div class="eq">\[
+\begin{aligned}
+&\beta_k\,D_{ij}-\gamma_{k,i}-\theta_{k,j}\ \ge\ 0\quad \forall k,\ \forall i,\ \forall j\in I_k;
+&&\text{(eliminate }\zeta\text{: transport metric)}\\[2pt]
+&\tfrac1n\,\pi_{k,i}\,Y_i+\tfrac1n\,\theta_{k,i}-\mu_i+\nu_i\ \ge\ 0\quad \forall i\in I_k.
+&&\text{(eliminate }w\text{: factual rows)}
+\end{aligned}
+\]</div>
+
+<p><strong>Step 4 — the dual objective.</strong> The value of the dualised inner problem, to be
+<strong>maximised jointly</strong> with the outer \(\max_\pi\) (subject to the simplex, tie and capacity
+constraints of \(\Pi\)), is</p>
+<div class="eq">\[
+-\sum_{k}\beta_k\,\varepsilon_k\;+\;\frac1n\sum_{k,i}\gamma_{k,i}\;+\;\sum_i\big(a_i\,\mu_i-b_i\,\nu_i\big).
+\]</div>
+<p>This is <strong>exactly</strong> the single LP written in section&nbsp;4 — the outer policy variables and the inner
+dual variables are optimised together in one program.</p>
+
+<p><strong>Step 5 — solve.</strong> The LP is handed to <strong>Gurobi</strong> with <code>DualReductions=0</code>
+(so the solver reports a clean primal/dual status rather than the ambiguous "infeasible-or-unbounded"). The radius
+\(\varepsilon_k\) is the <strong>tight per-arm radius</strong> returned by <code>common.tight_epsilon</code> (scaled
+by <code>c_eps</code>).</p>
+
+<p class="muted"><strong>How the solution is used.</strong> The solve returns the policy \(\pi\) (a \(K\times n\)
+array) together with the full dual certificate \((\beta,\gamma,\theta,\mu,\nu)\). Off-support deployment to new
+covariates is then carried out separately via Shapley/KNN extension (<code>extensions/</code>).</p>
+
+<h2>6 · Capped vs. Uncapped — the only difference</h2>
+<p>The two files are identical except for the <strong>capacity</strong> row above:</p>
+<ul>
+<li><code>Capped/r_ow_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\). The policy may treat at most
+a \(\mathrm{cap}_k\) fraction with arm \(k\) (control is typically left uncapped). Requires the <code>cap</code> argument.</li>
+<li><code>Uncapped/r_ow_uncapped.py</code> — drops that constraint entirely (no <code>cap</code> argument). The policy may
+assign any arm to any fraction of the population.</li>
+</ul>
+
+<h2>7 · Arguments that shape the problem</h2>
+<table>
+<tr><th>argument</th><th>effect on the in-sample problem</th></tr>
+<tr><td><code>discretize</code> (bool)</td><td><strong>Discretisation switch.</strong> <code>True</code>: snap \(x\) to a grid (via <code>support.py</code>) and tie per cell — \(\pi\) is piecewise-constant and the LP is well-posed. <code>False</code>: raw \(x\), singleton support (the degenerate regime).</td></tr>
+<tr><td><code>mesh</code> (int)</td><td>grid resolution: number of levels per coordinate when <code>discretize=True</code> (e.g. <code>6</code> ⇒ a 6×6 grid in 2-D). Finer mesh ⇒ more cells, fewer units per cell.</td></tr>
+<tr><td><code>Gamma</code></td><td>size of the (O) box. \(\Gamma=1\) collapses the box to a point (\(a_i=b_i=\hat w_i\)); R-OW then reduces to the non-robust IPW value maximiser.</td></tr>
+<tr><td><code>c_eps</code> / <code>epsilon</code></td><td>scale of / override for the (W) radius \(\varepsilon_k\). Larger \(\varepsilon_k\) ⇒ a weaker balance constraint.</td></tr>
+<tr><td><code>zscore</code> / <code>metric</code></td><td><strong>Ground-cost geometry</strong> (the distance matrix \(D\) the (W) term is built on, via <code>common.geometry</code>). <code>zscore=True</code> standardises the covariates first, so a large-unit feature cannot dominate the metric; <code>zscore=False</code> (the solver default) uses raw-\(x\) Euclidean distances — bit-identical to the original solver. <code>metric</code> selects the distance (only <code>"euclidean"</code> implemented). Supplied by <code>GeometryConfig</code>, whose default is <code>zscore=True</code>.</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Outputs: the optimal on-support policy \(\pi^\star\) (K×n), its realised per-arm usage, the worst-case objective,
+and the full dual certificate \((\beta,\mu,\nu,\gamma,\theta)\) — all persisted per <code>results/SAVING.md</code>. Off-support
+deployment to new covariates is a separate step (<code>extensions/</code>, Shapley/KNN), not part of this method.</p>
+
+</body>
+</html>

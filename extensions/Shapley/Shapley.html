@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shapley — off-support extension (closed-form Lipschitz operator)</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#138d75; --border:#e2e2e2; --soft:#e3f3ee; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>Shapley off-support extension</h1>
+<p class="muted">A <strong>closed-form deployment operator</strong> (no solver) that takes a method's
+<strong>on-support</strong> policy \(\hat\pi\) — defined only on the discrete support points the LP was actually
+solved on — and extends it to <strong>new</strong> covariates \(x\). It is the production path of
+<code>extensions/Shapley/shapley.py</code> (ported from <code>srpo.extension.{shapley,multiarm}</code>, PDF/closed-form
+variant; the optional Gurobi "LP" variant is omitted).</p>
+
+<div class="card">
+<strong>One sentence.</strong> Given the values \(\hat\pi(x_j)\) a method assigned at its support points \(x_j\),
+the Shapley extension returns at every new \(x\) the <strong>tightest 1-Lipschitz interpolant</strong> consistent with
+those values — a min–max of pairwise distance-weighted averages — arm-by-arm, then renormalised to the simplex. There
+is <strong>no optimisation and no Gurobi</strong>: it is a closed-form scalar operator that is <strong>exact at the
+support</strong>.
+</div>
+
+<h2>1 · What it is (and what it is not)</h2>
+<p>A method (e.g. <code>R-O</code>, <code>R-OW</code>) returns a policy \(\pi\) of shape \((K\times n)\) defined only on
+the \(n\) (discretised) support covariates, together with the array of those support covariates <code>support_X</code>.
+The Shapley extension is the operator that <strong>deploys</strong> that policy to a held-out test set or a dense grid
+for plotting. It does <strong>not</strong> re-solve anything: unlike the methods in <code>methods/</code>, there is no
+uncertainty set, no dual, and no solver call here — only a closed-form evaluation.</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_j\), \(\hat\pi(x_j)\)</td><td>support covariates and the on-support policy value a method assigned there (one arm at a time)</td><td>method output \((\pi,\ \texttt{support\_X})\)</td></tr>
+<tr><td>\(d_j=\lVert x-x_j\rVert\)</td><td>Euclidean distance from the query \(x\) to support point \(x_j\)</td><td>computed per query</td></tr>
+<tr><td>\(x\)</td><td>a new (off-support) covariate to deploy at — a test row or a grid node</td><td>caller (<code>X_test</code>)</td></tr>
+<tr><td>\(K\)</td><td>number of arms; each arm is extended as an <strong>independent scalar</strong> function</td><td>policy shape</td></tr>
+</table>
+
+<h2>2 · The operator (one arm)</h2>
+<p>Fix one arm and write \(\hat\pi(x_j)\) for its on-support values. For a query \(x\) with distances
+\(d_j=\lVert x-x_j\rVert\) define the pairwise distance-weighted average</p>
+<div class="eq">\[
+A_{jk}(x)\;=\;\frac{d_k\,\hat\pi(x_j)\;+\;d_j\,\hat\pi(x_k)}{d_j+d_k},\qquad
+A_{kk}(x)\;=\;\hat\pi(x_k),
+\]</div>
+<p>and take the min–max over support indices:</p>
+<div class="eq">\[
+\boxed{\;\pi^{S}(x)\;=\;\min_{k}\ \max_{j}\ A_{jk}(x)\;}
+\]</div>
+<p>This is the <strong>tightest 1-Lipschitz interpolant</strong> consistent with the support values \(\hat\pi(x_j)\)
+(PDF Lemma 1). It is <strong>exact at the support</strong>: if \(x=x_\ell\) for some support point then \(d_\ell=0\) and
+the operator returns the stored value \(\hat\pi(x_\ell)\) — the code takes a fast path that returns
+\(\hat\pi(x_{\arg\min_j d_j})\) whenever any \(d_j\le 0\).</p>
+
+<h2>3 · How it is computed (steps)</h2>
+<p>The extension is the three steps below. They contain <strong>no optimisation / no Gurobi</strong> — every step is a
+direct array computation.</p>
+
+<div class="card">
+<strong>Step 1 — <code>extract_support</code>: collapse duplicate cells.</strong> Round the training covariates and group
+identical covariate cells; the support value for a cell is the <strong>mean</strong> of \(\pi\) over the rows in that
+cell,
+<div class="eq">\[
+\hat\pi(x_j)\;=\;\operatorname{mean}\{\,\pi_i \;:\; x_i \text{ lies in cell } j\,\},
+\]</div>
+yielding the unique support \((\texttt{support\_X},\ \texttt{support\_pi})\). For a discretised free-\(\pi\) method the
+policy is already tied per cell, so this mean is a no-op; it is applied per arm.
+</div>
+
+<div class="card">
+<strong>Step 2 — evaluate \(\pi^{S}(x)\) at each test \(x\), per arm.</strong> For every query \(x\) compute the
+distances \(d_j=\lVert x-x_j\rVert\), form the matrix \(A_{jk}(x)\) with its diagonal set to \(A_{kk}=\hat\pi(x_k)\),
+and return
+<div class="eq">\[
+\pi^{S}(x)\;=\;\min_{k}\ \max_{j}\ A_{jk}(x).
+\]</div>
+Each of the \(K\) arms is a separate scalar extension — \(K\) independent calls of the one-arm operator of section 2.
+An exact support match short-circuits to the stored value.
+</div>
+
+<div class="card">
+<strong>Step 3 — renormalise to the simplex.</strong> The \(K\) arms are extended independently, so their values at a
+given \(x\) need not sum to one. Clip to \([0,\infty)\) and renormalise each test point's \(K\) values onto the simplex,
+<div class="eq">\[
+\pi_k^{\mathrm{deploy}}(x)\;=\;\frac{\big[\pi_k^{S}(x)\big]_+}{\sum_{k'}\big[\pi_{k'}^{S}(x)\big]_+},
+\qquad \sum_{k}\pi_k^{\mathrm{deploy}}(x)=1,
+\]</div>
+with a uniform fallback \(1/K\) where a column sums to \(\approx 0\). At the support points \(\pi^{S}\) is exact, so the
+renormalisation is a no-op there.
+</div>
+
+<h2>4 · How it is used</h2>
+<p>A method returns \((\pi\ (K\times n),\ \texttt{support\_X})\); calling</p>
+<div class="eq">\[
+\texttt{extend\_with\_shapley\_multiarm}(X_{\text{test}},\ \texttt{support\_X},\ \pi)\ \longrightarrow\ \big(K,\ n_{\text{test}}\big)
+\]</div>
+<p>returns the deployed policy on the test \(X\) (or a dense grid for plotting). The second positional argument is
+named \(X_{\text{train}}\) in the signature (as in the API table below); it receives the policy's covariate array —
+here the returned <code>support_X</code> — which the function collapses to unique cells <em>internally</em> via
+<code>extract_support</code> (so both raw and already-collapsed inputs are accepted). Internally it then runs Step 1
+(<code>extract_support</code>) and Step 2 (<code>extend_with_shapley</code>) per arm, stacks, and applies Step 3
+(<code>_normalise</code>). The public API is:</p>
+<table>
+<tr><th>function</th><th>signature</th><th>role</th></tr>
+<tr><td><code>extract_support</code></td><td>\((X_{\text{train}},\pi_{\text{train}})\to(\texttt{support\_X},\texttt{support\_pi})\)</td><td>Step 1 — unique-cell collapse (per arm)</td></tr>
+<tr><td><code>shapley_pdf</code></td><td>\((x,\texttt{support\_X},\texttt{support\_pi})\to\) scalar / \((m,)\)</td><td>Step 2 — one-arm closed-form operator</td></tr>
+<tr><td><code>extend_with_shapley</code></td><td>\((X_{\text{test}},\texttt{support\_X},\texttt{support\_pi})\to(m,)\)</td><td>Step 2 — one-arm extension over a batch</td></tr>
+<tr><td><code>extend_with_shapley_multiarm</code></td><td>\((X_{\text{test}},X_{\text{train}},\pi)\to(K,m)\)</td><td>Steps 1–3 — full \(K\)-arm deployment</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Summary: a deployment-only operator. Given a method's on-support policy and
+its support covariates, Shapley returns the tightest 1-Lipschitz interpolant per arm, renormalised to the simplex,
+exact at the support — closed form, no solver. Companion extension: nearest-neighbour (<code>extensions/KNN</code>).</p>
+
+</body>
+</html>

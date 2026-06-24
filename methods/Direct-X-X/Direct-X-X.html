@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direct-X-X — naive factual-reward maximiser (no IPW, no robustness)</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#ff7f0e; --border:#e2e2e2; --soft:#fdeedd; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>Direct-X-X</h1>
+<p class="muted">The <strong>naive</strong> factual-reward maximiser — Direct IPW with <em>all weights pinned to one</em>
+(formerly <code>srpo.multiarm.solve_direct_opt_multiarm</code>). This page states
+<strong>exactly the in-sample optimisation problem</strong> the two files in this folder solve:
+<code>Capped/direct_x_x_capped.py</code> and <code>Uncapped/direct_x_x_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> Direct-X-X learns the policy that maximises the <strong>raw observed
+factual reward</strong> on the training sample, with <strong>no inverse-propensity weighting</strong> and
+<strong>no confounding adjustment</strong> — it simply trusts the confounded data as-is. Optionally subject to
+per-arm capacity. It is the <strong>weakest baseline</strong> here; it equals IPW when all weights are 1.
+</div>
+
+<h2>1 · Inputs (all fixed before the optimiser runs)</h2>
+<p>The method does <strong>no statistical preprocessing</strong>; it consumes only the raw data:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i,\;T_i,\;Y_i\)</td><td>covariates, observed arm, observed outcome of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\)</td><td>data</td></tr>
+<tr><td>\(\hat w_i \equiv 1\)</td><td>weights are <strong>pinned to one</strong>: no \(1/\hat P(T\mid x)\) reweighting at all. This method does <strong>not</strong> take an <code>ips_weights</code> argument.</td><td>(none — internal constant)</td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (<strong>capped version only</strong>)</td><td>caller</td></tr>
+</table>
+<p class="muted">Note what is <strong>absent</strong> versus every other method here: there is no nominal weight
+\(\hat w_i\), no sensitivity level \(\Gamma\) and odds box \([a_i,b_i]\), no distance matrix \(D\) and no
+Wasserstein radius \(\varepsilon_k\). Direct-X-X drops <em>all</em> robustness and even the propensity
+correction, so it has no <code>ips_weights</code>/<code>Gamma</code>/<code>c_eps</code>/<code>epsilon</code> argument.</p>
+
+<h2>2 · The decision: a policy on the (discretised) support</h2>
+<p>We learn \(\pi_k(x)\in[0,1]\) with \(\sum_k\pi_k(x)=1\). The <code>discretize</code>/<code>mesh</code> arguments
+fix where \(\pi\) is defined exactly as in R-O / R-OW: <code>discretize=True</code> snaps the covariates onto a
+<code>mesh</code>-level grid (<code>common.support</code>) and <strong>ties</strong> same-cell units to one policy
+value (so \(\pi\) is piecewise-constant in \(x\)); <code>discretize=False</code> uses the raw covariates (singleton
+support — degenerate on continuous \(x\)). The discretisation is still needed even though Direct-X-X has
+no robustness term: it is what pools units so the free-π LP is well-posed.</p>
+
+<h2>3 · The in-sample problem (primal: raw factual reward)</h2>
+<p>With unit weights \(\hat w_i\equiv 1\), the IPW value of \(\pi\) is just the average observed factual reward
+\(V(\pi)=\frac1n\sum_i Y_i\,\pi_{T_i}(x_i)\). Direct-X-X maximises it directly — there is <strong>no inner
+worst case</strong> over any uncertainty set, because there is no uncertainty set:</p>
+<div class="eq">\[
+\boxed{\;\pi^\star \;=\; \arg\max_{\pi\in\Pi}\ \frac1n\sum_{i=1}^{n} Y_i\,\pi_{T_i}(x_i)\;}
+\]</div>
+<p>with the feasible policy set</p>
+<div class="eq">\[
+\Pi:\quad \pi_k(x_i)\ge 0,\qquad \sum_{k}\pi_k(x_i)=1\ \ \forall i,\qquad
+\underbrace{\tfrac1n\sum_{i}\pi_k(x_i)\le\mathrm{cap}_k\ \ \forall k}_{\textbf{capped version only}},
+\]</div>
+<p>(plus the tie constraints). Because the objective is already linear in \(\pi\) with the weights fixed at 1,
+this is a plain primal LP — <strong>no dualisation is needed</strong> (unlike R-O / R-OW, where the inner
+\(\min_W\) is dualised). Equivalently, this is Direct IPW with \(\hat w_i\to 1\), or R-O / R-OW evaluated with a
+point-mass uncertainty set fixed at the (un-reweighted) sample.</p>
+
+<h2>4 · How it is solved — a direct LP with unit weights</h2>
+<p>Direct-X-X is IPW with the weights pinned to one, so it is solved as a <strong>direct LP — no
+dualisation</strong>. The three steps below are the entire recipe.</p>
+
+<p><strong>Step 1 — the objective is already linear in \(\pi\).</strong> Setting \(\hat w_i\equiv 1\) (no
+propensity correction) leaves the IPW value as the plain average factual reward, which is linear in the policy:</p>
+<div class="eq">\[
+V(\pi)\;=\;\frac1n\sum_{i=1}^{n} \hat w_i\,Y_i\,\pi_{T_i}(x_i)\;\Big|_{\hat w_i\equiv 1}
+\;=\;\frac1n\sum_{i=1}^{n} Y_i\,\pi_{T_i}(x_i).
+\]</div>
+
+<p><strong>Step 2 — maximise it directly under the policy constraints.</strong> There is no inner worst case to
+take, so we optimise \(V(\pi)\) straight over the feasible set: the per-unit simplex, the per-cell tie, and the
+(capped) capacity constraint:</p>
+<div class="eq">\[
+\begin{aligned}
+\max_{\pi}\ \ &\frac1n\sum_{i=1}^{n} Y_i\,\pi_{T_i}(x_i)\\[2pt]
+\text{s.t.}\ \ &\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(simplex + tie)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k.
+&&\textbf{(capacity — capped only)}
+\end{aligned}
+\]</div>
+
+<p><strong>Step 3 — solve the LP with Gurobi.</strong> The problem above is a plain linear program in the single
+variable block \(\pi\), handed directly to Gurobi. Because the factual reward is binary, \(Y_i\in\{0,1\}\), the
+objective coefficients take only two values and <strong>many units tie</strong>: the LP is typically
+<em>degenerate / has alternate optima</em>, so the optimal value \(V(\pi^\star)\) is unique but the maximiser is
+often not. Gurobi simply returns <strong>one optimal vertex</strong> \(\pi^\star\) among the alternate optima.</p>
+
+<p class="muted"><strong>How it is used.</strong> The solve returns the on-support policy \(\pi^\star\) (K×n);
+off-support deployment is then handled by the Shapley / KNN extension (<code>extensions/</code>).</p>
+
+<h2>5 · What is actually solved (the LP)</h2>
+<p>The files build exactly the LP below. The only variables are the policy values \(\pi_k(x_i)\) — there are
+<strong>no dual / multiplier variables</strong>, because there is no inner minimisation to dualise.</p>
+<div class="eq">\[
+\max_{\pi}\ \ \frac1n\sum_{i=1}^{n} Y_i\,\pi_{T_i}(x_i)
+\]</div>
+<p>subject to</p>
+<div class="eq">\[
+\begin{aligned}
+&\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(valid policy)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k.
+&&\textbf{(capacity — capped only)}
+\end{aligned}
+\]</div>
+<table>
+<tr><th>variable</th><th>meaning</th></tr>
+<tr><td>\(\pi_k(x_i)\in[0,1]\)</td><td>the policy probability of arm \(k\) at unit \(i\) — the <strong>only</strong> decision variable; columns sum to 1 and are tied across same-cell units</td></tr>
+</table>
+<p class="muted">There is no dual certificate to report: with weights fixed at 1 the problem is a single linear
+maximisation, so the saved result holds only \(\pi^\star\), its usage, the objective and the solver status —
+no \(\mu,\nu,\beta,\gamma,\theta\). Ported <strong>exactly</strong> from
+<code>srpo.multiarm.solve_direct_opt_multiarm</code> (= <code>solve_direct_ipw_multiarm</code> with \(\hat w\equiv1\)).</p>
+
+<h2>6 · Capped vs. Uncapped — the only difference</h2>
+<ul>
+<li><code>Capped/direct_x_x_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\) (requires <code>cap</code>).</li>
+<li><code>Uncapped/direct_x_x_uncapped.py</code> — drops it (no <code>cap</code> argument); any arm may be assigned to any fraction.</li>
+</ul>
+
+<h2>7 · Direct-X-X vs the robust methods</h2>
+<p>Same value-maximisation skeleton, same discretisation and capacity — but Direct-X-X <strong>omits the
+propensity reweighting AND every robustness device</strong>. Consequences: no \(\hat w_i\), no odds box, no
+Wasserstein ball, and therefore no dual multipliers at all. Because it does not even correct for observed-\(x\)
+overlap, it is biased toward frequently-assigned / often-successful arms and is expected to be the
+<strong>weakest method</strong>. It is the trust-the-data reference against which Direct IPW (adds \(\hat w\)),
+R-O (adds the odds box) and R-OW (adds the Wasserstein balance) are measured — Direct-X-X equals IPW
+exactly when all weights happen to be 1.</p>
+
+<h2>8 · Arguments that shape the problem</h2>
+<table>
+<tr><th>argument</th><th>effect</th></tr>
+<tr><td><code>discretize</code> (bool)</td><td>discretisation switch: snap to grid (via <code>support.py</code>) and tie per cell, or use raw \(x\) (singleton support).</td></tr>
+<tr><td><code>mesh</code> (int)</td><td>grid levels per coordinate when <code>discretize=True</code> (e.g. 6 ⇒ 6×6 cells in 2-D).</td></tr>
+<tr><td><code>cap</code> (capped only)</td><td>per-arm capacity \(\mathrm{cap}_k\); the constraint \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\) is enforced.</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Outputs: the optimal on-support policy \(\pi^\star\) (K×n), its realised per-arm
+usage, the naive (\(\hat w\equiv1\)) objective, and the solver status — persisted per
+<code>results/SAVING.md</code>. Off-support deployment (<code>extensions/</code>) is a separate step.</p>
+
+</body>
+</html>

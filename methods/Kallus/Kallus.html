@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kallus — parametric regret-minimiser (softmax)</title>
+<script>window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#8c564b; --border:#e2e2e2; --soft:#f2eae6; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .warn { border-left-color:#d62728; background:#fdecec; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; } th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>Kallus</h1>
+<p class="muted">The <strong>parametric</strong> Kallus &amp; Zhou regret-minimiser — a softmax policy class.
+Single file <code>kallus.py</code> (<code>fit_kallus</code>, <code>predict_kallus</code>). <strong>Flat</strong>:
+no Capped/Uncapped, no grid discretisation.</p>
+
+<div class="card">
+<strong>One sentence.</strong> Kallus learns softmax policy parameters \(\theta\) that <strong>minimise the
+worst-case regret</strong> of the policy relative to the all-control baseline \(\pi_0\), over the
+marginal-sensitivity box (optionally ∩ Wasserstein) — the parametric counterpart of the free-π
+Regret-O / Hajek-OW LPs.
+</div>
+
+<div class="card warn">
+<strong>Derivation note (no old reference).</strong> The repository only contained a parametric <em>value</em>
+maximiser (parametric R-OW/R-O). This method is a NEW derivation: same softmax machinery + outer subgradient
+loop + inner Gurobi LP, but the inner is the worst-case <em>regret</em> and the outer <em>descends</em> it. There
+is no legacy solver to bit-check against; it is verified by construction and sanity.
+</div>
+
+<h2>1 · The policy class &amp; inputs</h2>
+<div class="eq">\[ \pi_\theta(k\mid x)=\operatorname{softmax}_k\big(\theta_0^\top\varphi(x),\dots,\theta_{K-1}^\top\varphi(x)\big),\qquad \theta\in\mathbb R^{K\times p}, \]</div>
+<p>with feature map \(\varphi\) (<code>basis</code>: affine / poly / rbf). Inputs: covariates \(x_i\), arm \(T_i\),
+outcome \(Y_i\), and the nominal inverse weights \(\hat w_i\) (estimated upstream — <strong>never</strong> the true
+propensities); sensitivity \(\Gamma\); and, for the Wasserstein variant, radii \(\varepsilon_k\). <strong>No
+discretisation</strong> — the softmax is a smooth function of the raw \(x\), so there is no <code>discretize</code>/<code>mesh</code>
+and no Shapley/KNN extension (deploy with <code>predict_kallus</code> directly).</p>
+
+<h2>2 · The in-sample problem (min worst-case SELF-NORMALISED regret)</h2>
+<p>Kallus &amp; Zhou use the <strong>Hájek</strong> (self-normalised) regret: per arm \(t\) the value is normalised by the
+weights' <em>own</em> mass, so the denominator <strong>floats with \(w\)</strong>. With all-control baseline \(\pi_0\),</p>
+<div class="eq">\[
+\boxed{\;\min_{\theta}\ \sum_t\ \sup_{w\in\mathcal U(\Gamma[,\varepsilon])}\
+\frac{\sum_{i:T_i=t}\big(\mathbf 1[t=0]-\pi_\theta(t\mid x_i)\big)Y_iw_i}{\sum_{i:T_i=t}w_i}\;}
+\]</div>
+<p>where \(\mathcal U\) is the marginal-sensitivity box \(a_i\le w_i\le b_i\), built on the <strong>raw</strong> inverse
+weights \(\tilde W_i=1/\hat P(T_i\mid x_i)\ge1\) (so \(a_i\ge1>0\) and the denominator stays positive). For
+<code>wasserstein=False</code> (the studies' setting) this is exactly Regret-O's box; for <code>wasserstein=True</code>
+the per-arm Wasserstein balls are added (= Hajek-OW's set, where the transport's mass-balance pins \(\sum_{T_i=t}w_i=n\),
+so that variant is self-normalised with denominator \(n\)). No explicit \(\sum w=n\) calibration is imposed in the box
+case — the self-normalisation IS the calibration (Kallus &amp; Zhou Eq. 4, 10).</p>
+
+<h2>3 · How it is solved</h2>
+<p><strong>Inner</strong> (fixed \(\theta\)): a Gurobi LP returns the worst-case \(w^\star\) and the regret —
+a MAX over \(\mathcal U\) of \(\frac1n\sum_i(\mathbf 1[T_i=0]-\pi_\theta(T_i|x_i))Y_iw_i\).
+<strong>Outer</strong>: subgradient descent on the regret envelope. Since the \(\pi_0\) term is \(\theta\)-free,
+\(\partial R/\partial\theta=-\partial V(\pi_\theta,w^\star)/\partial\theta\), so descending regret means
+<em>ascending</em> the policy value at \(w^\star\):</p>
+<div class="eq">\[
+\theta\ \leftarrow\ \theta+\frac{\eta_0}{(k+1)^{\kappa}}\,\Big[\big(\tfrac{Y\odot w^\star}{n}\big)\odot\pi_\theta(T\!\mid\!X)\,(\mathrm{onehot}-\pi_\theta)\Big]^{\!\top}\varphi(X),
+\]</div>
+<p>over <code>n_restarts</code> random inits × <code>n_iters</code> steps. Per restart we return the <strong>Polyak
+iterate-average</strong> \(\bar\theta=\tfrac1{n_{\text{iters}}}\sum_k\theta_k\); across restarts we keep the
+\(\bar\theta\) with the smallest worst-case regret. The per-unit \(\pi_\theta(T_i\!\mid\!X_i)\) factor makes this the
+<strong>exact</strong> policy gradient \(\nabla\pi\) (Kallus &amp; Zhou, Algorithm 1), not the score-function \(\nabla\log\pi\).</p>
+<p class="muted"><strong>Outcome convention (<code>maximize</code>).</strong> Default <code>True</code> treats \(Y\) as a
+<em>reward</em> — regret \(=V(\pi_0)-V(\pi)\), the studies' convention; <code>maximize=False</code> treats \(Y\) as a
+<em>loss</em> (Kallus &amp; Zhou's exact convention, regret \(=V(\pi)-V(\pi_0)\)), implemented by negating \(Y\).</p>
+
+<h2>4 · How it is solved — inner LP + outer subgradient (no single LP)</h2>
+<p>Unlike the free-π R-O / R-OW methods, Kallus is <strong>parametric</strong> (softmax in \(\theta\)), so the
+objective is <strong>nonconvex</strong> in \(\theta\) and the problem is <strong>not a single LP</strong>. It
+alternates an <em>exact inner LP</em> (fixed \(\theta\)) with an <em>outer subgradient step</em> on \(\theta\). The
+steps below trace one full pass; we write \(w\) for the adversary's weight vector.</p>
+
+<div class="card">
+<strong>Step 1 — inner problem (fixed \(\theta\), per-arm self-normalised sup).</strong> Form the policy \(\pi_\theta\)
+and its observed-arm probabilities \(\pi_\theta(T_i\mid x_i)\). The worst-case regret is the per-arm Hájek ratio
+<div class="eq">\[
+\sum_t\ \sup_{w\in\mathcal U}\ \frac{\sum_{i:T_i=t}\big(\mathbf 1[t=0]-\pi_\theta(t\mid x_i)\big)Y_iw_i}{\sum_{i:T_i=t}w_i},
+\]</div>
+a <strong>linear-fractional</strong> program per arm. The box case is solved fast by a Dinkelbach root-find (no LP);
+the Wasserstein case by a transport LP per level. It returns the per-arm <strong>normalised</strong> maximiser
+\(w^\star\) (\(\sum_{T_i=t}w^\star_i=1\)) and the regret value.
+</div>
+
+<div class="card">
+<strong>Step 2 — envelope subgradient.</strong> Because the \(\pi_0\) term \(\mathbf 1[T_i=0]\) is
+\(\theta\)-free, Danskin's envelope theorem gives \(\partial R/\partial\theta=-\,\partial V(\pi_\theta,w^\star)/\partial\theta\):
+descending the regret means <em>ascending</em> the policy value at the frozen \(w^\star\). Using the <strong>exact
+softmax gradient</strong> \(\nabla_\theta\pi_\theta(T_i\!\mid\!X_i)=\pi_\theta(T_i\!\mid\!X_i)\,(\mathrm{onehot}_i-\pi_\theta)\,\varphi(X_i)\)
+— note the per-unit \(\pi_\theta(T_i\!\mid\!X_i)\) factor; this is \(\nabla\pi\) (Kallus &amp; Zhou, Algorithm 1), not the
+score-function \(\nabla\log\pi\) — the ascent direction is
+<div class="eq">\[
+\mathrm{grad}\;=\;\Big[\big(\tfrac{Y\odot w^\star}{n}\big)\odot\pi_\theta(T\!\mid\!X)\,(\mathrm{onehot}-\pi_\theta)\Big]^{\!\top}\varphi(X).
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 3 — outer update.</strong> Take a single decaying subgradient ascent step,
+<div class="eq">\[
+\theta\ \leftarrow\ \theta+\frac{\eta_0}{(k+1)^{\kappa}}\,\mathrm{grad},
+\]</div>
+repeated for <code>n_iters</code> steps, over <code>n_restarts</code> random initialisations.
+</div>
+
+<div class="card">
+<strong>Step 4 — average &amp; select.</strong> Per restart, return the <strong>Polyak iterate-average</strong>
+\(\bar\theta=\tfrac1{n_{\text{iters}}}\sum_k\theta_k\) (Algorithm 1, line 7); across the <code>n_restarts</code>
+restarts keep the \(\bar\theta\) with the <strong>smallest</strong> worst-case regret — a guard against the nonconvex
+landscape, since different random initialisations can converge to different optima.
+</div>
+
+<div class="card">
+<strong>Step 5 — solve.</strong> Each inner problem is a <strong>Gurobi</strong> LP; the outer loop is plain
+subgradient ascent in <code>numpy</code>. <strong>No dual certificate is stored</strong> — the global problem is
+not an LP, so there is no single dual to certify (contrast R-O / R-OW, which save \((\beta,\mu,\nu)\)).
+</div>
+
+<p class="muted"><strong>How it is used.</strong> The fit returns \(\theta\); deploy to new covariates with
+<code>predict_kallus(\theta, X)</code> directly — the softmax is smooth, so there is <strong>no Shapley/KNN
+extension</strong>.</p>
+
+<h2>5 · Caveats &amp; why it is flat</h2>
+<ul>
+<li><strong>Regret can be \(>0\).</strong> For the free-π LP the all-control \(\pi_0\) is feasible, so regret \(\le 0\)
+("do-no-harm"). The softmax class cannot represent \(\pi_0\) exactly (it needs \(\theta\to\infty\)), so the
+parametric worst-case regret may be slightly positive — the cost of the smooth, restricted policy class.</li>
+<li><strong>No capacity (flat folder).</strong> A hard per-arm capacity is a population constraint the free-π LP can
+impose; a smooth parametric policy cannot, so Kallus has a single, uncapped form.</li>
+<li><strong>No discretisation.</strong> Parametric ⇒ the policy generalises across continuous \(x\) directly.</li>
+</ul>
+
+<h2>6 · Arguments</h2>
+<table>
+<tr><th>argument</th><th>effect</th></tr>
+<tr><td><code>Gamma</code></td><td>size of the MSM box.</td></tr>
+<tr><td><code>maximize</code></td><td><code>True</code> (default): \(Y\) is a reward (regret \(V(\pi_0)-V(\pi)\)); <code>False</code>: \(Y\) is a loss — the paper's exact convention (regret \(V(\pi)-V(\pi_0)\)).</td></tr>
+<tr><td><code>wasserstein</code> / <code>epsilon</code></td><td>use box∩Wasserstein (needs ε per arm) instead of the box-only self-normalised set.</td></tr>
+<tr><td><code>basis</code></td><td>feature map φ (affine / poly / rbf) — the richness of the policy class.</td></tr>
+<tr><td><code>n_iters, n_restarts, eta0, kappa, init_scale, seed</code></td><td>the subgradient-descent schedule.</td></tr>
+</table>
+<p class="muted" style="margin-top:24px;">Outputs: \(\theta\) (the policy), the worst-case regret, and the fit
+config — persisted per <code>results/SAVING.md</code> (parametric methods save θ, not an on-support π).</p>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hajek-OW — robust Odds-box ∩ Wasserstein worst-case-regret minimiser</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#17becf; --border:#e2e2e2; --soft:#e6f8fb; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>Hajek-OW</h1>
+<p class="muted">Robust, <strong>O</strong>dds-box ∩ <strong>W</strong>asserstein worst-case-<strong>regret</strong>
+minimiser — the Kallus &amp; Zhou regret formulation (formerly <code>srpo.multiarm.solve_kallus_w_multiarm</code>)
+in the code-1.1 clean form. It uses the <em>same</em> uncertainty set as R-OW, but
+<strong>minimises worst-case regret</strong> against the all-control baseline rather than maximising worst-case
+value. This page states <strong>exactly the in-sample optimisation problem</strong> the two implementations in this
+folder solve: <code>Capped/regret_ow_capped.py</code> and <code>Uncapped/regret_ow_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> Hajek-OW learns the treatment policy that minimises the <strong>worst-case regret</strong>
+— the gap to the all-control baseline \(\pi_0\) — of its inverse-propensity-weighted value on the training sample,
+where the worst case ranges over the same re-weighting set as R-OW: (i) a Rosenbaum/Tan sensitivity box of size
+\(\Gamma\) (<em>unobserved confounding</em>) intersected with (ii) per-arm Wasserstein balls of radius
+\(\varepsilon_k\) (<em>covariate imbalance</em>) — optionally subject to per-arm <em>capacity</em>.
+</div>
+
+<div class="card" style="border-left:4px solid #b07a00;">
+<strong>An intentional hybrid — not pure Kallus.</strong> Hajek-OW deliberately combines two ingredients:
+<ul style="margin:8px 0 0 18px;">
+<li><strong>Kallus &amp; Zhou's objective</strong> — <em>worst-case regret</em> against the all-control baseline
+\(\pi_0\) (the paper's exact criterion), so the optimum is always do-no-harm (objective \(\le 0\)).</li>
+<li><strong>R-OW's uncertainty set (the "OW")</strong> — the Tan/Rosenbaum odds box of size \(\Gamma\)
+<em>intersected with</em> per-arm Wasserstein balls of radius \(\varepsilon_k\), rather than Kallus's own
+extension (a total-variation budget on the weights).</li>
+</ul>
+Crucially the policy class is <strong>left unrestricted</strong> (free \(\pi\) per support cell, solved by LP) —
+<em>not</em> the parametric softmax of the <a href="../Kallus/Kallus.html">Kallus</a> method — precisely so that a
+per-arm <strong>capacity</strong> constraint can be added (the <code>Capped/</code> solver). So: Kallus-style regret
+objective, R-OW-style confounding+balance uncertainty, capacity-capable free policy. Pure parametric Kallus lives in
+<code>methods/Kallus/</code>; the box-only regret minimiser is <a href="../Hajek-O-X/Hajek-O-X.html">Hajek-O-X</a>.
+</div>
+
+<h2>1 · Inputs (all fixed before the optimiser runs)</h2>
+<p>The method does <strong>no statistical preprocessing</strong>; it consumes quantities prepared by
+<code>common/</code>:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i,\;T_i,\;Y_i\)</td><td>covariates, observed arm, observed outcome of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\) (arm 0 = control)</td><td>data</td></tr>
+<tr><td>\(\hat w_i = 1/\hat P(T_i\mid x_i)\)</td><td><strong>nominal</strong> inverse weight, per-arm Hájek-normalised (\(\sum_{i:T_i=k}\hat w_i=n\)). <strong>Estimated from \((X,T)\) — never the true propensity.</strong></td><td><code>common.ipw_weights_from_data</code></td></tr>
+<tr><td>\(\Gamma\ge 1\)</td><td>marginal-sensitivity level (how far the true weights may deviate). \(\Gamma=1\) ⇒ no confounding assumed.</td><td><code>common.matched_gamma</code> (\(=e^{\gamma/2}\))</td></tr>
+<tr><td>\([a_i,b_i]\)</td><td>per-unit MSM interval around \(\hat w_i\) (the "odds box")</td><td><code>common.marginal_sensitivity_box(\hat w,\Gamma)</code></td></tr>
+<tr><td>\(D_{ij}=\lVert x_i-x_j\rVert\)</td><td>covariate ground cost for the Wasserstein term (z-scored first when <code>zscore=True</code>)</td><td><code>common.distance_matrix</code></td></tr>
+<tr><td>\(\varepsilon_k\)</td><td>per-arm Wasserstein radius (tight \(\times\) <code>c_eps</code>)</td><td><code>common.tight_epsilon</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (<strong>capped version only</strong>)</td><td>caller</td></tr>
+<tr><td>\(\pi_0\)</td><td>the <strong>all-control baseline</strong> policy (\(\pi_{0,0}\equiv 1\)) — the comparison point for regret</td><td>fixed by convention</td></tr>
+</table>
+
+<h2>2 · The decision: a policy on the (discretised) support</h2>
+<p>We learn \(\pi_k(x)\in[0,1]\), the probability of assigning arm \(k\) at covariate \(x\), with
+\(\sum_{k}\pi_k(x)=1\). The <code>discretize</code>/<code>mesh</code> arguments fix <em>where</em> \(\pi\) is
+defined: with <code>discretize=True</code> the covariates are <strong>snapped onto a <code>mesh</code>-level grid</strong>
+(<code>common.support</code>), and units that share a grid cell are <strong>tied</strong> to one policy value — so
+\(\pi\) is a genuine piecewise-constant function of \(x\). With <code>discretize=False</code> the raw covariates are
+used (every unit its own cell), which on continuous \(x\) is the degenerate "singleton" regime.</p>
+
+<h2>3 · The in-sample problem (primal: worst-case regret)</h2>
+<p>For a re-weighting \(W=(W_1,\dots,W_n)\) of the sample, the IPW value of \(\pi\) is</p>
+<div class="eq">\[ V(\pi,W)\;=\;\frac1n\sum_{i=1}^{n} W_i\,Y_i\,\pi_{T_i}(x_i). \]</div>
+<p>The <strong>regret</strong> of \(\pi\) under weighting \(W\) is its shortfall against the all-control baseline
+\(\pi_0\) (which assigns arm 0 to everyone, so \(V(\pi_0,W)=\frac1n\sum_{i:T_i=0}W_iY_i\)):</p>
+<div class="eq">\[ R(\pi,W)\;=\;V(\pi_0,W)\;-\;V(\pi,W). \]</div>
+<p>Because of the <strong>unobserved confounder</strong> the true weighting \(W\) is unknown; Hajek-OW only assumes
+it lies in the uncertainty set \(\mathcal U(\Gamma,\varepsilon)\) and minimises the <strong>worst-case regret</strong>
+over it:</p>
+<div class="eq">\[
+\boxed{\;\pi^\star \;=\; \arg\min_{\pi\in\Pi}\ \max_{W\in\mathcal U(\Gamma,\varepsilon)}\ \Big[\,V(\pi_0,W)-V(\pi,W)\,\Big]\;}
+\]</div>
+<p>where the feasible policy set \(\Pi\) is</p>
+<div class="eq">\[
+\Pi:\quad \pi_k(x_i)\ge 0,\qquad \sum_{k=0}^{K-1}\pi_k(x_i)=1\ \ \forall i,\qquad
+\underbrace{\tfrac1n\sum_{i=1}^{n}\pi_k(x_i)\;\le\;\mathrm{cap}_k\ \ \forall k}_{\textbf{capped version only}} ,
+\]</div>
+<p>plus the tie constraints (\(\pi\) constant on each grid cell). The uncertainty set is <strong>identical to
+R-OW's</strong> and combines two pieces:</p>
+<div class="eq">\[
+\mathcal U(\Gamma,\varepsilon)\;=\;\underbrace{\Big\{\,W:\ a_i\le W_i\le b_i\ \ \forall i\,\Big\}}_{\textbf{(O) odds / MSM box — unobserved confounding}}\ \cap\
+\underbrace{\Big\{\,W:\ \mathcal W_{D}\big(\text{emp. law},\,W\text{-reweighted arm-}k\text{ law}\big)\le \varepsilon_k\ \ \forall k\,\Big\}}_{\textbf{(W) Wasserstein balls — covariate balance}} .
+\]</div>
+<p class="muted"><strong>Already self-normalised (Hájek).</strong> The Wasserstein transport's mass-balance (demand
+\(\tfrac1n\), supply \(W_j/n\)) <em>forces</em> \(\sum_{i:T_i=k}W_i=n\) per arm — so the \(\frac1n\)-normalised value
+\(V(\pi,W)\) equals the per-treatment Hájek <em>ratio</em> \(\sum_{T_i=k}r_iW_i/\sum_{T_i=k}W_i\) of Kallus &amp; Zhou
+(Eq. 4, 10). The calibration is supplied by the transport, so — unlike box-only Hajek-O-X — no separate handling is
+needed and the original dual LP below is unchanged. (\(Y\) is a reward here, hence \(\mathbf 1[k{=}0]-\pi_k\).)</p>
+<p class="muted"><strong>Do-no-harm.</strong> Since the all-control baseline \(\pi_0\) is itself a feasible policy
+(\(\pi_0\in\Pi\)), choosing \(\pi=\pi_0\) gives \(R(\pi_0,W)=0\) for every \(W\); the optimal worst-case regret is
+therefore <strong>always \(\le 0\)</strong>. As \(\Gamma\) grows and the adversary gets stronger, the optimum reverts
+toward \(\pi_0\) — Hajek-OW will not deploy a treatment unless it can certify a robust improvement over control.</p>
+
+<h2>4 · What is actually solved (MIN dual LP)</h2>
+<p>Dualising the inner \(\max_W\) of the regret turns the min–max into a single <strong>minimisation</strong> linear
+program — the LP these files build and hand to Gurobi. The inner reward of unit \(i\) under arm \(k\) is
+\(c_{k,i}=\frac1n\big(\mathbf 1[k=0]-\pi_k(x_i)\big)Y_i\). Variables: the policy \(\pi_k(x_i)\); \(\beta_k\ge0\);
+\(\gamma_{k,i}\); \(\theta_{k,j}\) (for factual \(j\in I_k=\{i:T_i=k\}\)); \(p_i\ge0\); \(q_i\ge0\).</p>
+<div class="eq">\[
+\min_{\pi,\beta,\gamma,\theta,p,q}\ \ \sum_{k}\Big(\beta_k\,\varepsilon_k+\frac1n\sum_i \gamma_{k,i}\Big)\;+\;\sum_i\big(b_i\,p_i-a_i\,q_i\big)
+\]</div>
+<p>subject to</p>
+<div class="eq">\[
+\begin{aligned}
+&\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(valid policy)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k;
+&&\textbf{(capacity — capped only)}\\[2pt]
+&\textstyle p_i-q_i-\frac1n\,\theta_{k,i}+\frac1n\,\pi_k(x_i)\,Y_i\ =\ \frac1n\,\mathbf 1[k=0]\,Y_i\quad \forall k,\ \forall i\in I_k;
+&&\text{(factual-row dual equality)}\\[2pt]
+&\beta_k\,D_{ij}+\gamma_{k,i}+\theta_{k,j}\ \ge\ 0\quad \forall k,\ \forall i,\ \forall j\in I_k;
+&&\text{(transport / Wasserstein geometry)}\\[2pt]
+&\beta_k\ge 0,\quad p_i\ge 0,\quad q_i\ge 0.
+\end{aligned}
+\]</div>
+<table>
+<tr><th>dual variable</th><th>meaning (saved as the dual certificate per the saving spec)</th></tr>
+<tr><td>\(\beta_k\ge0\)</td><td>price of the Wasserstein radius \(\varepsilon_k\) (the "W" multiplier)</td></tr>
+<tr><td>\(p_i,\ q_i\ge0\)</td><td>Kallus <strong>regret-box</strong> duals on the box upper/lower bounds \(b_i,a_i\) — saved in the result fields <code>mu</code> (\(=p\)) and <code>nu</code> (\(=q\))</td></tr>
+<tr><td>\(\gamma_{k,i},\ \theta_{k,j}\)</td><td>transport "demand"/"factual" duals certifying the optimal worst-case coupling</td></tr>
+</table>
+<p class="muted">This is a <strong>MIN problem</strong> (the objective is the worst-case <em>regret</em>, not value),
+which is the structural difference from R-OW's MAX LP. The objective value is <strong>\(\le 0\)</strong> at the
+optimum (do-no-harm: \(\pi_0\) is feasible). The LP is reproduced <strong>exactly</strong> from
+<code>srpo.multiarm.solve_kallus_w_multiarm</code>.</p>
+
+<h2>5 · How it is solved — dualising the box ∩ Wasserstein regret-adversary</h2>
+<p>Hajek-OW is <strong>R-O with the inner adversary additionally constrained to the per-arm Wasserstein ball</strong>:
+the same min–max regret, but the worst-case re-weighting must now respect both the odds box and covariate balance.
+Dualising that inner maximisation produces the single <strong>minimisation</strong> LP of the previous section. The
+derivation proceeds in five steps.</p>
+
+<p><strong>Step 1 — primal (min–max regret).</strong> Start from the worst-case regret over the box ∩ Wasserstein set,</p>
+<div class="eq">\[
+\min_{\pi\in\Pi}\ \max_{w\,\in\,\mathcal U_{\mathrm{box}}\cap\,\mathcal U_{\mathrm W}}\ R(\pi,w),
+\qquad
+R(\pi,w)\;=\;\frac1n\sum_{i=1}^{n}\big(\mathbf 1[T_i=0]-\pi_{T_i}\big)\,Y_i\,w_i,
+\]</div>
+<p>with the per-arm Wasserstein set \(\mathcal U_{\mathrm W}\) exactly as in R-OW. This is a <strong>MIN</strong> LP:
+the outer player chooses the policy \(\pi\), the inner adversary chooses the re-weighting \(w\).</p>
+
+<p><strong>Step 2 — inner max over \((w,\zeta)\).</strong> The inner maximisation is lifted to the transport plane:
+for each arm \(k\) introduce the coupling \(\zeta^k\) whose marginals are the demand (target empirical law) and supply
+(the \(w\)-reweighted arm-\(k\) law), with transport budget \(\varepsilon_k\) — the <strong>same transport coupling
+\(\zeta^k\) with demand / supply marginals and budget \(\varepsilon_k\) as R-OW</strong>.</p>
+
+<p><strong>Step 3 — dualise.</strong> Attach multipliers to the inner program: \(\beta_k\ge 0\) to the transport
+budget, \(\gamma^{\mathrm d}_{k,i}\) to the demand marginals, \(\theta_{k,j}\) to the supply marginals, and
+\(p_i\ge 0,\ q_i\ge 0\) to the box upper/lower bounds. Strong duality (the inner program is a bounded LP) gives the
+<strong>factual-row equality</strong>, one per factual unit \(i\in I_k=\{i:T_i=k\}\),</p>
+<div class="eq">\[
+p_i-q_i-\frac1n\,\theta_{k,i}+\frac1n\,Y_i\,\pi_{k,i}\ =\ \frac1n\,\mathbf 1[k=0]\,Y_i\qquad(i\in I_k),
+\]</div>
+<p>together with the <strong>transport-metric inequality</strong> tying the budget price to the ground cost,</p>
+<div class="eq">\[
+\beta_k\,D_{ij}+\gamma^{\mathrm d}_{k,i}+\theta_{k,j}\ \ge\ 0 .
+\]</div>
+
+<p><strong>Step 4 — objective (MIN).</strong> The dual objective collects the priced budget, the demand duals, and the
+box bounds,</p>
+<div class="eq">\[
+\sum_{k}\Big(\beta_k\,\varepsilon_k+\frac1n\sum_i \gamma^{\mathrm d}_{k,i}\Big)\;+\;\sum_i\big(b_i\,p_i-a_i\,q_i\big),
+\]</div>
+<p>and is minimised <strong>jointly with the outer \(\min_\pi\) and the policy constraints</strong> (valid policy, ties,
+and capacity in the capped version). The result is precisely the LP written in the previous section.</p>
+
+<p><strong>Step 5 — solve.</strong> The LP is handed to <strong>Gurobi</strong>. At the optimum the objective equals the
+<strong>worst-case regret</strong> (\(\le 0\) by do-no-harm). The box duals \(p,q\) are stored as
+<code>mu</code>/<code>nu</code>; the transport duals \(\gamma^{\mathrm d},\theta\) are stored as
+<code>gamma_dual</code>/<code>theta</code>.</p>
+
+<p class="muted"><strong>How it is used.</strong> The solve returns the on-support policy \(\pi\) (K×n) together with the
+dual certificate; deployment to off-support covariates is then carried out via the Shapley/KNN extension.</p>
+
+<h2>6 · Capped vs. Uncapped — the only difference</h2>
+<p>The two files are identical except for the <strong>capacity</strong> row above:</p>
+<ul>
+<li><code>Capped/regret_ow_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\). The policy may treat at most
+a \(\mathrm{cap}_k\) fraction with arm \(k\) (control is typically left uncapped). Requires the <code>cap</code> argument.</li>
+<li><code>Uncapped/regret_ow_uncapped.py</code> — drops that constraint entirely (no <code>cap</code> argument). The policy may
+assign any arm to any fraction of the population.</li>
+</ul>
+
+<h2>7 · Arguments that shape the problem</h2>
+<table>
+<tr><th>argument</th><th>effect on the in-sample problem</th></tr>
+<tr><td><code>discretize</code> (bool)</td><td><strong>Discretisation switch.</strong> <code>True</code>: snap \(x\) to a grid (via <code>support.py</code>) and tie per cell — \(\pi\) is piecewise-constant and the LP is well-posed. <code>False</code>: raw \(x\), singleton support (the degenerate regime).</td></tr>
+<tr><td><code>mesh</code> (int)</td><td>grid resolution: number of levels per coordinate when <code>discretize=True</code> (e.g. <code>6</code> ⇒ a 6×6 grid in 2-D). Finer mesh ⇒ more cells, fewer units per cell.</td></tr>
+<tr><td><code>Gamma</code></td><td>size of the (O) box. \(\Gamma=1\) collapses the box to a point (\(a_i=b_i=\hat w_i\)); the worst-case regret then has no confounding slack and the optimum tracks the non-robust regret-minimiser.</td></tr>
+<tr><td><code>c_eps</code> / <code>epsilon</code></td><td>scale of / override for the (W) radius \(\varepsilon_k\). Larger \(\varepsilon_k\) ⇒ a weaker balance constraint (a stronger adversary, costed in the objective by \(\beta_k\varepsilon_k\)).</td></tr>
+<tr><td><code>zscore</code> / <code>metric</code></td><td><strong>Ground-cost geometry</strong> (the distance matrix \(D\) the (W) term is built on, via <code>common.geometry</code>). <code>zscore=True</code> standardises the covariates first, so a large-unit feature cannot dominate the metric; <code>zscore=False</code> (the solver default) uses raw-\(x\) Euclidean distances — bit-identical to the original solver. <code>metric</code> selects the distance (only <code>"euclidean"</code> implemented). Supplied by <code>GeometryConfig</code>, whose default is <code>zscore=True</code>.</td></tr>
+<tr><td><code>maximize</code></td><td><code>True</code> (default): \(Y\) is a reward (regret \(V(\pi_0)-V(\pi)\), the studies' convention); <code>False</code>: \(Y\) is a loss — Kallus &amp; Zhou's exact convention (regret \(V(\pi)-V(\pi_0)\)).</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Outputs: the optimal on-support policy \(\pi^\star\) (K×n), its realised per-arm usage, the worst-case regret
+objective (\(\le 0\)), and the full dual certificate \((\beta,p,q,\gamma,\theta)\) (with \(p,q\) saved as
+<code>mu,nu</code>) — all persisted per <code>results/SAVING.md</code>. Off-support deployment to new covariates is a
+separate step (<code>extensions/</code>, Shapley/KNN), not part of this method.</p>
+
+</body>
+</html>

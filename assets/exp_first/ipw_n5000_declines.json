@@ -1,0 +1,46 @@
+{
+ "0": [
+  {
+   "X": -0.3,
+   "nT": 51,
+   "nC": 199,
+   "ybarT": 0.784,
+   "ybarC": 0.633,
+   "ehat": 0.242,
+   "S1frac_T": 0.78,
+   "ipw_sum_treat": 165.3,
+   "ipw_sum_control": 166.21,
+   "trueMu1": 0.502,
+   "trueMu0": 0.676
+  }
+ ],
+ "1": [
+  {
+   "X": -0.3,
+   "nT": 46,
+   "nC": 202,
+   "ybarT": 0.804,
+   "ybarC": 0.574,
+   "ehat": 0.252,
+   "S1frac_T": 0.8,
+   "ipw_sum_treat": 146.52,
+   "ipw_sum_control": 155.19,
+   "trueMu1": 0.502,
+   "trueMu0": 0.676
+  },
+  {
+   "X": -0.1,
+   "nT": 62,
+   "nC": 182,
+   "ybarT": 0.742,
+   "ybarC": 0.643,
+   "ehat": 0.283,
+   "S1frac_T": 0.74,
+   "ipw_sum_treat": 162.25,
+   "ipw_sum_control": 163.29,
+   "trueMu1": 0.503,
+   "trueMu0": 0.725
+  }
+ ],
+ "2": []
+}

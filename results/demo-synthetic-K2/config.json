@@ -1,0 +1,43 @@
+{
+  "experiment": "demo-synthetic-K2",
+  "n_arms": 2,
+  "cap": [
+    1.0,
+    0.4
+  ],
+  "gamma_true": 3.0,
+  "gammas": [
+    1.0,
+    3.0,
+    7.0
+  ],
+  "seeds": [
+    9000,
+    9001
+  ],
+  "maximize": true,
+  "n_train": 200,
+  "n_test": 400,
+  "geometry": {
+    "zscore": true,
+    "metric": "euclidean"
+  },
+  "support": {
+    "snap": true,
+    "mesh": 6,
+    "mesh_range": [
+      -1.0,
+      1.0
+    ],
+    "rounding_digits": 6
+  },
+  "methods": [
+    {
+      "name": "IPW",
+      "variants": [
+        "Capped",
+        "Uncapped"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R-O — robust Odds-box value maximiser (no Wasserstein)</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#8a8b1c; --border:#e2e2e2; --soft:#f5f5e3; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>R-O</h1>
+<p class="muted">Robust, <strong>O</strong>dds-box value maximiser — R-OW <em>without</em> the Wasserstein
+covariate-balance term (formerly <code>srpo.multiarm.solve_rw_no_wasserstein_multiarm</code>). This page states
+<strong>exactly the in-sample optimisation problem</strong> the two files in this folder solve:
+<code>Capped/r_o_capped.py</code> and <code>Uncapped/r_o_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> R-O learns the policy that maximises the <strong>worst-case</strong>
+inverse-propensity-weighted value on the training sample, where the worst case ranges over a Rosenbaum/Tan
+<em>odds box</em> of size \(\Gamma\) (unobserved confounding) together with a per-arm <em>Hájek calibration</em>
+— but, unlike R-OW, with <strong>no Wasserstein covariate-balance ball</strong>. Optionally subject to per-arm capacity.
+</div>
+
+<h2>1 · Inputs (all fixed before the optimiser runs)</h2>
+<p>The method does <strong>no statistical preprocessing</strong>; it consumes quantities prepared by <code>common/</code>:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i,\;T_i,\;Y_i\)</td><td>covariates, observed arm, observed outcome of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\)</td><td>data</td></tr>
+<tr><td>\(\hat w_i = 1/\hat P(T_i\mid x_i)\)</td><td><strong>nominal</strong> inverse weight, per-arm Hájek-normalised (\(\sum_{i:T_i=k}\hat w_i=n\)). <strong>Estimated from \((X,T)\) — never the true propensity.</strong></td><td><code>common.ipw_weights_from_data</code></td></tr>
+<tr><td>\(\Gamma\ge 1\)</td><td>marginal-sensitivity level. \(\Gamma=1\) ⇒ no confounding assumed.</td><td><code>common.matched_gamma</code> (\(=e^{\gamma/2}\))</td></tr>
+<tr><td>\([a_i,b_i]\)</td><td>per-unit MSM interval around \(\hat w_i\) (the "odds box")</td><td><code>common.marginal_sensitivity_box(\hat w,\Gamma)</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (<strong>capped version only</strong>)</td><td>caller</td></tr>
+</table>
+<p class="muted">Note what is <strong>absent</strong> versus R-OW: there is no distance matrix \(D\) and no Wasserstein
+radius \(\varepsilon_k\) — R-O drops the covariate-balance term entirely, so it has no <code>c_eps</code>/<code>epsilon</code> argument.</p>
+
+<h2>2 · The decision: a policy on the (discretised) support</h2>
+<p>We learn \(\pi_k(x)\in[0,1]\) with \(\sum_k\pi_k(x)=1\). The <code>discretize</code>/<code>mesh</code> arguments
+fix where \(\pi\) is defined exactly as in R-OW: <code>discretize=True</code> snaps the covariates onto a
+<code>mesh</code>-level grid (<code>common.support</code>) and <strong>ties</strong> same-cell units to one policy
+value (so \(\pi\) is piecewise-constant in \(x\)); <code>discretize=False</code> uses the raw covariates (singleton
+support — degenerate on continuous \(x\)). The discretisation is still needed even though R-O has no Wasserstein
+term: it is what pools units so the free-π LP is well-posed.</p>
+
+<h2>3 · The in-sample problem (primal: worst-case value)</h2>
+<p>For a re-weighting \(W\) of the sample the IPW value of \(\pi\) is \(V(\pi,W)=\frac1n\sum_i W_i Y_i \pi_{T_i}(x_i)\).
+R-O maximises the worst case over the box-only uncertainty set:</p>
+<div class="eq">\[
+\boxed{\;\pi^\star \;=\; \arg\max_{\pi\in\Pi}\ \min_{W\in\mathcal U_{\mathrm O}(\Gamma)}\ \frac1n\sum_{i=1}^{n} W_i\,Y_i\,\pi_{T_i}(x_i)\;}
+\]</div>
+<p>with the feasible policy set</p>
+<div class="eq">\[
+\Pi:\quad \pi_k(x_i)\ge 0,\qquad \sum_{k}\pi_k(x_i)=1\ \ \forall i,\qquad
+\underbrace{\tfrac1n\sum_{i}\pi_k(x_i)\le\mathrm{cap}_k\ \ \forall k}_{\textbf{capped version only}},
+\]</div>
+<p>(plus the tie constraints), and the box-only uncertainty set</p>
+<div class="eq">\[
+\mathcal U_{\mathrm O}(\Gamma)\;=\;\Big\{\,W:\ \underbrace{a_i\le W_i\le b_i\ \ \forall i}_{\textbf{(O) odds / MSM box}},\quad
+\underbrace{\textstyle\sum_{i:T_i=k} W_i = n\ \ \forall k}_{\textbf{per-arm Hájek calibration}}\,\Big\}.
+\]</div>
+<p class="muted">This is exactly R-OW's set with the Wasserstein balls dropped (equivalently \(\varepsilon_k\to\infty\),
+so the balance constraint never binds). The <strong>(O) box</strong> is the Rosenbaum/Tan marginal-sensitivity
+model; the <strong>calibration</strong> keeps each arm's worst-case weights summing to \(n\).</p>
+
+<h2>4 · What is actually solved (dual LP)</h2>
+<p>Dualising the inner \(\min_W\) gives the LP the files build. Variables: \(\pi_k(x_i)\); \(\mu_i\ge0\);
+\(\nu_i\ge0\); and a <strong>free-sign</strong> per-arm calibration multiplier \(\beta_k\).</p>
+<div class="eq">\[
+\max_{\pi,\mu,\nu,\beta}\ \ \sum_{i=1}^{n}\big(a_i\,\mu_i-b_i\,\nu_i\big)\;+\;\sum_{k=0}^{K-1} n\,\beta_k
+\]</div>
+<p>subject to</p>
+<div class="eq">\[
+\begin{aligned}
+&\mu_i-\nu_i \;=\; \tfrac1n\,Y_i\,\pi_{T_i}(x_i)\;-\;\beta_{T_i}\quad\forall i;
+&&\text{(stationarity, per unit)}\\[2pt]
+&\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(valid policy)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k;
+&&\textbf{(capacity — capped only)}\\[2pt]
+&\mu_i\ge 0,\quad \nu_i\ge 0,\quad \beta_k\ \text{free}.
+\end{aligned}
+\]</div>
+<table>
+<tr><th>dual variable</th><th>meaning (saved as the dual certificate per the saving spec)</th></tr>
+<tr><td>\(\mu_i,\ \nu_i\ge0\)</td><td>multipliers on the box lower/upper bounds \(a_i,b_i\) (the "O" box)</td></tr>
+<tr><td>\(\beta_k\) (free sign)</td><td>per-arm <strong>Hájek-calibration</strong> multiplier — <em>not</em> a Wasserstein radius (contrast R-OW, where \(\beta_k\ge0\) prices \(\varepsilon_k\))</td></tr>
+</table>
+<p class="muted">Reproduced <strong>exactly</strong> from <code>srpo.multiarm.solve_rw_no_wasserstein_multiarm</code> —
+verified numerically: new vs old agree to machine precision (\(\max|\Delta\pi|=\max|\Delta\beta|=\max|\Delta\mu|=0\)).</p>
+
+<h2>5 · How it is solved — dualising the inner adversary</h2>
+<p>R-O is solved as <strong>one</strong> linear program, obtained by <em>dualising the inner \(\min_W\)</em> and
+merging it with the outer \(\max_\pi\). The steps below trace how the primal of section 3 becomes the dual LP of
+section 4 (we write \(w\) for the adversary's weight vector).</p>
+
+<div class="card">
+<strong>Step 1 — primal (max–min).</strong> Maximise the worst-case IPW value over the box-only set:
+<div class="eq">\[
+\max_{\pi\in\Pi}\ \min_{w\in\mathcal U}\ V(\pi,w),\qquad
+V(\pi,w)=\frac1n\sum_{i=1}^{n}\pi_{T_i}(x_i)\,w_i\,Y_i,
+\]</div>
+<div class="eq">\[
+\mathcal U=\Big\{\,w:\ a_i\le w_i\le b_i\ \ \forall i,\quad \textstyle\sum_{i:T_i=k} w_i = n\ \ \forall k\,\Big\}.
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 2 — the inner problem is an LP in \(w\).</strong> For a <em>fixed</em> \(\pi\) the inner minimisation is a
+linear program in \(w\) with cost \(c^\top w\), where
+<div class="eq">\[
+c_i=\tfrac1n\,\pi_{T_i}(x_i)\,Y_i,
+\]</div>
+subject to the box \(a\le w\le b\) and the per-arm equalities \(\sum_{i:T_i=k} w_i=n\).
+</div>
+
+<div class="card">
+<strong>Step 3 — dualise the inner LP.</strong> Attach multipliers \(\mu_i\ge0\) to \(w_i\ge a_i\), \(\nu_i\ge0\)
+to \(w_i\le b_i\), and a <strong>free</strong> \(\beta_k\) to the arm-\(k\) equality. LP strong duality turns the
+inner min into a max:
+<div class="eq">\[
+\min_{w\in\mathcal U} c^\top w
+\;=\;
+\max_{\mu,\nu\ge0,\ \beta}\ \sum_{i}\big(a_i\mu_i-b_i\nu_i\big)+\sum_{k} n\,\beta_k
+\quad\text{s.t.}\quad
+\mu_i-\nu_i+\beta_{T_i}=c_i\ \ \forall i.
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 4 — merge with the outer \(\max_\pi\).</strong> Substituting \(c_i=\tfrac1n\,\pi_{T_i}(x_i)\,Y_i\) and
+rearranging the equality gives the per-unit stationarity constraint
+<div class="eq">\[
+\mu_i-\nu_i=\tfrac1n\,Y_i\,\pi_{T_i}(x_i)-\beta_{T_i},
+\]</div>
+so the whole max–min collapses into a <strong>single</strong> maximisation over \((\pi,\mu,\nu,\beta)\) — exactly the
+LP of section 4 — with the policy constraints (simplex, per-cell tie, capacity) added.
+</div>
+
+<div class="card">
+<strong>Step 5 — solve.</strong> The merged LP is handed to <strong>Gurobi</strong>. We set
+<code>DualReductions=0</code> so the dual certificate \((\beta,\mu,\nu)\) is well defined.
+</div>
+
+<p class="muted"><strong>How it is used.</strong> The solve returns the on-support policy \(\pi\) (\(K\times n\)) together
+with the duals; deployment to new covariates is done with the Shapley/KNN extension.</p>
+
+<h2>6 · Capped vs. Uncapped — the only difference</h2>
+<ul>
+<li><code>Capped/r_o_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\) (requires <code>cap</code>).</li>
+<li><code>Uncapped/r_o_uncapped.py</code> — drops it (no <code>cap</code> argument); any arm may be assigned to any fraction.</li>
+</ul>
+
+<h2>7 · R-O vs R-OW</h2>
+<p>Same robust value-maximisation, same box, same discretisation and capacity — R-O simply <strong>omits the
+Wasserstein covariate-balance ball</strong>. Consequences: no \(D\), no \(\varepsilon_k\), no \(\beta_k\ge0\)
+radius dual and no transport (\(\gamma,\theta\)) duals; instead \(\beta_k\) becomes the free-sign calibration
+multiplier and the coupling is the single per-unit stationarity equation above. R-OW \(\ge\) R-O in robustness
+modelling (it additionally controls covariate imbalance); comparing the two isolates the value of the Wasserstein
+term. At \(\Gamma=1\) both collapse to the non-robust IPW value maximiser.</p>
+
+<h2>8 · Arguments that shape the problem</h2>
+<table>
+<tr><th>argument</th><th>effect</th></tr>
+<tr><td><code>discretize</code> (bool)</td><td>discretisation switch: snap to grid (via <code>support.py</code>) and tie per cell, or use raw \(x\) (singleton support).</td></tr>
+<tr><td><code>mesh</code> (int)</td><td>grid levels per coordinate when <code>discretize=True</code> (e.g. 6 ⇒ 6×6 cells in 2-D).</td></tr>
+<tr><td><code>Gamma</code></td><td>size of the (O) box. \(\Gamma=1\) ⇒ point box ⇒ reduces to IPW.</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Outputs: the optimal on-support policy \(\pi^\star\) (K×n), its realised per-arm
+usage, the worst-case objective, and the box-only dual certificate \((\beta,\mu,\nu)\) — persisted per
+<code>results/SAVING.md</code>. Off-support deployment (<code>extensions/</code>) is a separate step.</p>
+
+</body>
+</html>

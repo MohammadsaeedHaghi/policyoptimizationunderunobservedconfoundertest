@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IPW — calibrated inverse-propensity value maximiser (no robustness)</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#9467bd; --border:#e2e2e2; --soft:#efe9f6; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>IPW</h1>
+<p class="muted">Calibrated <strong>I</strong>nverse-<strong>P</strong>ropensity-<strong>W</strong>eighted value
+maximiser — the <em>non-robust</em> baseline (formerly <code>srpo.multiarm.solve_direct_ipw_multiarm</code>). This
+page states <strong>exactly the in-sample optimisation problem</strong> the two files in this folder solve:
+<code>Capped/ipw_capped.py</code> and <code>Uncapped/ipw_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> IPW learns the policy that maximises the <strong>calibrated Hájek/IPW value</strong>
+on the training sample — with <strong>no worst case</strong>, no Rosenbaum/Tan odds box and no Wasserstein
+covariate-balance ball — optionally subject to per-arm capacity.
+</div>
+
+<h2>1 · Inputs (all fixed before the optimiser runs)</h2>
+<p>The method does <strong>no statistical preprocessing</strong>; it consumes quantities prepared by <code>common/</code>:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i,\;T_i,\;Y_i\)</td><td>covariates, observed arm, observed outcome of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\)</td><td>data</td></tr>
+<tr><td>\(\hat w_i = 1/\hat P(T_i\mid x_i)\)</td><td><strong>nominal</strong> inverse weight, per-arm Hájek-normalised (\(\sum_{i:T_i=k}\hat w_i=n\)). <strong>Estimated from \((X,T)\) — never the true propensity.</strong></td><td><code>common.ipw_weights_from_data</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (<strong>capped version only</strong>)</td><td>caller</td></tr>
+</table>
+<p class="muted">Note what is <strong>absent</strong> versus R-O and R-OW: there is no sensitivity level \(\Gamma\),
+no MSM box \([a_i,b_i]\), no distance matrix \(D\) and no Wasserstein radius \(\varepsilon_k\) — IPW drops the
+robustness entirely, so it has no <code>Gamma</code>, no <code>c_eps</code>/<code>epsilon</code> argument and no
+dual certificate.</p>
+
+<h2>2 · The decision: a policy on the (discretised) support</h2>
+<p>We learn \(\pi_k(x)\in[0,1]\) with \(\sum_k\pi_k(x)=1\). The <code>discretize</code>/<code>mesh</code> arguments
+fix where \(\pi\) is defined exactly as in R-O / R-OW: <code>discretize=True</code> snaps the covariates onto a
+<code>mesh</code>-level grid (<code>common.support</code>) and <strong>ties</strong> same-cell units to one policy
+value (so \(\pi\) is piecewise-constant in \(x\)); <code>discretize=False</code> uses the raw covariates (singleton
+support — degenerate on continuous \(x\)). The discretisation is still needed even though IPW has no robustness
+term: it is what pools units so the free-π LP is well-posed.</p>
+
+<h2>3 · The in-sample problem (the IPW value)</h2>
+<p>The calibrated IPW value of a policy \(\pi\) on the sample is
+\(V(\pi)=\frac1n\sum_i \hat w_i\,Y_i\,\pi_{T_i}(x_i)\): each unit contributes only through its <em>observed</em> arm
+\(T_i\), reweighted by its nominal inverse weight \(\hat w_i\). IPW simply maximises this value (no inner
+\(\min_W\) — there is no worst case):</p>
+<div class="eq">\[
+\boxed{\;\pi^\star \;=\; \arg\max_{\pi\in\Pi}\ \frac1n\sum_{i=1}^{n} \hat w_i\,Y_i\,\pi_{T_i}(x_i)\;}
+\]</div>
+<p>over the feasible policy set</p>
+<div class="eq">\[
+\Pi:\quad \pi_k(x_i)\ge 0,\qquad \sum_{k}\pi_k(x_i)=1\ \ \forall i,\qquad
+\underbrace{\tfrac1n\sum_{i}\pi_k(x_i)\le\mathrm{cap}_k\ \ \forall k}_{\textbf{capped version only}},
+\]</div>
+<p>(plus the tie constraints). There is no uncertainty set: \(\hat w\) is taken at face value.</p>
+
+<h2>4 · How it is solved — a direct LP (no dualisation needed)</h2>
+<p>Unlike R-O and R-OW, IPW has <strong>no inner adversary</strong> (\(\min_W\)), so there is nothing to dualise —
+the problem of Section 3 is handed to the solver verbatim.</p>
+
+<p><strong>Step 1 (the objective is already linear).</strong> The calibrated IPW value</p>
+<div class="eq">\[
+V(\pi)\;=\;\frac1n\sum_{i=1}^{n} \hat w_i\,Y_i\,\pi_{T_i}(x_i)
+\]</div>
+<p>is <strong>linear</strong> in the policy variables \(\pi_{k,i}=\pi_k(x_i)\): each \(\hat w_i\,Y_i\) is a fixed
+constant, multiplying the single decision variable \(\pi_{T_i}(x_i)\). No worst-case minimisation, no MSM box and
+no transport plan appear, so there are no auxiliary or dual variables to introduce.</p>
+
+<p><strong>Step 2 (maximise it directly under the policy constraints).</strong> We maximise \(V(\pi)\) directly
+subject only to the constraints that define a valid (capacity-limited) policy:</p>
+<div class="eq">\[
+\begin{aligned}
+&\textstyle\sum_{k}\pi_k(x_i)=1,\quad \pi_k(x_i)\ge 0\quad\forall i;
+&&\text{(per-unit simplex)}\\[2pt]
+&\pi \text{ tied on each cell};
+&&\text{(per-cell tie)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k.
+&&\textbf{(capacity — capped only)}
+\end{aligned}
+\]</div>
+
+<p><strong>Step 3 (solve).</strong> The result is a plain LP in the single variable block \(\pi\), which is handed
+straight to <strong>Gurobi</strong>. Because there is no box (and no Wasserstein ball), this LP is exactly R-OW and
+R-O at \(\Gamma=1\): IPW \(=\) R-OW \(=\) R-O when \(\Gamma=1\).</p>
+
+<div class="card">
+<strong>How it is used.</strong> The solve returns the on-support policy \(\pi\) (a \(K\times n\) array); off-support
+deployment to new covariates is a separate step, done by Shapley/KNN extension (see <code>extensions/</code>).
+</div>
+
+<h2>5 · What is actually solved (plain LP)</h2>
+<p>Because there is no inner \(\min_W\) to dualise, the problem above <em>is</em> the LP the files build — a plain
+LP, linear in \(\pi\). The only variables are the policy values \(\pi_k(x_i)\); there are <strong>no dual
+multipliers</strong> (no \(\mu,\nu,\beta\) and no transport duals), so nothing is returned as a "dual
+certificate".</p>
+<div class="eq">\[
+\max_{\pi}\ \ \frac1n\sum_{i=1}^{n} \hat w_i\,Y_i\,\pi_{T_i}(x_i)
+\]</div>
+<p>subject to</p>
+<div class="eq">\[
+\begin{aligned}
+&\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(valid policy)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k.
+&&\textbf{(capacity — capped only)}
+\end{aligned}
+\]</div>
+<table>
+<tr><th>variable</th><th>meaning</th></tr>
+<tr><td>\(\pi_k(x_i)\in[0,1]\)</td><td>the policy on the (discretised) support — the <em>only</em> decision variable; columns sum to 1</td></tr>
+</table>
+<p class="muted">Reproduced <strong>exactly</strong> from <code>srpo.multiarm.solve_direct_ipw_multiarm</code> —
+the same per-arm-normalised weights \(\hat w\) as the robust methods, so IPW coincides with R-O and R-OW at
+\(\Gamma=1\).</p>
+
+<h2>6 · Capped vs. Uncapped — the only difference</h2>
+<ul>
+<li><code>Capped/ipw_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\) (requires <code>cap</code>).</li>
+<li><code>Uncapped/ipw_uncapped.py</code> — drops it (no <code>cap</code> argument); any arm may be assigned to any fraction.</li>
+</ul>
+
+<h2>7 · IPW vs R-O vs R-OW</h2>
+<p>Same value-maximisation, same discretisation and capacity — IPW simply <strong>drops the robustness
+entirely</strong>: no odds box (so no \(\Gamma\), no \([a_i,b_i]\), no \(\mu,\nu\)), and no Wasserstein
+covariate-balance ball (so no \(D\), no \(\varepsilon_k\), no transport \(\gamma,\theta\) duals). It optimises the
+nominal IPW value at face value rather than a worst case. At \(\Gamma=1\) the odds box of R-O / R-OW collapses to a
+point and the Wasserstein ball never binds, so <strong>IPW equals both R-O and R-OW</strong>; as \(\Gamma\) grows
+the robust methods hedge against unobserved confounding while IPW stays put.</p>
+
+<h2>8 · Arguments that shape the problem</h2>
+<table>
+<tr><th>argument</th><th>effect</th></tr>
+<tr><td><code>discretize</code> (bool)</td><td>discretisation switch: snap to grid (via <code>support.py</code>) and tie per cell, or use raw \(x\) (singleton support).</td></tr>
+<tr><td><code>mesh</code> (int)</td><td>grid levels per coordinate when <code>discretize=True</code> (e.g. 6 ⇒ 6×6 cells in 2-D).</td></tr>
+<tr><td><code>cap</code> (capped only)</td><td>per-arm capacity bound \(\mathrm{cap}_k\) on \(\frac1n\sum_i\pi_k(x_i)\).</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Outputs: the optimal on-support policy \(\pi^\star\) (K×n), its realised per-arm
+usage, and the calibrated IPW objective — persisted per <code>results/SAVING.md</code>. There is no dual
+certificate (no robustness). Off-support deployment (<code>extensions/</code>) is a separate step.</p>
+
+</body>
+</html>

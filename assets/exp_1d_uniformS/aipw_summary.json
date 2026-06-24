@@ -1,0 +1,10 @@
+{
+ "mode": "uni",
+ "AIPW": {
+  "rt_train": 0.7652,
+  "rt_test": 0.7404,
+  "obj": 0.8314,
+  "treat_rate": 0.476
+ },
+ "IPW_rt": 0.713
+}

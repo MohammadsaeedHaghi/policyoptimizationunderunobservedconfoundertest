@@ -1,0 +1,83 @@
+"""CAPPED discrete-X 'Wasserstein wins' experiment (treat <= 50%).  Same discrete DGP as run_disc.py.
+Mirrors assets/exp_wass/run_wass_cap.py.  N_train=1000, one seed, Γ∈{1,2,4,8}.  Saves disc_cap_results.json."""
+import sys, json, importlib.util, time
+from pathlib import Path
+import numpy as np
+ROOT = Path("/Users/mohammadsaeedhaghi/Desktop/01-Research/paper - policy optimization under unobsorved confounder - code/code 1.1")
+HERE = ROOT / "assets" / "exp_wass_disc"
+sys.path.insert(0, str(ROOT)); import common
+sp = importlib.util.spec_from_file_location("ddgp", str(HERE / "dgp.py")); d = importlib.util.module_from_spec(sp); sys.modules["ddgp"] = d; sp.loader.exec_module(d)
+def L(rel, fn):
+    s = importlib.util.spec_from_file_location(fn, str(ROOT / rel)); m = importlib.util.module_from_spec(s); sys.modules[fn] = m; s.loader.exec_module(m); return getattr(m, fn)
+ipwxx = L("methods/IPW-X-X/Capped/ipw_x_x_capped.py", "solve_ipw_x_x_capped")
+drxx  = L("methods/DoublyRobust-X-X/Capped/doublyrobust_x_x_capped.py", "solve_doublyrobust_x_x_capped")
+ipwox = L("methods/IPW-O-X/Capped/ipw_o_x_capped.py", "solve_ipw_o_x_capped")
+drox  = L("methods/DoublyRobust-O-X/Capped/doublyrobust_o_x_capped.py", "solve_doublyrobust_o_x_capped")
+ipwow = L("methods/IPW-O-W/Capped/ipw_o_w_capped.py", "solve_ipw_o_w_capped")
+drow  = L("methods/DoublyRobust-O-W/Capped/doublyrobust_o_w_capped.py", "solve_doublyrobust_o_w_capped")
+
+K, N = 2, 1000
+CAP = (1.0, 0.5)
+G = d.GRID; GAMMAS = [1, 2, 4, 8]
+def gk(g): g = float(g); return str(int(g)) if g == int(g) else str(g)
+obs, full = d.generate(N, 0)
+w, P = common.ipw_weights_from_data(obs["X"], obs["T"], K)
+muhat = common.outcome_means(obs["X"], obs["T"], obs["Y"], K)
+_, tf = d.generate(40000, 99); Xt = tf["X"].ravel(); St = tf["S"]
+
+def to_grid(res):
+    s = res.support_X.ravel(); lv = np.array(sorted(set(np.round(s, 6))))
+    pol = np.array([float(res.pi[1, np.where(np.round(s, 6) == round(float(c), 6))[0][0]]) for c in lv])
+    nn = lv[np.argmin(np.abs(np.asarray(G)[:, None] - lv[None, :]), axis=1)]
+    idx = {round(float(c), 6): i for i, c in enumerate(lv)}
+    return np.array([pol[idx[round(float(v), 6)]] for v in nn])
+def deploy(polG):
+    nn = G[np.argmin(np.abs(Xt[:, None] - G[None, :]), axis=1)]
+    pos = {round(float(G[i]), 6): i for i in range(len(G))}
+    return np.array([polG[pos[round(float(v), 6)]] for v in nn])
+def realised(res):
+    pit = deploy(to_grid(res)); return float(np.mean(pit * d.mu1(Xt, St) + (1 - pit) * d.mu0(Xt, St)))
+
+pol_or = d.oracle_policy(G); pit_or = deploy(pol_or)
+oracle_val = float(np.mean(pit_or * d.mu1(Xt, St) + (1 - pit_or) * d.mu0(Xt, St)))
+print("Oracle (treat iff X>0, frac=%.2f): %.4f" % (float(np.mean(pit_or)), oracle_val), flush=True)
+
+Xcol = np.asarray(obs["X"], float).reshape(-1, 1)
+Dm, _, _ = common.distance_matrix(Xcol, zscore=False)
+eps = common.tight_epsilon(Dm, obs["T"], w, K, is_distance=True, c_eps=1.0)
+print("tight ε (per arm): %.5f , %.5f" % (eps[0], eps[1]), flush=True)
+
+r_xx = ipwxx(obs["X"], obs["T"], obs["Y"], w, n_arms=K, cap=CAP, discretize=False)
+r_dx = drxx(obs["X"], obs["T"], obs["Y"], w, muhat, n_arms=K, cap=CAP, discretize=False)
+v_xx, v_dx = realised(r_xx), realised(r_dx)
+print("IPW-X-X=%.4f  DR-X-X=%.4f" % (v_xx, v_dx), flush=True)
+
+res = {"IPW-X-X": [round(v_xx, 4)] * len(GAMMAS), "DoublyRobust-X-X": [round(v_dx, 4)] * len(GAMMAS),
+       "IPW-O-X": [], "DoublyRobust-O-X": [], "IPW-O-W": [], "DoublyRobust-O-W": []}
+pol = {"IPW-O-X": {}, "DoublyRobust-O-X": {}, "IPW-O-W": {}, "DoublyRobust-O-W": {}}
+for g in GAMMAS:
+    t0 = time.time()
+    rbo = ipwox(obs["X"], obs["T"], obs["Y"], w, n_arms=K, Gamma=float(g), cap=CAP, discretize=False)
+    rbd = drox(obs["X"], obs["T"], obs["Y"], w, muhat, n_arms=K, Gamma=float(g), cap=CAP, discretize=False)
+    res["IPW-O-X"].append(round(realised(rbo), 4)); res["DoublyRobust-O-X"].append(round(realised(rbd), 4))
+    pol["IPW-O-X"][gk(g)] = [round(float(v), 4) for v in to_grid(rbo)]; pol["DoublyRobust-O-X"][gk(g)] = [round(float(v), 4) for v in to_grid(rbd)]
+    if g == 1:
+        res["IPW-O-W"].append(round(v_xx, 4)); res["DoublyRobust-O-W"].append(round(v_dx, 4))
+        pol["IPW-O-W"][gk(g)] = [round(float(v), 4) for v in to_grid(r_xx)]; pol["DoublyRobust-O-W"][gk(g)] = [round(float(v), 4) for v in to_grid(r_dx)]
+    else:
+        rwo = ipwow(obs["X"], obs["T"], obs["Y"], w, n_arms=K, Gamma=float(g), cap=CAP, discretize=False, zscore=False, epsilon=eps)
+        rwd = drow(obs["X"], obs["T"], obs["Y"], w, muhat, n_arms=K, Gamma=float(g), cap=CAP, discretize=False, zscore=False, epsilon=eps)
+        res["IPW-O-W"].append(round(realised(rwo), 4)); res["DoublyRobust-O-W"].append(round(realised(rwd), 4))
+        pol["IPW-O-W"][gk(g)] = [round(float(v), 4) for v in to_grid(rwo)]; pol["DoublyRobust-O-W"][gk(g)] = [round(float(v), 4) for v in to_grid(rwd)]
+    print("Γ=%d  O-X: IPW=%.4f DR=%.4f | O-W: IPW=%.4f DR=%.4f  (%.1f min)" %
+          (g, res["IPW-O-X"][-1], res["DoublyRobust-O-X"][-1], res["IPW-O-W"][-1], res["DoublyRobust-O-W"][-1], (time.time() - t0) / 60), flush=True)
+
+out = {"N_train": N, "N_test": 40000, "cap": list(CAP), "gammas": GAMMAS, "oracle": round(oracle_val, 4),
+       "epsilon": [float(eps[0]), float(eps[1])], "value_by_gamma": res, "policy_by_gamma": pol, "grid": [float(v) for v in G]}
+(HERE / "disc_cap_results.json").write_text(json.dumps(out, indent=2))
+best_box = max(max(res["IPW-O-X"]), max(res["DoublyRobust-O-X"]), v_xx, v_dx)
+best_w = max(max(res["IPW-O-W"][1:]), max(res["DoublyRobust-O-W"][1:]))
+print("\nsaved disc_cap_results.json", flush=True)
+print("IPW-O-X=%s IPW-O-W=%s" % (res["IPW-O-X"], res["IPW-O-W"]), flush=True)
+print("DR-O-X=%s DR-O-W=%s" % (res["DoublyRobust-O-X"], res["DoublyRobust-O-W"]), flush=True)
+print(">>> WASSERSTEIN WINS OUTRIGHT" if best_w > best_box + 1e-9 else ">>> box still >= Wasserstein", flush=True)

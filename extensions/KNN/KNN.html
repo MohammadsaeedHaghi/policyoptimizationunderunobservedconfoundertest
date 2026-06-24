@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KNN — inverse-distance off-support extension</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#5b4b8a; --border:#e2e2e2; --soft:#ece8f3; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>KNN off-support extension</h1>
+<p class="muted">Inverse-distance <strong>k</strong>-nearest-neighbour deployment of an on-support policy to new
+covariates — the simpler alternative to the Shapley operator. This page states <strong>exactly what the file in
+this folder computes</strong>: <code>KNN/knn.py</code> (<code>extend_with_knn</code> and
+<code>extend_with_knn_multiarm</code>). There is <strong>no solver</strong> and no optimisation problem.</p>
+
+<div class="card">
+<strong>One sentence.</strong> A method learns a policy \(\hat\pi\) only on its (discretised) support; to
+<em>deploy</em> it at a new covariate \(x\), KNN returns the <strong>inverse-distance weighted average</strong> of
+\(\hat\pi\) over the \(k\) nearest support points, per arm, renormalised to the simplex. Unlike Shapley it is a plain
+local average — not a Lipschitz envelope — and it needs no Gurobi.
+</div>
+
+<h2>1 · Inputs</h2>
+<p>The extension does <strong>no statistical preprocessing</strong>; it consumes the output of a method's on-support
+solve plus the points at which a policy is wanted:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x\in\mathbb{R}^{d}\)</td><td>a <strong>test</strong> covariate at which we need a policy (rows of <code>X_test</code>, \(m\) of them)</td><td>caller</td></tr>
+<tr><td>\(\{x_j\}_{j=1}^{n_s},\ \hat\pi(x_j)\)</td><td>the method's <strong>support</strong> covariates and the learned on-support policy value there (one arm)</td><td>a method's solve</td></tr>
+<tr><td>\(\hat\pi\in[0,1]^{K\times n}\)</td><td>full \(K\)-arm on-support policy on the training covariates <code>X_train</code></td><td>a method's solve</td></tr>
+<tr><td>\(k\)</td><td>number of neighbours (default \(50\)); <strong>clamped</strong> to the number of support points</td><td>caller</td></tr>
+<tr><td>\(\epsilon\)</td><td>distance floor in the inverse-distance weight (default \(10^{-8}\))</td><td>caller</td></tr>
+</table>
+<p class="muted">Note what is <strong>absent</strong> versus Shapley: there is no min–max operator and no
+\(A_{jk}(x)\) matrix — KNN only ever forms a convex combination of nearby support values.</p>
+
+<h2>2 · The operator (one arm)</h2>
+<p>Fix one arm. At a test point \(x\), let \(\mathcal N_k(x)\) be the index set of the \(k\) nearest support points
+(Euclidean), and let \(d_j=\lVert x-x_j\rVert\). The KNN extension is the inverse-distance weighted average</p>
+<div class="eq">\[
+\boxed{\;\hat\pi(x)\;=\;\sum_{j\in\mathcal N_k(x)} w_j\,\hat\pi(x_j)\;}\qquad
+w_j=\frac{1}{d_j+\epsilon},\qquad \sum_{j\in\mathcal N_k(x)} w_j=1,
+\]</div>
+<p>where the weights are normalised over the chosen neighbours and the result is clipped to \([0,1]\). Closer support
+points get larger weight; \(\epsilon\) keeps \(w_j\) finite at \(d_j=0\). The neighbour count is clamped,
+\(k_{\mathrm{eff}}=\min(k,\,n_s)\), so one can never request more neighbours than support points exist.</p>
+
+<h2>3 · How it is computed — numbered steps</h2>
+<p>The \(K\)-arm deployment <code>extend_with_knn_multiarm(X_test, X_train, pi_train, k=…)</code> \(\to(K,n_{\mathrm{test}})\)
+runs the steps below. There is no optimisation/Gurobi anywhere.</p>
+
+<div class="card">
+<strong>Step 1 — <code>extract_support</code> (same cell-collapse as Shapley).</strong> For each arm, collapse
+\((\)<code>X_train</code>\(,\hat\pi)\) to <strong>unique covariate cells</strong>: round the covariates and take, per
+distinct cell, the <em>mean</em> of \(\hat\pi\) over its matching rows. This yields the support
+\(\{x_j\}_{j=1}^{n_s}\) with one value \(\hat\pi(x_j)\) each:
+<div class="eq">\[
+(x_j,\ \hat\pi(x_j))\;=\;\Big(x_j,\ \operatorname{mean}\{\hat\pi(x_i):\ \text{round}(x_i)=x_j\}\Big).
+\]</div>
+For a discretised free-\(\pi\) method (already tied per cell) this mean is a no-op. The routine is
+<strong>shared</strong> with the Shapley extension, so both deploy from the identical support.
+</div>
+
+<div class="card">
+<strong>Step 2 — per arm, k-NN inverse-distance average.</strong> For each arm independently, find the
+\(k_{\mathrm{eff}}=\min(k,n_s)\) nearest support points to each test row, form the inverse-distance weights, normalise
+them per test point, take the weighted average of the support values, and <strong>clip to \([0,1]\)</strong>:
+<div class="eq">\[
+d_j=\lVert x-x_j\rVert,\qquad
+w_j=\frac{1/(d_j+\epsilon)}{\sum_{\ell\in\mathcal N_k(x)} 1/(d_\ell+\epsilon)},\qquad
+\hat\pi_{\mathrm{arm}}(x)=\operatorname{clip}_{[0,1]}\!\Big(\textstyle\sum_{j\in\mathcal N_k(x)} w_j\,\hat\pi(x_j)\Big).
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 3 — renormalise the \(K\) arm values to the simplex.</strong> Stacking the \(K\) arms gives a column per
+test point; each column is projected onto the probability simplex (uniform fallback if a column sums to \(\approx 0\)):
+<div class="eq">\[
+\pi_k(x)\;=\;\frac{\big[\hat\pi_k(x)\big]_{+}}{\sum_{\ell=0}^{K-1}\big[\hat\pi_\ell(x)\big]_{+}}\quad\forall k,
+\qquad\text{so}\quad \pi_k(x)\ge0,\ \ \sum_{k=0}^{K-1}\pi_k(x)=1.
+\]</div>
+The output is the deployable policy \(\big(\pi_k(x)\big)\in[0,1]^{K\times n_{\mathrm{test}}}\).
+</div>
+
+<h2>4 · How it is used</h2>
+<p>A method's solve returns the on-support policy \(\hat\pi\) (\(K\times n\)); to score or plot it anywhere off the
+support, call</p>
+<div class="eq">\[
+\texttt{extend\_with\_knn\_multiarm}(X_{\text{test}},\,X_{\text{train}},\,\hat\pi,\ k)\ \longrightarrow\ (K,\ n_{\text{test}}).
+\]</div>
+<p>The single-arm primitive <code>extend_with_knn(X_test, support_X, support_pi, k=…)</code> returns an \((m,)\) vector
+and is what the multi-arm wrapper calls per arm in Step 2.</p>
+
+<h2>5 · KNN vs Shapley</h2>
+<p>Both extensions deploy the <em>same</em> support (Step 1 is shared) and both renormalise the \(K\) arms to the
+simplex (Step 3). They differ only in the interior operator and only <strong>off the support</strong>:</p>
+<table>
+<tr><th></th><th>KNN (this page)</th><th>Shapley</th></tr>
+<tr><td>operator</td><td>inverse-distance average \(\sum_j w_j\hat\pi(x_j)\)</td><td>Lipschitz min–max \(\min_k\max_j A_{jk}(x)\)</td></tr>
+<tr><td>nature</td><td>local smoothing over \(k\) neighbours</td><td>tightest 1-Lipschitz interpolant</td></tr>
+<tr><td>solver</td><td>none</td><td>none (closed form)</td></tr>
+<tr><td>on the support</td><td colspan="2" style="text-align:center;"><strong>agree</strong> (both return the stored support value)</td></tr>
+</table>
+<p class="muted">On the support the two extensions <strong>agree</strong> — KNN's nearest neighbour is the point itself
+(distance \(0\), dominant weight) and Shapley is exact by construction. They diverge only off-support: KNN
+<em>smooths</em> over neighbours, whereas Shapley returns the Lipschitz envelope. Comparing the two isolates how
+much the deployment rule (smooth vs Lipschitz) matters; the on-support policy being deployed is identical.</p>
+
+<p class="muted" style="margin-top:24px;">Output: the deployable \(K\)-arm policy \(\pi^\star(x)\)
+(\(K\times n_{\text{test}}\)) at the requested covariates. This is a pure deployment step — no objective, no duals,
+no Gurobi.</p>
+
+</body>
+</html>

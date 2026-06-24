@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hajek-O-X — robust Odds-box regret minimiser (no Wasserstein)</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#1f77b4; --border:#e2e2e2; --soft:#e8f1f8; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg);
+         max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>Hajek-O-X</h1>
+<p class="muted">Robust, <strong>O</strong>dds-box <strong>regret</strong> minimiser — the Kallus &amp; Zhou
+regret-minimiser over the odds box only (formerly <code>srpo.multiarm.solve_kallus_multiarm</code>). This page states
+<strong>exactly the in-sample optimisation problem</strong> the two files in this folder solve:
+<code>Capped/regret_o_capped.py</code> and <code>Uncapped/regret_o_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> Hajek-O-X learns the policy that <strong>minimises the worst-case regret</strong>
+\(R(\pi,W)=V(\pi_0,W)-V(\pi,W)\) versus the all-control baseline \(\pi_0\), where the worst case ranges over a
+Rosenbaum/Tan <em>odds box</em> of size \(\Gamma\) (unobserved confounding) together with a per-arm <em>Hájek
+calibration</em> — but, like R-O and unlike R-OW, with <strong>no Wasserstein covariate-balance ball</strong>.
+Optionally subject to per-arm capacity.
+</div>
+
+<h2>1 · Inputs (all fixed before the optimiser runs)</h2>
+<p>The method does <strong>no statistical preprocessing</strong>; it consumes quantities prepared by <code>common/</code>:</p>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i,\;T_i,\;Y_i\)</td><td>covariates, observed arm, observed outcome of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\) (arm 0 = control)</td><td>data</td></tr>
+<tr><td>\(\tilde W_i = 1/\hat P(T_i\mid x_i)\ge1\)</td><td><strong>nominal RAW</strong> inverse weight (the MSM box is centred on these, so \(a_i\ge1>0\) and the self-normalised denominator stays positive). <strong>Estimated from \((X,T)\) — never the true propensity.</strong> The self-normalisation replaces the per-arm Hájek rescaling used by the value methods.</td><td><code>common.ipw_weights_from_data</code> (the \(P\) matrix)</td></tr>
+<tr><td>\(\Gamma\ge 1\)</td><td>marginal-sensitivity level. \(\Gamma=1\) ⇒ no confounding assumed.</td><td><code>common.matched_gamma</code> (\(=e^{\gamma/2}\))</td></tr>
+<tr><td>\([a_i,b_i]\)</td><td>per-unit MSM interval around \(\hat w_i\) (the "odds box")</td><td><code>common.marginal_sensitivity_box(\hat w,\Gamma)</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (<strong>capped version only</strong>)</td><td>caller</td></tr>
+</table>
+<p class="muted">Note what is <strong>absent</strong> versus R-OW: there is no distance matrix \(D\) and no Wasserstein
+radius \(\varepsilon_k\) — Hajek-O-X drops the covariate-balance term entirely, so it has no <code>c_eps</code>/<code>epsilon</code> argument.</p>
+
+<h2>2 · The decision: a policy on the (discretised) support</h2>
+<p>We learn \(\pi_k(x)\in[0,1]\) with \(\sum_k\pi_k(x)=1\). The <code>discretize</code>/<code>mesh</code> arguments
+fix where \(\pi\) is defined exactly as in R-O/R-OW: <code>discretize=True</code> snaps the covariates onto a
+<code>mesh</code>-level grid (<code>common.support</code>) and <strong>ties</strong> same-cell units to one policy
+value (so \(\pi\) is piecewise-constant in \(x\)); <code>discretize=False</code> uses the raw covariates (singleton
+support — degenerate on continuous \(x\)). The discretisation is still needed even though Hajek-O-X has no
+Wasserstein term: it is what pools units so the free-π LP is well-posed.</p>
+
+<h2>3 · The in-sample problem (primal: worst-case SELF-NORMALISED regret)</h2>
+<p>This is the Kallus &amp; Zhou <strong>Hájek</strong> (self-normalised) regret estimator: the per-treatment value is
+normalised by the <em>same weights' own mass</em>, so the denominator <strong>floats with \(W\)</strong>. Per arm \(t\),</p>
+<div class="eq">\[
+\hat R^{(t)}_{\pi_0}(\pi;W)=\frac{\sum_{i:T_i=t}\big(\pi_0(t\mid x_i)-\pi(t\mid x_i)\big)\,Y_i\,W_i}{\sum_{i:T_i=t} W_i},
+\qquad \pi_0=\text{all-control}\ (\pi_{0,0}\equiv1),
+\]</div>
+<p>and the total worst-case regret is \(\bar R(\pi;W)=\sum_t \sup_{W\in\mathcal U_{\mathrm O}(\Gamma)} \hat R^{(t)}_{\pi_0}(\pi;W)\)
+(the sup separates over arms — each arm's units carry disjoint weights). Hajek-O-X <strong>minimises</strong> it:</p>
+<div class="eq">\[
+\boxed{\;\pi^\star \;=\; \arg\min_{\pi\in\Pi}\ \sum_t\ \sup_{W\in\mathcal U_{\mathrm O}(\Gamma)}\
+\frac{\sum_{i:T_i=t}\big(\mathbf 1[t=0]-\pi_{t}(x_i)\big)Y_iW_i}{\sum_{i:T_i=t}W_i}\;}
+\]</div>
+<p>with the feasible policy set</p>
+<div class="eq">\[
+\Pi:\quad \pi_k(x_i)\ge 0,\qquad \sum_{k}\pi_k(x_i)=1\ \ \forall i,\qquad
+\underbrace{\tfrac1n\sum_{i}\pi_k(x_i)\le\mathrm{cap}_k\ \ \forall k}_{\textbf{capped version only}},
+\]</div>
+<p>(plus the tie constraints), and the <strong>box-only</strong> uncertainty set (no calibration constraint — the
+self-normalisation IS the calibration; the box is built on the <strong>raw</strong> inverse weights \(\tilde W_i=1/\hat P(T_i\mid x_i)\ge1\)):</p>
+<div class="eq">\[
+\mathcal U_{\mathrm O}(\Gamma)\;=\;\big\{\,W:\ \underbrace{a_i\le W_i\le b_i\ \ \forall i}_{\textbf{(O) odds / MSM box, } a_i\ge1>0}\,\big\}.
+\]</div>
+<p class="muted">Unlike the value method R-O (which fixes the denominator with a hard \(\sum_{T_i=k}W_i=n\) calibration),
+the Hájek regret lets the denominator float and optimises the <strong>ratio</strong> (Kallus &amp; Zhou Eq. 4, 10). Because
+\(\pi_0\) is itself feasible, the optimal worst-case regret is \(\le 0\) (<strong>do-no-harm</strong>). NB: here \(Y\) is a
+<strong>reward</strong> (high = good), the opposite of the paper's loss — hence \((\mathbf 1[t=0]-\pi_t)\), not \((\pi_t-\mathbf 1[t=0])\).</p>
+
+<h2>4 · What is actually solved (Charnes–Cooper dual LP)</h2>
+<p>Each per-treatment \(\sup_W\) is a linear-<em>fractional</em> program; the Charnes–Cooper transform linearises it and
+its dual (Kallus &amp; Zhou Eq. 12) introduces, per arm \(t\), a level \(\lambda_t=\hat Q_t\) (the worst-case regret of that
+arm) and box duals \(u_i,v_i\ge0\). The outer \(\min_\pi\) fuses with these per-arm minimisations into one LP:</p>
+<div class="eq">\[
+\min_{\pi,\,u,v\ge0,\,\lambda}\ \ \sum_{t=0}^{K-1}\lambda_t
+\]</div>
+<p>subject to</p>
+<div class="eq">\[
+\begin{aligned}
+&v_i-u_i+\lambda_{T_i}\ \ge\ \big(\mathbf 1[T_i=0]-\pi_{T_i}(x_i)\big)\,Y_i\quad\forall i;
+&&\text{(CC coupling, per unit)}\\[2pt]
+&\textstyle\sum_{i\in I_t}\big(u_i\,a_i - v_i\,b_i\big)\ \ge\ 0\quad\forall t;
+&&\text{(CC scaling / box-product)}\\[2pt]
+&\textstyle\sum_k \pi_k(x_i)=1,\quad \pi_k(x_i)\in[0,1],\quad \pi \text{ tied on each cell};
+&&\text{(valid policy)}\\[2pt]
+&\textstyle\frac1n\sum_i \pi_k(x_i)\le \mathrm{cap}_k\quad\forall k;
+&&\textbf{(capacity — capped only)}\\[2pt]
+&u_i\ge 0,\quad v_i\ge 0,\quad \lambda_t\ \text{free}.
+\end{aligned}
+\]</div>
+<table>
+<tr><th>dual variable</th><th>meaning (saved as the dual certificate per the saving spec)</th></tr>
+<tr><td>\(u_i,\ v_i\ge0\)</td><td>Charnes–Cooper duals on the lower/upper bounds \(a_i,b_i\) of the "O" box — <strong>stored in the <code>mu</code>/<code>nu</code> result fields</strong></td></tr>
+<tr><td>\(\lambda_t\) (free sign)</td><td>per-treatment worst-case regret level \(\hat Q_t\) (the self-normalised \(\sup_W\)); stored in <code>beta</code></td></tr>
+</table>
+<p class="muted">The RHS \(\big(\mathbf 1[T_i=0]-\pi_{T_i}\big)Y_i\) is the per-unit regret reward (control baseline minus
+policy), in the <strong>reward</strong> convention (high \(Y\) = good). With \(a_i\ge1\) (box on raw weights) the floating
+denominator stays positive, so the ratio is bounded. At \(\Gamma=1\) the box is a point and Hajek-O-X reduces to the IPW maximiser.</p>
+
+<h2>5 · How it is solved — dualising the inner regret-adversary</h2>
+<p>Hajek-O-X is a <strong>MIN</strong> problem (minimise the worst-case regret) yet it is solved as a
+<strong>single LP</strong>. The trick is to dualise the inner adversary so its <em>maximisation</em> turns into a
+<em>minimisation</em> that fuses with the outer <code>min</code> over \(\pi\). The five steps below trace that
+collapse; the result is exactly the dual LP of the previous section.</p>
+
+<p><strong>Step 1 — the primal (a min–max).</strong> Write the worst-case regret directly as a saddle problem:</p>
+<div class="eq">\[
+\min_{\pi\in\Pi}\ \max_{W\in\mathcal U_{\mathrm O}(\Gamma)}\ R(\pi,W),\qquad
+R(\pi,W)=\frac1n\sum_{i=1}^{n}\big(\mathbf 1[T_i=0]-\pi_{T_i}(x_i)\big)\,Y_i\,W_i,
+\]</div>
+<p>where \(\mathcal U_{\mathrm O}(\Gamma)\) is the <strong>same box+calibration set as R-O</strong>
+(\(a_i\le W_i\le b_i\), \(\sum_{i:T_i=k}W_i=n\)).</p>
+
+<p><strong>Step 2 — the inner problem is an LP (a MAX over \(W\)).</strong> Freeze \(\pi\). The bracket multiplying
+\(W_i\) is then a fixed coefficient \(d_i\), so the adversary solves a linear program in \(W\):</p>
+<div class="eq">\[
+\max_{W}\ d^\top W\quad\text{s.t.}\quad a_i\le W_i\le b_i\ \ \forall i,\quad \sum_{i\in I_k} W_i=n\ \ \forall k,
+\qquad d_i=\frac1n\big(\mathbf 1[T_i=0]-\pi_{T_i}(x_i)\big)\,Y_i,
+\]</div>
+<p>where \(I_k=\{i:T_i=k\}\) indexes the units on arm \(k\).</p>
+
+<p><strong>Step 3 — Charnes–Cooper linearise the ratio, then dualise.</strong> With \(r_i=(\mathbf 1[T_i=0]-\pi_{T_i})Y_i\)
+the inner per-arm problem is \(\hat Q_t=\sup_{a\le W\le b}\ \sum_{I_t}r_iW_i/\sum_{I_t}W_i\). Substituting \(w=W/\sum W\)
+(so \(\sum_{I_t}w=1\), \(sa_i\le w_i\le sb_i\) with a free scale \(s\ge0\)) makes it the LP \(\max_{w,s}\sum r_iw_i\); its
+dual (Kallus &amp; Zhou Eq. 12) is</p>
+<div class="eq">\[
+\hat Q_t\;=\;\min_{u,v\ge0,\ \lambda_t}\ \lambda_t\qquad\text{s.t.}\qquad
+v_i-u_i+\lambda_t\ge r_i\ \ \forall i\in I_t,\qquad \textstyle\sum_{i\in I_t}\big(u_i a_i-v_i b_i\big)\ge0.
+\]</div>
+
+<p><strong>Step 4 — merge with the outer \(\min_\pi\).</strong> Both the outer policy choice and each dualised inner
+problem are <em>minimisations</em>, so they combine. Since \(r_i\) is linear in \(\pi\), the constraint
+\(v_i-u_i+\lambda_{T_i}\ge(\mathbf 1[T_i=0]-\pi_{T_i})Y_i\) is linear, and the whole saddle problem becomes the single
+<strong>MIN</strong> over \((\pi,u,v,\lambda)\) of Section 4. Its optimum \(\sum_t\hat Q_t\) is the worst-case
+self-normalised regret, \(\le 0\) because \(\pi_0\) is always feasible (do-no-harm).</p>
+
+<p><strong>Step 5 — solve.</strong> The merged LP is handed to <strong>Gurobi</strong> (with
+<code>DualReductions=0</code>). On return the box duals \(u,v\) are stored in <code>mu</code>/<code>nu</code> and the
+per-treatment regret levels \(\lambda_t\) in <code>beta</code>.</p>
+
+<p class="muted"><strong>How it is used.</strong> The solver returns the on-support policy \(\pi\) (K×n) together with
+the duals \((\lambda,u,v)\); off-support deployment to new covariates is a separate step via the Shapley/KNN
+extensions.</p>
+
+<h2>6 · Capped vs. Uncapped — the only difference</h2>
+<ul>
+<li><code>Capped/regret_o_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\) (requires <code>cap</code>).</li>
+<li><code>Uncapped/regret_o_uncapped.py</code> — drops it (no <code>cap</code> argument); any arm may be assigned to any fraction.</li>
+</ul>
+
+<h2>7 · Hajek-O-X vs IPW-O-X vs IPW-O-W</h2>
+<p>Same box-only uncertainty set, same discretisation and capacity as <strong>R-O</strong> — the difference is the
+objective <em>and</em> the normalisation. R-O <strong>maximises worst-case value</strong> with a hard \(\sum_{T_i=k}W_i=n\)
+calibration (a MAX LP); Hajek-O-X <strong>minimises worst-case self-normalised regret</strong> against the all-control
+baseline — the Hájek ratio whose denominator floats (a MIN LP, do-no-harm \(\le0\)). Like R-O it <strong>omits the
+Wasserstein covariate-balance ball</strong> of <strong>R-OW</strong>: no \(D\), no \(\varepsilon_k\), no transport
+duals; the per-treatment levels \(\lambda_t\) and box duals \(u,v\) come from the Charnes–Cooper dual above. At
+\(\Gamma=1\) the box collapses and Hajek-O-X reduces to the non-robust IPW value maximiser.</p>
+
+<h2>8 · Arguments that shape the problem</h2>
+<table>
+<tr><th>argument</th><th>effect</th></tr>
+<tr><td><code>discretize</code> (bool)</td><td>discretisation switch: snap to grid (via <code>support.py</code>) and tie per cell, or use raw \(x\) (singleton support).</td></tr>
+<tr><td><code>mesh</code> (int)</td><td>grid levels per coordinate when <code>discretize=True</code> (e.g. 6 ⇒ 6×6 cells in 2-D).</td></tr>
+<tr><td><code>Gamma</code></td><td>size of the (O) box. \(\Gamma=1\) ⇒ point box ⇒ reduces to IPW.</td></tr>
+<tr><td><code>maximize</code></td><td><code>True</code> (default): \(Y\) is a reward (regret \(V(\pi_0)-V(\pi)\), the studies' convention); <code>False</code>: \(Y\) is a loss — Kallus &amp; Zhou's exact convention (regret \(V(\pi)-V(\pi_0)\)).</td></tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Outputs: the optimal on-support policy \(\pi^\star\) (K×n), its realised per-arm
+usage, the worst-case regret objective (\(\le0\)), and the box-only dual certificate \((\beta,\mu,\nu)\) where
+\(\mu,\nu\) hold the Kallus box duals \(p,q\) — persisted per <code>results/SAVING.md</code>. Off-support
+deployment (<code>extensions/</code>) is a separate step.</p>
+
+</body>
+</html>

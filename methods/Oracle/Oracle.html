@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oracle — best-in-class policy with full value access</title>
+<script>window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#2ca02c; --border:#e2e2e2; --soft:#e9f5e9; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; } th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>Oracle</h1>
+<p class="muted">A <strong>reference ceiling</strong>, not a deployable method (formerly
+<code>srpo.multiarm.solve_oracle_capacity</code>). Files: <code>Capped/oracle_capped.py</code>,
+<code>Uncapped/oracle_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> Given a value matrix \(V\in\mathbb R^{n\times K}\), the Oracle returns the
+best policy on the (discretised) support under capacity — the fair upper bound on what any method could achieve.
+</div>
+
+<h2>1 · Inputs</h2>
+<table>
+<tr><th>symbol</th><th>meaning</th></tr>
+<tr><td>\(x_i\)</td><td>covariates of unit \(i=1,\dots,n\); arms \(k=0,\dots,K-1\)</td></tr>
+<tr><td>\(V_{ik}=\)<code>values[i,k]</code></td><td>value of assigning arm \(k\) to unit \(i\). Pass \(V=Y^{\text{pot}}\) (per-unit potential outcomes ⇒ clairvoyant <strong>Full-info</strong> ceiling) or \(V=\mu_k(X_i)\) (true means ⇒ deployable <strong>Best-true-means</strong> ceiling).</td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (capped version only)</td></tr>
+</table>
+<div class="card" style="border-left-color:#8a8b1c;">
+<strong>Why this does not break the no-true-propensities rule.</strong> The Oracle is a <em>benchmark</em>, never
+deployed as a policy. It is therefore allowed to use ground-truth value information (\(Y^{\text{pot}}\) or \(\mu\)).
+The no-true-propensities rule forbids <em>learned</em> methods from weighting with \(e_{\text{true}}\); the Oracle
+is not a learned method — it only bounds them.
+</div>
+
+<h2>2 · The problem</h2>
+<p>With \(\pi_k(x)\in[0,1]\), \(\sum_k\pi_k(x)=1\), tied on each support cell (same <code>discretize</code>/<code>mesh</code>
+discretisation as the learned methods, so the ceiling is on the same support):</p>
+<div class="eq">\[
+\max_{\pi}\ \frac1n\sum_{i=1}^{n}\sum_{k=0}^{K-1}\pi_k(x_i)\,V_{ik}
+\qquad\text{s.t.}\qquad \sum_k\pi_k(x_i)=1,\ \ \pi\ge 0,\ \ \pi\ \text{tied per cell},\ \
+\underbrace{\tfrac1n\textstyle\sum_i\pi_k(x_i)\le\mathrm{cap}_k}_{\textbf{capped only}}.
+\]</div>
+<p>A plain LP (no robustness, no weights, no duals). With no capacity it reduces to the per-cell argmax of the
+average value; with capacity it optimally rations the scarce arms across cells.</p>
+
+<h2>3 · How it is solved — a direct assignment LP</h2>
+<p>Because the Oracle has <strong>full value access</strong>, there is no adversary and nothing to dualise: the
+problem of section 2 is solved <em>as written</em>, as a single transportation-style assignment LP.</p>
+
+<div class="card">
+<strong>Step 1 — the objective is already linear in \(\pi\).</strong> The value matrix \(V\) is known up front
+(\(V=Y^{\text{pot}}\) for the Full-info ceiling, or \(V=\mu\) for the Best-means ceiling), so the objective is a
+plain linear function of the policy:
+<div class="eq">\[
+\frac1n\sum_{i=1}^{n}\sum_{k=0}^{K-1}\pi_k(x_i)\,V_{ik}.
+\]</div>
+There is no inner \(\min_W\) over a worst-case re-weighting — \(V\) plays the role that the (uncertain) IPW value
+plays in the robust methods, but here it is fixed data, not an adversary's choice.
+</div>
+
+<div class="card">
+<strong>Step 2 — maximise it directly under the policy constraints.</strong> We maximise the linear objective
+subject only to the policy structure — the per-unit simplex, the per-cell tie, and (when capped) the per-arm
+capacity:
+<div class="eq">\[
+\max_{\pi}\ \frac1n\sum_{i=1}^{n}\sum_{k=0}^{K-1}\pi_k(x_i)\,V_{ik}
+\quad\text{s.t.}\quad
+\sum_k\pi_k(x_i)=1,\ \ \pi\ge 0,\ \ \pi\ \text{tied per cell},\ \
+\underbrace{\tfrac1n\textstyle\sum_i\pi_k(x_i)\le\mathrm{cap}_k}_{\textbf{capped only}}.
+\]</div>
+This is a <strong>transportation-style assignment LP</strong>: it transports a unit (cell) mass onto the \(K\) arms
+so as to maximise total value, with the capacity rows acting as the supply limits on each arm.
+</div>
+
+<div class="card">
+<strong>Step 3 — solve.</strong> The LP is handed to <strong>Gurobi</strong>. With <em>no</em> capacity the rows
+decouple and the LP collapses to the closed form of the per-cell \(\arg\max\) of the average value — each cell goes
+all-in on its highest-value arm; capacity is what couples the cells and forces the LP to ration scarce arms.
+</div>
+
+<p class="muted"><strong>How it is used.</strong> The Oracle is a <strong>reference ceiling</strong>: its policy and
+value are saved as benchmarks (the fair upper bound any method could reach on the same support) and are
+<em>never deployed</em>.</p>
+
+<h2>4 · Capped vs. Uncapped</h2>
+<ul>
+<li><code>Capped/oracle_capped.py</code> — adds \(\frac1n\sum_i\pi_k(x_i)\le\mathrm{cap}_k\) (the fair ceiling <em>under</em> the same capacity the methods face). Requires <code>cap</code>.</li>
+<li><code>Uncapped/oracle_uncapped.py</code> — no capacity: each cell goes all-in on its best-value arm (the unconstrained ideal; with \(V=\mu\) this is the "best arm, no cap" map).</li>
+</ul>
+
+<h2>5 · Arguments</h2>
+<table>
+<tr><th>argument</th><th>effect</th></tr>
+<tr><td><code>values</code> (n,K)</td><td>the value matrix to maximise — choose Ypot (Full-info) or μ (Best-means).</td></tr>
+<tr><td><code>discretize</code> / <code>mesh</code></td><td>discretise X to the same grid as the learned methods so the ceiling is comparable.</td></tr>
+</table>
+<p class="muted" style="margin-top:24px;">Bit-identical to the old <code>solve_oracle_capacity</code> (verified max\(|\Delta\pi|=0\)).
+Outputs: the oracle policy and value, persisted as the reference ceilings per <code>results/SAVING.md</code>.</p>
+
+</body>
+</html>

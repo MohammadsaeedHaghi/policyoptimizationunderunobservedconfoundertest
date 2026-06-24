@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R-OW-DoublyRobust — robust AIPW value maximiser (OW / box ∩ Wasserstein set)</title>
+<script>window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#a01f1f; --border:#e2e2e2; --soft:#f6e3e3; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .warn { border-left-color:#d62728; background:#fdecec; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; } th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>R-OW-DoublyRobust</h1>
+<p class="muted">Robust <strong>AIPW</strong> (doubly-robust) value maximiser over the <strong>OW</strong> (odds / MSM
+box ∩ per-arm Wasserstein balls) uncertainty set. Files: <code>Capped/r_ow_doublyrobust_capped.py</code>,
+<code>Uncapped/r_ow_doublyrobust_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> R-OW-DoublyRobust anchors the policy value on an <em>outcome model</em> \(\hat\mu\) and
+makes only the leftover <em>IPW correction</em> robust over R-OW's set — the marginal-sensitivity box <em>and</em> the
+per-arm Wasserstein covariate-balance balls — combining R-OW's balance robustness with doubly-robust efficiency.
+</div>
+
+<div class="card warn">
+<strong>Design note (new derivation).</strong> This is the missing combination: the doubly-robust objective of
+<code>DoublyRobust</code> paired with R-OW's <em>box ∩ Wasserstein</em> uncertainty set. It is R-OW's dual LP with the
+outcome residual in place of \(Y\), plus the direct outcome term. Correctness is anchored by a reduction (μ̂ ≡ 0 ⇒ R-OW), not an old reference.
+</div>
+
+<h2>1 · Inputs</h2>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i, T_i, Y_i\)</td><td>covariates, observed arm, observed outcome (arms \(0..K-1\))</td><td>data</td></tr>
+<tr><td>\(\hat w_i\)</td><td>nominal inverse weights, Hájek-normalised (estimated upstream — <strong>never</strong> true propensities)</td><td><code>common.ipw_weights_from_data</code></td></tr>
+<tr><td>\(\hat\mu_k(X_i)\)</td><td>outcome-model nuisance \(\approx E[Y\mid X,T=k]\), shape (n, K), estimated from observed (X,T,Y) only</td><td><code>common.outcome_means</code></td></tr>
+<tr><td>\(\Gamma\ge 1\), \([a_i,b_i]\)</td><td>sensitivity level + per-unit MSM box</td><td><code>common.marginal_sensitivity_box</code></td></tr>
+<tr><td>\(D_{ij}=\lVert x_i-x_j\rVert\), \(\varepsilon_k\)</td><td>Wasserstein ground cost + per-arm radius</td><td><code>common.distance_matrix</code>, <code>common.tight_epsilon</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (capped version only)</td><td>caller</td></tr>
+</table>
+
+<h2>2 · The in-sample problem (robust AIPW value, OW set)</h2>
+<p>Write the factual residual \(r_i = Y_i - \hat\mu_{T_i}(X_i)\). R-OW-DoublyRobust maximises the outcome-model value
+plus the <em>worst-case</em> residual IPW correction over R-OW's set:</p>
+<div class="eq">\[
+\boxed{\;\max_{\pi\in\Pi}\ \underbrace{\frac1n\sum_{i}\sum_{k}\pi_k(x_i)\,\hat\mu_k(x_i)}_{\text{direct (outcome model)}}\;+\;\underbrace{\min_{w\in\mathcal U_{\mathrm{OW}}(\Gamma,\varepsilon)}\ \frac1n\sum_{i}\pi_{T_i}(x_i)\,w_i\,r_i}_{\text{worst-case residual correction}}\;}
+\]</div>
+<p>with \(\Pi\) the valid-policy set (simplex per cell, tie on each cell, and \(\frac1n\sum_i\pi_k\le\mathrm{cap}_k\)
+for the capped version), and the <strong>OW set</strong></p>
+<div class="eq">\[
+\mathcal U_{\mathrm{OW}}(\Gamma,\varepsilon)=\Big\{\,w:\ \underbrace{a_i\le w_i\le b_i\ \ \forall i}_{\text{(O) odds / MSM box}}\ \ \text{and}\ \ \underbrace{\mathcal W_{D}\!\big(\hat{\mathbb P}_k,\ \mathbb P^{w}_k\big)\le\varepsilon_k\ \ \forall k}_{\text{(W) Wasserstein covariate balance}}\,\Big\},
+\]</div>
+<p>i.e. exactly R-OW's box ∩ per-arm Wasserstein-ball set, here acting on the residual \(r\) instead of \(Y\).
+\(a_i=1+\Gamma^{-1}(\hat w_i-1),\ b_i=1+\Gamma(\hat w_i-1)\).</p>
+
+<h2>3 · What is actually solved (dual LP)</h2>
+<p>Dualising the inner \(\min_w\) gives R-OW's box + Wasserstein dual with \(Y\to r\), plus the (dual-free) direct term
+added to the objective. Variables \(\pi_k(x_i)\); \(\beta_k\ge 0\) (W-radius); \(\gamma_{k,i},\theta_{k,j}\) (transport,
+free); \(\mu_i,\nu_i\ge 0\) (box).</p>
+<div class="eq">\[
+\max_{\pi,\beta\ge0,\gamma,\theta,\mu\ge0,\nu\ge0}\ \ \frac1n\sum_i\sum_k\pi_k(x_i)\hat\mu_k(x_i)\;+\;\sum_k\Big(-\beta_k\varepsilon_k+\tfrac1n\sum_i\gamma_{k,i}\Big)\;+\;\sum_i\big(a_i\mu_i-b_i\nu_i\big)
+\]</div>
+<div class="eq">\[
+\text{s.t.}\quad \tfrac1n\,\pi_k(x_i)\,r_i+\tfrac1n\,\theta_{k,i}-\mu_i+\nu_i\ge0\ \ \forall k,\ i\in I_k;\qquad
+\beta_k D_{ij}-\gamma_{k,i}-\theta_{k,j}\ge0\ \ \forall k,\ i,\ j\in I_k;
+\]</div>
+<div class="eq">\[
+\textstyle\sum_k\pi_k(x_i)=1,\ \pi\ \text{tied per cell};\qquad
+\underbrace{\tfrac1n\textstyle\sum_i\pi_k(x_i)\le\mathrm{cap}_k}_{\textbf{capped only}};\qquad \beta_k,\mu_i,\nu_i\ge0,
+\]</div>
+<p class="muted">where \(I_k=\{i:T_i=k\}\) are arm \(k\)'s factual rows. Only the residual-correction (the
+dual-feasibility row) changes relative to R-OW — \(Y_i\to r_i\); the box and transport-metric machinery is unchanged.</p>
+<table>
+<tr><th>dual variable</th><th>meaning</th></tr>
+<tr><td>\(\beta_k\ge0\)</td><td>price of the Wasserstein radius \(\varepsilon_k\)</td></tr>
+<tr><td>\(\gamma_{k,i},\ \theta_{k,j}\) (free)</td><td>transport demand / factual duals (the optimal-transport geometry)</td></tr>
+<tr><td>\(\mu_i,\nu_i\ge0\)</td><td>box lower/upper duals on \(a_i,b_i\) (acting on the residual correction)</td></tr>
+</table>
+
+<h2>4 · Correctness anchor &amp; limits</h2>
+<ul>
+<li><strong>\(\hat\mu\equiv 0\ \Rightarrow\) exactly R-OW.</strong> With a zero outcome model the residual is \(r=Y\) and
+the direct term vanishes, so it collapses to R-OW. <strong>Verified bit-identical</strong> (capped &amp; uncapped,
+\(\max|\Delta\pi|=|\Delta\mathrm{obj}|=0\)).</li>
+<li><strong>Box-only sibling.</strong> Dropping the Wasserstein term gives <code>R-O-DoublyRobust</code> (= the existing
+<code>DoublyRobust</code>); R-OW-DoublyRobust adds the per-arm Wasserstein covariate-balance constraint on top.</li>
+<li><strong>\(\Gamma = 1\ \Rightarrow\) Wasserstein-only AIPW.</strong> The box collapses (\(w_i=\hat w_i\) on the box
+side) and only the transport balance constrains the residual correction.</li>
+<li><strong>Double robustness.</strong> Consistent if <em>either</em> the propensity (via \(\hat w\)) <em>or</em> the
+outcome model \(\hat\mu\) is correct; the box + Wasserstein additionally guard the propensity side against the
+unobserved confounder and covariate imbalance.</li>
+</ul>
+
+<h2>5 · Capped vs. Uncapped, and arguments</h2>
+<ul>
+<li><code>Capped</code> adds \(\frac1n\sum_i\pi_k\le\mathrm{cap}_k\); <code>Uncapped</code> drops it.</li>
+<li><code>outcome_means</code> (n,K) — the \(\hat\mu\) nuisance; use <code>common.outcome_means(..., cross_fit=True)</code> for an honest cross-fitted estimate.</li>
+<li><code>zscore</code>/<code>metric</code> — the Wasserstein ground-cost geometry (z-score the covariates first so no large-unit feature dominates).</li>
+<li><code>c_eps</code>/<code>epsilon</code> — scale / override the tight per-arm Wasserstein radius.</li>
+<li><code>Gamma</code> · <code>discretize</code>/<code>mesh</code> — MSM box size on the residual correction + discretisation.</li>
+</ul>
+<p class="muted" style="margin-top:20px;">The <strong>O</strong> (box-only) sibling is <code>R-O-DoublyRobust</code>.
+Outputs persisted per <code>results/SAVING.md</code>.</p>
+
+</body>
+</html>

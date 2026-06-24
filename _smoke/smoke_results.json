@@ -1,0 +1,537 @@
+{
+  "R-OW": {
+    "method": "R-OW",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.53701"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.705, 0.295] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.53701"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.5370066710511625,
+      "uncapped_obj": 0.5370066710511625
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "R-O": {
+    "method": "R-O",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.53701"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.705, 0.295] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.53701"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.5370066710511625,
+      "uncapped_obj": 0.5370066710511625
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "Hajek-OW": {
+    "method": "Hajek-OW",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=-0.06141"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.905, 0.095] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=-0.06141"
+      },
+      {
+        "name": "maximize=False(Y) == maximize=True(-Y)",
+        "passed": true,
+        "detail": "dpi=0.0e+00 dobj=0.0e+00"
+      }
+    ],
+    "objectives": {
+      "capped_obj": -0.061410405002874355,
+      "uncapped_obj": -0.061410405002874355
+    },
+    "notes": "maximize-capable"
+  },
+  "Regret-O": {
+    "method": "Regret-O",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=-0.02489"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.894, 0.106] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=-0.02489"
+      },
+      {
+        "name": "maximize=False(Y) == maximize=True(-Y)",
+        "passed": true,
+        "detail": "dpi=0.0e+00 dobj=0.0e+00"
+      }
+    ],
+    "objectives": {
+      "capped_obj": -0.024894090337326674,
+      "uncapped_obj": -0.02489409033732677
+    },
+    "notes": "maximize-capable"
+  },
+  "IPW": {
+    "method": "IPW",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.83994"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.705, 0.295] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.83994"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.8399368466964944,
+      "uncapped_obj": 0.8399368466964944
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "Direct-X-X": {
+    "method": "Direct-X-X",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.45000"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.741, 0.259] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.45000"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.4499999999999989,
+      "uncapped_obj": 0.4499999999999989
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "DoublyRobust": {
+    "method": "DoublyRobust",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.96340"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.718, 0.282] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.96340"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.9633989101940251,
+      "uncapped_obj": 0.9633989101940251
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "R-OW-DoublyRobust": {
+    "method": "R-OW-DoublyRobust",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.50581"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.901, 0.099] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.50581"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.5058055860590609,
+      "uncapped_obj": 0.5058055860590609
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "R-O-DoublyRobust": {
+    "method": "R-O-DoublyRobust",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.49921"
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.887, 0.113] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs",
+        "passed": true
+      },
+      {
+        "name": "uncapped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "uncapped objective finite",
+        "passed": true,
+        "detail": "obj=0.49921"
+      },
+      {
+        "name": "loss-direction (-Y) runs + valid simplex",
+        "passed": true,
+        "detail": "(no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.4992129412911486,
+      "uncapped_obj": 0.4992129412911486
+    },
+    "notes": "value-maximiser (no flag)"
+  },
+  "Oracle": {
+    "method": "Oracle",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "capped runs (Full-info on Ypot)",
+        "passed": true
+      },
+      {
+        "name": "capped policy is valid simplex",
+        "passed": true
+      },
+      {
+        "name": "capped usage <= cap",
+        "passed": true,
+        "detail": "usage=[0.818, 0.182] cap=(1.0, 0.4)"
+      },
+      {
+        "name": "capped objective finite",
+        "passed": true,
+        "detail": "obj=0.67273"
+      },
+      {
+        "name": "capped Shapley+KNN extension valid",
+        "passed": true
+      },
+      {
+        "name": "uncapped runs + valid simplex",
+        "passed": true
+      },
+      {
+        "name": "loss-direction (-Ypot) runs + valid simplex",
+        "passed": true,
+        "detail": "(benchmark; no maximize flag)"
+      }
+    ],
+    "objectives": {
+      "capped_obj": 0.6727272727272704,
+      "uncapped_obj": 0.6727272727272704
+    },
+    "notes": "benchmark (value matrix; no flag)"
+  },
+  "Kallus": {
+    "method": "Kallus",
+    "overall": "PASS",
+    "checks": [
+      {
+        "name": "odds-set fit runs (maximize=False)",
+        "passed": true,
+        "detail": "regret=0.15200"
+      },
+      {
+        "name": "objective finite",
+        "passed": true
+      },
+      {
+        "name": "predict on test = valid per-unit softmax",
+        "passed": true
+      },
+      {
+        "name": "maximize=False(Y) == maximize=True(-Y)",
+        "passed": true,
+        "detail": "dtheta=0.0e+00 dobj=0.0e+00"
+      },
+      {
+        "name": "Wasserstein-set fit runs",
+        "passed": true,
+        "detail": "regret=0.12220"
+      }
+    ],
+    "objectives": {
+      "odds_regret": 0.15200116332030017,
+      "wass_regret": 0.12219884338617185
+    },
+    "notes": "maximize-capable (parametric softmax)"
+  }
+}

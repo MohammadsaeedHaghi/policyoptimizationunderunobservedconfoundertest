@@ -1,0 +1,84 @@
+Set parameter Username
+Set parameter LicenseID to value 2683331
+
+--------------------------------------------
+Warning: your license will expire in 14 days
+--------------------------------------------
+
+Academic license - for non-commercial use only - expires 2026-06-30
+Set parameter Username
+Set parameter LicenseID to value 2683331
+
+--------------------------------------------
+Warning: your license will expire in 14 days
+--------------------------------------------
+
+Set parameter Username
+Set parameter LicenseID to value 2683331
+
+--------------------------------------------
+Warning: your license will expire in 14 days
+--------------------------------------------
+
+Academic license - for non-commercial use only - expires 2026-06-30
+Academic license - for non-commercial use only - expires 2026-06-30
+seed1 uncap Γ=1.00 | R-OW=0.642 IPW=0.642 AIPW=0.659 R-O=0.642
+seed2 uncap Γ=1.00 | R-OW=0.650 IPW=0.650 AIPW=0.669 R-O=0.650
+seed3 uncap Γ=1.00 | R-OW=0.658 IPW=0.658 AIPW=0.684 R-O=0.658
+seed2 uncap Γ=3.00 | R-OW=0.676 IPW=0.650 AIPW=0.669 R-O=0.650
+seed3 uncap Γ=3.00 | R-OW=0.659 IPW=0.658 AIPW=0.684 R-O=0.650
+seed1 uncap Γ=3.00 | R-OW=0.661 IPW=0.642 AIPW=0.659 R-O=0.644
+seed2 uncap Γ=6.00 | R-OW=0.680 IPW=0.650 AIPW=0.669 R-O=0.650
+seed3 uncap Γ=6.00 | R-OW=0.663 IPW=0.658 AIPW=0.684 R-O=0.654
+seed1 uncap Γ=6.00 | R-OW=0.661 IPW=0.642 AIPW=0.659 R-O=0.641
+seed2 uncap Γ=9.00 | R-OW=0.679 IPW=0.650 AIPW=0.669 R-O=0.650
+seed3 uncap Γ=9.00 | R-OW=0.663 IPW=0.658 AIPW=0.684 R-O=0.654
+seed1 uncap Γ=9.00 | R-OW=0.661 IPW=0.642 AIPW=0.659 R-O=0.641
+seed2 uncap Γ=12.18 | R-OW=0.678 IPW=0.650 AIPW=0.669 R-O=0.650
+seed3 uncap Γ=12.18 | R-OW=0.663 IPW=0.658 AIPW=0.684 R-O=0.654
+seed1 uncap Γ=12.18 | R-OW=0.661 IPW=0.642 AIPW=0.659 R-O=0.641
+seed2 uncap Γ=16.00 | R-OW=0.673 IPW=0.650 AIPW=0.669 R-O=0.650
+seed3 uncap Γ=16.00 | R-OW=0.662 IPW=0.658 AIPW=0.684 R-O=0.654
+seed2 cap Γ=1.00 | R-OW=0.648 IPW=0.648 AIPW=0.665 R-O=0.648
+seed3 cap Γ=1.00 | R-OW=0.678 IPW=0.678 AIPW=0.680 R-O=0.678
+seed1 uncap Γ=16.00 | R-OW=0.661 IPW=0.642 AIPW=0.659 R-O=0.641
+seed2 cap Γ=3.00 | R-OW=0.676 IPW=0.648 AIPW=0.665 R-O=0.648
+seed1 cap Γ=1.00 | R-OW=0.642 IPW=0.642 AIPW=0.644 R-O=0.642
+seed3 cap Γ=3.00 | R-OW=0.688 IPW=0.678 AIPW=0.680 R-O=0.658
+seed2 cap Γ=6.00 | R-OW=0.685 IPW=0.648 AIPW=0.665 R-O=0.648
+seed1 cap Γ=3.00 | R-OW=0.663 IPW=0.642 AIPW=0.644 R-O=0.627
+seed3 cap Γ=6.00 | R-OW=0.696 IPW=0.678 AIPW=0.680 R-O=0.640
+seed1 cap Γ=6.00 | R-OW=0.668 IPW=0.642 AIPW=0.644 R-O=0.613
+seed2 cap Γ=9.00 | R-OW=0.684 IPW=0.648 AIPW=0.665 R-O=0.648
+seed3 cap Γ=9.00 | R-OW=0.695 IPW=0.678 AIPW=0.680 R-O=0.640
+seed1 cap Γ=9.00 | R-OW=0.669 IPW=0.642 AIPW=0.644 R-O=0.613
+seed2 cap Γ=12.18 | R-OW=0.684 IPW=0.648 AIPW=0.665 R-O=0.648
+seed3 cap Γ=12.18 | R-OW=0.695 IPW=0.678 AIPW=0.680 R-O=0.640
+seed2 cap Γ=16.00 | R-OW=0.683 IPW=0.648 AIPW=0.665 R-O=0.648
+wrote seed2.json (2-D, γ=5.0, matchedΓ=12.18)
+seed1 cap Γ=12.18 | R-OW=0.669 IPW=0.642 AIPW=0.644 R-O=0.613
+Set parameter Username
+Set parameter LicenseID to value 2683331
+
+--------------------------------------------
+Warning: your license will expire in 14 days
+--------------------------------------------
+
+Academic license - for non-commercial use only - expires 2026-06-30
+seed3 cap Γ=16.00 | R-OW=0.691 IPW=0.678 AIPW=0.680 R-O=0.640
+wrote seed3.json (2-D, γ=5.0, matchedΓ=12.18)
+seed4 uncap Γ=1.00 | R-OW=0.663 IPW=0.663 AIPW=0.697 R-O=0.663
+seed1 cap Γ=16.00 | R-OW=0.668 IPW=0.642 AIPW=0.644 R-O=0.613
+wrote seed1.json (2-D, γ=5.0, matchedΓ=12.18)
+seed4 uncap Γ=3.00 | R-OW=0.673 IPW=0.663 AIPW=0.697 R-O=0.644
+seed4 uncap Γ=6.00 | R-OW=0.673 IPW=0.663 AIPW=0.697 R-O=0.663
+seed4 uncap Γ=9.00 | R-OW=0.672 IPW=0.663 AIPW=0.697 R-O=0.663
+seed4 uncap Γ=12.18 | R-OW=0.671 IPW=0.663 AIPW=0.697 R-O=0.663
+seed4 uncap Γ=16.00 | R-OW=0.670 IPW=0.663 AIPW=0.697 R-O=0.663
+seed4 cap Γ=1.00 | R-OW=0.653 IPW=0.653 AIPW=0.685 R-O=0.653
+seed4 cap Γ=3.00 | R-OW=0.687 IPW=0.653 AIPW=0.685 R-O=0.634
+seed4 cap Γ=6.00 | R-OW=0.693 IPW=0.653 AIPW=0.685 R-O=0.653
+seed4 cap Γ=9.00 | R-OW=0.693 IPW=0.653 AIPW=0.685 R-O=0.653
+seed4 cap Γ=12.18 | R-OW=0.693 IPW=0.653 AIPW=0.685 R-O=0.653
+seed4 cap Γ=16.00 | R-OW=0.691 IPW=0.653 AIPW=0.685 R-O=0.653
+wrote seed4.json (2-D, γ=5.0, matchedΓ=12.18)

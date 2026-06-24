@@ -1,0 +1,72 @@
+Set parameter Username
+Set parameter LicenseID to value 2683331
+Academic license - for non-commercial use only - expires 2026-06-30
+Set parameter Username
+Set parameter LicenseID to value 2683331
+Set parameter Username
+Set parameter LicenseID to value 2683331
+Academic license - for non-commercial use only - expires 2026-06-30
+Academic license - for non-commercial use only - expires 2026-06-30
+seed1 uncap Γ=1.00 | R-OW=0.735 IPW=0.735 AIPW=0.760
+seed2 uncap Γ=1.00 | R-OW=0.774 IPW=0.774 AIPW=0.767
+seed3 uncap Γ=1.00 | R-OW=0.744 IPW=0.744 AIPW=0.766
+seed1 uncap Γ=1.50 | R-OW=0.753 IPW=0.735 AIPW=0.760
+seed2 uncap Γ=1.50 | R-OW=0.792 IPW=0.774 AIPW=0.767
+seed3 uncap Γ=1.50 | R-OW=0.763 IPW=0.744 AIPW=0.766
+seed1 uncap Γ=2.00 | R-OW=0.753 IPW=0.735 AIPW=0.760
+seed2 uncap Γ=2.00 | R-OW=0.776 IPW=0.774 AIPW=0.767
+seed3 uncap Γ=2.00 | R-OW=0.763 IPW=0.744 AIPW=0.766
+seed1 uncap Γ=2.72 | R-OW=0.748 IPW=0.735 AIPW=0.760
+seed3 uncap Γ=2.72 | R-OW=0.763 IPW=0.744 AIPW=0.766
+seed2 uncap Γ=2.72 | R-OW=0.767 IPW=0.774 AIPW=0.767
+seed3 uncap Γ=3.00 | R-OW=0.763 IPW=0.744 AIPW=0.766
+seed1 uncap Γ=3.00 | R-OW=0.748 IPW=0.735 AIPW=0.760
+seed2 uncap Γ=3.00 | R-OW=0.767 IPW=0.774 AIPW=0.767
+seed3 uncap Γ=4.35 | R-OW=0.780 IPW=0.744 AIPW=0.766
+seed1 uncap Γ=4.35 | R-OW=0.748 IPW=0.735 AIPW=0.760
+seed2 uncap Γ=4.35 | R-OW=0.791 IPW=0.774 AIPW=0.767
+seed3 uncap Γ=7.07 | R-OW=0.786 IPW=0.744 AIPW=0.766
+seed1 uncap Γ=7.07 | R-OW=0.761 IPW=0.735 AIPW=0.760
+seed2 uncap Γ=7.07 | R-OW=0.792 IPW=0.774 AIPW=0.767
+seed3 cap Γ=1.00 | R-OW=0.737 IPW=0.737 AIPW=0.762
+seed1 cap Γ=1.00 | R-OW=0.710 IPW=0.710 AIPW=0.732
+seed2 cap Γ=1.00 | R-OW=0.753 IPW=0.753 AIPW=0.757
+seed3 cap Γ=1.50 | R-OW=0.746 IPW=0.737 AIPW=0.762
+seed1 cap Γ=1.50 | R-OW=0.699 IPW=0.710 AIPW=0.732
+seed2 cap Γ=1.50 | R-OW=0.753 IPW=0.753 AIPW=0.757
+seed3 cap Γ=2.00 | R-OW=0.773 IPW=0.737 AIPW=0.762
+seed1 cap Γ=2.00 | R-OW=0.727 IPW=0.710 AIPW=0.732
+seed3 cap Γ=2.72 | R-OW=0.784 IPW=0.737 AIPW=0.762
+seed2 cap Γ=2.00 | R-OW=0.759 IPW=0.753 AIPW=0.757
+seed3 cap Γ=3.00 | R-OW=0.798 IPW=0.737 AIPW=0.762
+seed1 cap Γ=2.72 | R-OW=0.757 IPW=0.710 AIPW=0.732
+seed2 cap Γ=2.72 | R-OW=0.788 IPW=0.753 AIPW=0.757
+seed3 cap Γ=4.35 | R-OW=0.802 IPW=0.737 AIPW=0.762
+seed1 cap Γ=3.00 | R-OW=0.760 IPW=0.710 AIPW=0.732
+seed2 cap Γ=3.00 | R-OW=0.784 IPW=0.753 AIPW=0.757
+seed3 cap Γ=7.07 | R-OW=0.799 IPW=0.737 AIPW=0.762
+wrote seed3.json (γ=2.00, matchedΓ=2.72)
+Set parameter Username
+Set parameter LicenseID to value 2683331
+Academic license - for non-commercial use only - expires 2026-06-30
+seed1 cap Γ=4.35 | R-OW=0.783 IPW=0.710 AIPW=0.732
+seed2 cap Γ=4.35 | R-OW=0.787 IPW=0.753 AIPW=0.757
+seed4 uncap Γ=1.00 | R-OW=0.776 IPW=0.776 AIPW=0.766
+seed1 cap Γ=7.07 | R-OW=0.786 IPW=0.710 AIPW=0.732
+wrote seed1.json (γ=2.00, matchedΓ=2.72)
+seed2 cap Γ=7.07 | R-OW=0.791 IPW=0.753 AIPW=0.757
+wrote seed2.json (γ=2.00, matchedΓ=2.72)
+seed4 uncap Γ=1.50 | R-OW=0.782 IPW=0.776 AIPW=0.766
+seed4 uncap Γ=2.00 | R-OW=0.774 IPW=0.776 AIPW=0.766
+seed4 uncap Γ=2.72 | R-OW=0.764 IPW=0.776 AIPW=0.766
+seed4 uncap Γ=3.00 | R-OW=0.764 IPW=0.776 AIPW=0.766
+seed4 uncap Γ=4.35 | R-OW=0.756 IPW=0.776 AIPW=0.766
+seed4 uncap Γ=7.07 | R-OW=0.777 IPW=0.776 AIPW=0.766
+seed4 cap Γ=1.00 | R-OW=0.735 IPW=0.735 AIPW=0.707
+seed4 cap Γ=1.50 | R-OW=0.739 IPW=0.735 AIPW=0.707
+seed4 cap Γ=2.00 | R-OW=0.758 IPW=0.735 AIPW=0.707
+seed4 cap Γ=2.72 | R-OW=0.793 IPW=0.735 AIPW=0.707
+seed4 cap Γ=3.00 | R-OW=0.789 IPW=0.735 AIPW=0.707
+seed4 cap Γ=4.35 | R-OW=0.790 IPW=0.735 AIPW=0.707
+seed4 cap Γ=7.07 | R-OW=0.794 IPW=0.735 AIPW=0.707
+wrote seed4.json (γ=2.00, matchedΓ=2.72)

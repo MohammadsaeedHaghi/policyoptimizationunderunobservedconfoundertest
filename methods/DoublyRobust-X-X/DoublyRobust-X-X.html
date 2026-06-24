@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DoublyRobust — robust AIPW value maximiser (box-only)</title>
+<script>window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --theme:#c2398a; --border:#e2e2e2; --soft:#f7e6f0; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:920px; margin:32px auto; padding:0 20px; line-height:1.55; }
+  h1 { color:var(--theme); margin-bottom:2px; } h2 { margin-top:30px; border-bottom:2px solid var(--soft); padding-bottom:4px; }
+  code { background:#f3f3f3; padding:1px 5px; border-radius:4px; font-size:90%; }
+  .card { border:1px solid var(--border); border-left:4px solid var(--theme); border-radius:8px; padding:14px 18px; margin:14px 0; background:#fff; }
+  .warn { border-left-color:#d62728; background:#fdecec; }
+  .muted { color:var(--muted); font-size:92%; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:93%; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left; vertical-align:top; } th { background:var(--soft); }
+  .eq { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<h1>DoublyRobust</h1>
+<p class="muted">Robust <strong>AIPW</strong> (doubly-robust) value maximiser — box-only. Files:
+<code>Capped/doublyrobust_capped.py</code>, <code>Uncapped/doublyrobust_uncapped.py</code>.</p>
+
+<div class="card">
+<strong>One sentence.</strong> DoublyRobust anchors the policy value on an <em>outcome model</em> μ̂ and makes only
+the leftover <em>IPW correction</em> robust to the unobserved confounder (the marginal-sensitivity box) — the
+doubly-robust analog of R-O.
+</div>
+
+<div class="card warn">
+<strong>Design note (new derivation).</strong> There was no doubly-robust solver in the repository. This is the
+chosen formulation: <em>robust AIPW value-max, box-only</em>. It is the R-O LP with the outcome residual in place of
+Y, plus the direct outcome term. Correctness is anchored by a reduction (below), not an old reference.
+</div>
+
+<h2>1 · Inputs</h2>
+<table>
+<tr><th>symbol</th><th>meaning</th><th>source</th></tr>
+<tr><td>\(x_i, T_i, Y_i\)</td><td>covariates, observed arm, observed outcome (arms \(0..K-1\))</td><td>data</td></tr>
+<tr><td>\(\hat w_i\)</td><td>nominal inverse weights, Hájek-normalised (estimated upstream — <strong>never</strong> true propensities)</td><td><code>common.ipw_weights_from_data</code></td></tr>
+<tr><td>\(\hat\mu_k(X_i)\)</td><td>outcome-model nuisance \(\approx E[Y\mid X,T=k]\), shape (n, K), estimated from observed (X,T,Y) only</td><td><code>common.outcome_means</code></td></tr>
+<tr><td>\(\Gamma\ge 1\), \([a_i,b_i]\)</td><td>sensitivity level + per-unit MSM box</td><td><code>common.marginal_sensitivity_box</code></td></tr>
+<tr><td>\(\mathrm{cap}_k\)</td><td>per-arm capacity (capped version only)</td><td>caller</td></tr>
+</table>
+
+<h2>2 · The in-sample problem (robust AIPW value)</h2>
+<p>Write the factual residual \(r_i = Y_i - \hat\mu_{T_i}(X_i)\). DoublyRobust maximises the outcome-model value
+plus the <em>worst-case</em> residual IPW correction:</p>
+<div class="eq">\[
+\boxed{\;\max_{\pi\in\Pi}\ \underbrace{\frac1n\sum_{i}\sum_{k}\pi_k(x_i)\,\hat\mu_k(x_i)}_{\text{direct (outcome model)}}\;+\;\underbrace{\min_{w\in\mathcal U_{\mathrm O}(\Gamma)}\ \frac1n\sum_{i}\pi_{T_i}(x_i)\,w_i\,r_i}_{\text{worst-case residual correction}}\;}
+\]</div>
+<p>with \(\Pi\) the valid-policy set (simplex per cell, tie on each cell, and \(\frac1n\sum_i\pi_k\le\mathrm{cap}_k\)
+for the capped version), and \(\mathcal U_{\mathrm O}(\Gamma)=\{w: a_i\le w_i\le b_i,\ \sum_{i:T_i=k}w_i=n\}\) —
+exactly R-O's box + Hájek-calibration set, here acting on the residual \(r\) instead of \(Y\).</p>
+
+<h2>3 · What is actually solved (dual LP)</h2>
+<p>Dualising the inner \(\min_w\) gives R-O's box-only dual with \(Y\to r\), plus the (θ-free) direct term added to
+the objective. Variables \(\pi_k(x_i)\); \(\mu_i,\nu_i\ge 0\); \(\beta_k\) free.</p>
+<div class="eq">\[
+\max_{\pi,\mu,\nu,\beta}\ \ \frac1n\sum_i\sum_k\pi_k(x_i)\hat\mu_k(x_i)\;+\;\sum_i\big(a_i\mu_i-b_i\nu_i\big)\;+\;\sum_k n\beta_k
+\]</div>
+<div class="eq">\[
+\text{s.t.}\quad \mu_i-\nu_i=\tfrac1n\,r_i\,\pi_{T_i}(x_i)-\beta_{T_i}\ \ \forall i;\qquad
+\textstyle\sum_k\pi_k(x_i)=1,\ \pi\ \text{tied per cell};\qquad
+\underbrace{\tfrac1n\textstyle\sum_i\pi_k(x_i)\le\mathrm{cap}_k}_{\textbf{capped only}};\qquad \mu_i,\nu_i\ge0.
+\]</div>
+<table>
+<tr><th>dual variable</th><th>meaning</th></tr>
+<tr><td>\(\mu_i,\nu_i\ge0\)</td><td>box lower/upper duals on \(a_i,b_i\) (acting on the residual correction)</td></tr>
+<tr><td>\(\beta_k\) (free)</td><td>per-arm Hájek-calibration multiplier</td></tr>
+</table>
+
+<h2>4 · How it is solved — R-O's dual on the residual, plus the direct term</h2>
+<p>DoublyRobust reuses R-O's dualisation <strong>verbatim</strong> on the residual correction and simply adds the
+(policy-only) direct outcome term back into the objective. The steps below trace how the AIPW max–min of section 2
+becomes the single LP of section 3 (we write \(w\) for the adversary's weight vector and
+\(r_i=Y_i-\hat\mu_{T_i}(x_i)\) for the factual residual).</p>
+
+<div class="card">
+<strong>Step 1 — primal (max–min).</strong> Maximise the direct outcome value plus the worst-case residual correction:
+<div class="eq">\[
+\max_{\pi\in\Pi}\ \left[\ \frac1n\sum_{i}\sum_{k}\pi_k(x_i)\,\hat\mu_k(x_i)\;+\;\min_{w\in\mathcal U_{\mathrm O}(\Gamma)}\ \frac1n\sum_{i}\pi_{T_i}(x_i)\,w_i\,r_i\ \right],\qquad r_i=Y_i-\hat\mu_{T_i}(x_i).
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 2 — only the correction has an adversary.</strong> The direct term \(\frac1n\sum_i\sum_k\pi_k(x_i)\hat\mu_k(x_i)\)
+is <em>constant in \(w\)</em>, so it passes outside the inner minimisation. The inner \(\min_w\) is therefore
+<em>exactly</em> R-O's inner problem with \(Y\) replaced by the residual \(r\):
+<div class="eq">\[
+\min_{w\in\mathcal U_{\mathrm O}(\Gamma)}\ \frac1n\sum_{i}\pi_{T_i}(x_i)\,w_i\,r_i,\qquad
+\mathcal U_{\mathrm O}(\Gamma)=\Big\{w:\ a_i\le w_i\le b_i\ \forall i,\ \textstyle\sum_{i:T_i=k} w_i=n\ \forall k\Big\}.
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 3 — dualise the inner, as in R-O.</strong> Attach box duals \(\mu_i\ge0\) (to \(w_i\ge a_i\)),
+\(\nu_i\ge0\) (to \(w_i\le b_i\)) and a <strong>free</strong> calibration multiplier \(\beta_k\) (to the arm-\(k\)
+equality). LP strong duality gives the stationarity constraint and dual objective
+<div class="eq">\[
+\mu_i-\nu_i=\tfrac1n\,r_i\,\pi_{T_i}(x_i)-\beta_{T_i}\ \ \forall i,\qquad
+\sum_{i}\big(a_i\mu_i-b_i\nu_i\big)+\sum_{k} n\,\beta_k.
+\]</div>
+</div>
+
+<div class="card">
+<strong>Step 4 — combine.</strong> Add the direct term \(\frac1n\sum_i\sum_k\pi_k(x_i)\hat\mu_k(x_i)\) (linear in
+\(\pi\)) to that dual objective, together with the policy constraints (simplex, per-cell tie, capacity) — yielding the
+<strong>single LP of section 3</strong>. Setting \(\hat\mu\equiv0\) makes \(r=Y\) and the direct term vanish, recovering
+R-O exactly.
+</div>
+
+<div class="card">
+<strong>Step 5 — solve.</strong> The merged LP is handed to <strong>Gurobi</strong> with
+<code>DualReductions=0</code> so the dual certificate \((\beta,\mu,\nu)\) is well defined.
+</div>
+
+<p class="muted"><strong>How it is used.</strong> The solve returns the on-support policy \(\pi\) (\(K\times n\))
+together with the box duals; deployment to new covariates is done with the Shapley/KNN extension. The outcome-model
+nuisance \(\hat\mu\) comes from <code>common.outcome_means</code>.</p>
+
+<h2>5 · Correctness anchor &amp; limits</h2>
+<ul>
+<li><strong>μ̂ ≡ 0 ⇒ exactly R-O.</strong> With a zero outcome model the residual is \(r=Y\) and the direct term
+vanishes, so DoublyRobust collapses to R-O. <strong>Verified bit-identical</strong> (capped &amp; uncapped,
+\(\max|\Delta\pi|=|\Delta\beta|=|\Delta\mu|=|\Delta\nu|=0\)) — and R-O is itself bit-identical to the old solver,
+so DoublyRobust is transitively grounded.</li>
+<li><strong>Γ = 1 ⇒ (non-robust) AIPW.</strong> The box collapses (\(w_i=\hat w_i\)) and the objective becomes the
+ordinary AIPW value of \(\pi\).</li>
+<li><strong>Double robustness.</strong> The estimate is consistent if <em>either</em> the propensity (via \(\hat w\))
+<em>or</em> the outcome model \(\hat\mu\) is correct; the box additionally guards the propensity side against the
+unobserved confounder.</li>
+</ul>
+
+<h2>6 · Capped vs. Uncapped, and arguments</h2>
+<ul>
+<li><code>Capped</code> adds \(\frac1n\sum_i\pi_k\le\mathrm{cap}_k\); <code>Uncapped</code> drops it.</li>
+<li><code>outcome_means</code> (n,K) — the μ̂ nuisance; use <code>common.outcome_means(..., cross_fit=True)</code> for an honest cross-fitted estimate.</li>
+<li><code>discretize</code>/<code>mesh</code> — discretise X to the same support as the other methods.</li>
+<li><code>Gamma</code> — size of the MSM box on the residual correction.</li>
+</ul>
+<p class="muted" style="margin-top:20px;">Scope: this is the <strong>box-only</strong> variant (chosen first). A box∩Wasserstein DoublyRobust-OW can be
+added later by mirroring R-OW's transport machinery on the residual. Outputs persisted per <code>results/SAVING.md</code>.</p>
+
+</body>
+</html>
