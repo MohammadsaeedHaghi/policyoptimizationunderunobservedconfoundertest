@@ -1,0 +1,105 @@
+{
+  "results": "assets/exp_owgap/owgap_uncap_20seed_ce1.0.json",
+  "regime": "uncap",
+  "baseline": "DoublyRobust-X-X",
+  "n_seeds": 20,
+  "oracle": 0.8469,
+  "by_gamma": {
+    "2": {
+      "IPW-O-W": {
+        "mean": 0.7497,
+        "sd": 0.092,
+        "paired_diff": 0.097,
+        "ci_lo": 0.0432,
+        "ci_hi": 0.1336,
+        "win_seeds": 18,
+        "n": 20,
+        "significant": true
+      },
+      "DoublyRobust-O-W": {
+        "mean": 0.7622,
+        "sd": 0.1385,
+        "paired_diff": 0.1094,
+        "ci_lo": 0.0399,
+        "ci_hi": 0.1627,
+        "win_seeds": 17,
+        "n": 20,
+        "significant": true
+      },
+      "DoublyRobust-O-X": {
+        "mean": 0.5949,
+        "sd": 0.1258,
+        "paired_diff": -0.0578,
+        "ci_lo": -0.1189,
+        "ci_hi": -0.0038,
+        "win_seeds": 1,
+        "n": 20,
+        "significant": false
+      }
+    },
+    "3": {
+      "IPW-O-W": {
+        "mean": 0.777,
+        "sd": 0.0497,
+        "paired_diff": 0.1243,
+        "ci_lo": 0.0931,
+        "ci_hi": 0.1509,
+        "win_seeds": 18,
+        "n": 20,
+        "significant": true
+      },
+      "DoublyRobust-O-W": {
+        "mean": 0.7408,
+        "sd": 0.0755,
+        "paired_diff": 0.0881,
+        "ci_lo": 0.0373,
+        "ci_hi": 0.1279,
+        "win_seeds": 17,
+        "n": 20,
+        "significant": true
+      },
+      "DoublyRobust-O-X": {
+        "mean": 0.5424,
+        "sd": 0.1729,
+        "paired_diff": -0.1103,
+        "ci_lo": -0.1908,
+        "ci_hi": -0.0408,
+        "win_seeds": 6,
+        "n": 20,
+        "significant": false
+      }
+    },
+    "4": {
+      "IPW-O-W": {
+        "mean": 0.7725,
+        "sd": 0.0646,
+        "paired_diff": 0.1198,
+        "ci_lo": 0.084,
+        "ci_hi": 0.1508,
+        "win_seeds": 18,
+        "n": 20,
+        "significant": true
+      },
+      "DoublyRobust-O-W": {
+        "mean": 0.729,
+        "sd": 0.0869,
+        "paired_diff": 0.0763,
+        "ci_lo": 0.0384,
+        "ci_hi": 0.1122,
+        "win_seeds": 14,
+        "n": 20,
+        "significant": true
+      },
+      "DoublyRobust-O-X": {
+        "mean": 0.5693,
+        "sd": 0.1787,
+        "paired_diff": -0.0834,
+        "ci_lo": -0.1671,
+        "ci_hi": -0.0117,
+        "win_seeds": 9,
+        "n": 20,
+        "significant": false
+      }
+    }
+  }
+}

@@ -76,6 +76,11 @@ def solve_job(job):
         for m in OX + OW:
             out[m]["val"].append(round(d.exact_value(_tg(res[m], LV)), 4))
             out[m]["pol"][_gk(g)] = [round(float(x), 4) for x in _tg(res[m], LV)]
+        try:
+            with open("assets/exp_owgap/.gamma_progress", "a") as _pf:
+                _pf.write("%s %s %s %s\n" % (ceps, reg, seed, g))
+        except Exception:
+            pass
     return reg, str(seed), out
 
 def main():
