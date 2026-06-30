@@ -277,6 +277,60 @@ try:
 except Exception:
     _poltbl = "<p class='sub'>(N=1000 policy data not found.)</p>"
 
+# --- sanity-check plots (generated from the DGP + the actual learned policies) ---
+def _scsave(fig, name):
+    fig.tight_layout(); fig.savefig(os.path.join(OWG, name), dpi=120); plt.close(fig); return name
+_f,_a = plt.subplots(figsize=(7,4.2))
+_a.plot(_Xg,_ES,'-o',color='#444',lw=2.6,ms=6,label='E[S|X]  (true marginal)')
+_a.plot(_Xg,_ESt,'--s',color='#1f77b4',lw=2,ms=5,label='E[S|X, T=1]  treated')
+_a.plot(_Xg,_ESc,'--^',color='#d62728',lw=2,ms=5,label='E[S|X, T=0]  control')
+_a.axhline(0,color='#bbb',ls=':'); _a.set_xlabel('X'); _a.set_ylabel('E[S | ·]'); _a.set_ylim(-1.12,1.12)
+_a.grid(alpha=.25); _a.legend(fontsize=8); _a.set_title('Selection on the hidden vitality S (gap largest at X=0)',fontsize=10)
+_SC1=_scsave(_f,'sc_selbias.png')
+_f,_a=plt.subplots(figsize=(7,4.2))
+_a.plot(_Xg,_cate,'-o',color='#2ca02c',lw=2.6,ms=6,label='true CATE(X)')
+_a.plot(_Xg,_taunaive,'--s',color='#ff7f0e',lw=2.2,ms=5,label='naive contrast tau_hat(X)')
+_a.axhline(0,color='#888',ls=':'); _a.axvspan(0,1.05,color='#16a34a',alpha=.06)
+_a.set_xlabel('X'); _a.set_ylabel('treatment effect'); _a.grid(alpha=.25); _a.legend(fontsize=8)
+_a.set_title('Naive effect inflated near X=0 -> over-treatment',fontsize=10)
+_SC2=_scsave(_f,'sc_naive_cate.png')
+_f,_a=plt.subplots(figsize=(7,4.2))
+_a.plot(_Xg,_emarg,'-o',color='#6a51a3',lw=2.6,ms=6,label='P(T=1 | X)')
+_a.axhline(0.5,color='#bbb',ls=':'); _a.fill_between(_Xg,0,1,where=(_emarg<0.35),color='#dc2626',alpha=.08)
+_a.set_xlabel('X'); _a.set_ylabel('P(T=1|X)'); _a.set_ylim(0,1); _a.grid(alpha=.25); _a.legend(fontsize=8)
+_a.set_title('Overlap collapses at high X (few treated units)',fontsize=10)
+_SC3=_scsave(_f,'sc_overlap.png')
+_scpol={}
+try:
+    _pbs2=json.load(open(os.path.join(OWG,'owgap_results_n1000_ce1.0.json')))['regimes']['uncap']['policy_by_seed']
+    for _m in ['Direct-X-X','IPW-X-X','DoublyRobust-X-X','Hajek-O-X','IPW-O-W','DoublyRobust-O-W']:
+        _sk=[k for k in _pbs2[_m] if k!='avg']; _arr=_np.array([_pbs2[_m][s]['2'] for s in _sk])
+        _mn=_arr.mean(0); _sdv=_arr.std(0); _c=FAM.get(_m.split('-')[0],'#0d9488')
+        _f,_a=plt.subplots(figsize=(5.0,3.3))
+        _a.step(_Xg,_oracle,where='mid',color='#444',ls=':',lw=1.9,label='oracle (treat X>0)')
+        _a.plot(_Xg,_mn,'-o',color=_c,lw=2.4,ms=5,label='pi(treat|X)')
+        _a.fill_between(_Xg,_np.clip(_mn-_sdv,0,1),_np.clip(_mn+_sdv,0,1),color=_c,alpha=.15)
+        _a.set_ylim(-0.05,1.05); _a.set_xlabel('X'); _a.set_ylabel('pi(treat|X)'); _a.grid(alpha=.25)
+        _a.legend(fontsize=6.5,loc='center left'); _a.set_title(_m,fontsize=9.5)
+        _scpol[_m]=_scsave(_f,'sc_pol_%s.png'%_m.replace('-',''))
+except Exception:
+    _scpol={}
+_MECH = grid([(_SC1,'1 — selection on the hidden S','Treated patients look more vital and controls more frail than average; the gap is biggest at X=0 — that gap is the bias.'),
+              (_SC2,'2 — naive effect vs truth','The naive contrast spikes to +6.46 at X=0 where the true CATE is 0 — so naive methods treat the boundary they should not.'),
+              (_SC3,'3 — overlap P(T=1|X)','Treatment becomes rare as X grows (0.23 at X=1): the outcome model is starved and IPW weights explode there.')])
+_METH = {
+ 'DoublyRobust-X-X':('note',"<b>DoublyRobust-X-X (naive AIPW)</b> — <i>over-treats into \\(X\\le0\\).</i> Selection bias inflates the effect near the boundary (plot 2: \\(+6.46\\) at \\(X=0\\)), so AIPW treats \\(X=0\\) (true effect \\(0\\)) and leaks into \\(X=-\\tfrac13\\). <b>This is why it scores 0.69, not 0.847.</b>"),
+ 'IPW-X-X':('note',"<b>IPW-X-X (Hajek)</b> — <i>over-treats low \\(X\\), erratic at high \\(X\\).</i> Pure inverse-propensity: it over-treats \\(X=-\\tfrac13\\), and at \\(X=1\\) the policy is a coin-flip because overlap is only \\(0.23\\) (plot 3) so the weights are huge and high-variance."),
+ 'Direct-X-X':('note',"<b>Direct-X-X (plug-in outcome model)</b> — <i>under-treats high \\(X\\).</i> Where treated units are sparse (plot 3) the fitted \\(\\hat\\mu_1\\) is unreliable, so it fails to treat \\(X=\\tfrac23,1\\) — the levels with the <i>largest</i> true benefit."),
+ 'Hajek-O-X':('note',"<b>Hajek-O-X (worst-case regret, \\(\\Gamma=2\\))</b> — <i>collapsed to nearly never-treat.</i> The do-no-harm fallback retreats to the baseline once worst-case regret turns positive; by \\(\\Gamma=2\\) it has essentially collapsed (value \\(0.00\\))."),
+ 'IPW-O-W':('good',"<b>IPW-O-W</b> — <i>recovers the oracle.</i> Wasserstein balance on \\(X\\) (which tracks the hidden \\(S\\)) removes the selection bias, recovering treat-iff-\\(X>0\\); it only blurs at \\(X=0\\), the hardest call."),
+ 'DoublyRobust-O-W':('good',"<b>DoublyRobust-O-W</b> — <i>recovers the oracle.</i> Same covariate-balancing mechanism, with the direct outcome term anchoring it — a clean treat-the-fit policy."),
+}
+def _method_block(m):
+    cls,txt=_METH[m]; pl=figcard(_scpol[m], m, 'Learned pi(treat|X), mean +/- SD over seeds (Gamma=2, uncapped), vs the oracle step (dotted).') if m in _scpol else ''
+    return "<div class='scmethod'>"+pl+"<div class='"+cls+"' style='margin:0'>"+txt+"</div></div>"
+_METHBLOCKS = ''.join(_method_block(m) for m in ['DoublyRobust-X-X','IPW-X-X','Direct-X-X','Hajek-O-X','IPW-O-W','DoublyRobust-O-W'])
+
 tab_sanity = ("<div class='mhead'><span class='pill' style='background:#0f766e'>Sanity check</span>"
  "<h2 style='border:none;margin:0'>Why each method's policy looks the way it does</h2></div>"
  "<p class='lead'>A mechanistic check: every policy below is explained by <b>two features of the DGP the estimators can actually see</b> — so the simpler methods fail in <i>exactly</i> the directions the DGP predicts, which is strong evidence the pipeline is correct.</p>"
@@ -284,15 +338,13 @@ tab_sanity = ("<div class='mhead'><span class='pill' style='background:#0f766e'>
  + _truth_tbl +
  "<p class='sub' style='margin-top:8px'>The two structural drivers:</p><ol>"
  "<li><b>Selection bias peaks at \\(X=0\\).</b> There \\(P(S{=}{+}1)=\\tfrac12\\), but treated patients are selected <i>vital</i> (\\(\\mathbb{E}[S\\mid\\text{treated}]=+0.38\\)) and controls <i>frail</i> (\\(-0.38\\)). So the naïve contrast \\(\\mathbb{E}[Y\\mid T{=}1]-\\mathbb{E}[Y\\mid T{=}0]=+6.46\\) — a large <b>spurious</b> effect where the true CATE is exactly \\(0\\).</li>"
- "<li><b>Overlap collapses as \\(X\\) grows:</b> \\(P(T{=}1\\mid X)\\) falls to \\(0.23\\) at \\(X=1\\) (the \\(-2X\\) term suppresses treatment). Few treated high-\\(X\\) units ⇒ the outcome model is starved there and IPW weights explode there.</li></ol></div>"
+ "<li><b>Overlap collapses as \\(X\\) grows:</b> \\(P(T{=}1\\mid X)\\) falls to \\(0.23\\) at \\(X=1\\) (the \\(-2X\\) term suppresses treatment). Few treated high-\\(X\\) units ⇒ the outcome model is starved there and IPW weights explode there.</li></ol>"
+ "<h3>The two mechanisms, visualised</h3>" + _MECH + "</div>"
  "<div class='panel'><h3 style='margin-top:4px'>Learned policies \\(\\pi(\\text{treat}\\mid X)\\) (N=1000, \\(\\Gamma=2\\), uncapped, seed-averaged)</h3>"
  + _poltbl + "</div>"
- "<h3>Method-by-method justification</h3>"
- "<div class='note'><b>DoublyRobust-X-X (naïve AIPW)</b> — <i>over-treats into \\(X\\le 0\\).</i> The selection bias inflates the apparent effect near the boundary (\\(+6.46\\) at \\(X=0\\)), so AIPW treats \\(X=0\\) (true effect \\(0\\)) and leaks into \\(X=-\\tfrac13\\) (true effect \\(-1.4\\)). <b>This is exactly why it scores 0.69, not 0.847</b> — it treats ~one harmful / zero-effect level.</div>"
- "<div class='note'><b>IPW-X-X (Hájek)</b> — <i>over-treats low \\(X\\) and goes erratic at high \\(X\\).</i> No outcome model, pure inverse-propensity: it over-treats \\(X=-\\tfrac13\\) (selection bias in the reweighted outcomes), and at \\(X=1\\) the policy is a <b>coin-flip (0.5)</b> because overlap is \\(0.23\\) → huge, high-variance weights make the value estimate unreliable.</div>"
- "<div class='note'><b>Direct-X-X (plug-in outcome model)</b> — <i>under-treats high \\(X\\).</i> The flip side of IPW: it trusts the fitted \\(\\hat\\mu\\). Where treated units are sparse (\\(X=\\tfrac23,1\\): overlap \\(0.37, 0.23\\)) it <b>cannot estimate \\(\\hat\\mu_1\\) reliably</b>, so it under-credits therapy and fails to treat \\(X=\\tfrac23,1\\) — the levels with the <i>largest</i> true benefit.</div>"
- "<div class='note'><b>Hajek-O-X (worst-case regret, \\(\\Gamma=2\\))</b> — <i>collapsed to ≈never-treat.</i> The regret objective has a do-no-harm fallback: once the worst case over the \\(\\Gamma=2\\) uncertainty set makes treating look regret-positive anywhere, it retreats to the baseline (never-treat). By \\(\\Gamma=2\\) it has essentially collapsed — consistent with its \\(0.00\\) value.</div>"
- "<div class='good'><b>IPW-O-W / DoublyRobust-O-W</b> — <i>≈ oracle.</i> They enforce <b>Wasserstein balance on \\(X\\)</b>; since \\(S\\) tracks \\(X\\) almost deterministically, balancing \\(X\\) also balances the hidden \\(S\\), removing the selection bias. They recover &ldquo;treat the fit (\\(X>0\\))&rdquo;, only blurring at \\(X=0\\) — genuinely the hardest call (true CATE exactly \\(0\\), maximal selection bias).</div>"
+ "<h3>Each method's policy, explained with its plot</h3>"
+ "<p class='sub'>Each panel: the learned \\(\\pi(\\text{treat}\\mid X)\\) (mean ± SD over seeds, Γ=2, uncapped) against the oracle step (dotted). The shape of every curve follows from the three mechanisms above.</p>"
+ + _METHBLOCKS +
  "<div class='panel'><b>Verdict.</b> Two DGP features explain everything: (a) selection bias peaking at \\(X=0\\) → naïve methods over-treat the boundary; (b) overlap decaying with \\(X\\) → Direct under-treats high \\(X\\) (model starved) while IPW destabilises there (weights explode). The O-W methods sidestep both via covariate balance. Nothing is anomalous — the failures are all in the DGP-predicted directions.</div>")
 
 TABS = [("overview","Overview"),("owgap","exp_owgap (N=600)"),("lim","Limitations")]
@@ -343,6 +395,9 @@ code{background:#eef1f7;padding:1px 5px;border-radius:5px;font-size:.85em;}
 ol,ul{margin:6px 0 6px 18px;} li{margin:4px 0;}
 .note{border-left:4px solid var(--rose);background:#fff1f3;padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;}
 .good{border-left:4px solid var(--ow);background:#ecfdf3;padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;}
+.scmethod{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:16px;align-items:center;margin:14px 0;}
+@media(max-width:680px){.scmethod{grid-template-columns:1fr;}}
+.scmethod figure.card{margin:0;}
 .polmenus{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0;}
 .polsel{display:flex;flex-direction:column;font-size:.78rem;font-weight:700;color:var(--muted);gap:4px;text-transform:uppercase;letter-spacing:.03em;}
 .polsel select{font:inherit;font-weight:500;text-transform:none;letter-spacing:0;color:var(--fg);padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;}
