@@ -1,0 +1,120 @@
+"""Continuous-X OWGAP — L × Γ 2-D sweep for the ROBUST methods (choose-your-method surface).
+
+For each robust method (IPW-O-X, DoublyRobust-O-X, Hajek-O-X, IPW-O-W, DoublyRobust-O-W) sweep BOTH the
+Lipschitz policy class L and the sensitivity Γ, train on continuous X (discretize=False), deploy on a
+test set via KNN. Output surface[method][Γ][L] = test realized outcome, so the report can slice it
+(E-vs-L at fixed Γ, or E-vs-Γ at fixed L) with a method checklist.
+
+Usage:
+  python3 assets/run_owgap_lip_gamma_2d.py --out assets/exp_owgap_cont/owgap_lip_gamma_2d.json \
+      --n 400 --n-test 2000 --seeds 3 --k 50 --workers 2
+"""
+import sys, os, json, argparse, time, importlib.util
+from pathlib import Path
+import numpy as np
+import multiprocessing as mp
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "extensions" / "KNN")); sys.path.insert(0, str(ROOT / "extensions" / "Shapley"))
+DGP_PATH = str((ROOT / "assets/exp_owgap_cont/dgp.py").resolve())
+GAMMAS = [1.0, 2.0, 3.0, 4.0, 6.0, 8.0]
+LGRID = [None, 10.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.5]
+METHODS = ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X", "IPW-O-W", "DoublyRobust-O-W"]
+_W = {}
+
+def _load(rel, fn):
+    s = importlib.util.spec_from_file_location(fn, str(ROOT / rel)); m = importlib.util.module_from_spec(s); sys.modules[fn] = m; s.loader.exec_module(m); return getattr(m, fn)
+
+def _init(dgp_path):
+    import common; _W["common"] = common
+    from knn import extend_with_knn; _W["knn"] = extend_with_knn
+    sp = importlib.util.spec_from_file_location("dgpmod", dgp_path); d = importlib.util.module_from_spec(sp); sp.loader.exec_module(d); _W["dgp"] = d
+    S = {}
+    S["IPW-O-X"] = _load("methods/IPW-O-X/Uncapped/ipw_o_x_uncapped.py", "solve_ipw_o_x_uncapped")
+    S["DoublyRobust-O-X"] = _load("methods/DoublyRobust-O-X/Uncapped/doublyrobust_o_x_uncapped.py", "solve_doublyrobust_o_x_uncapped")
+    S["Hajek-O-X"] = _load("methods/Hajek-O-X/Uncapped/hajek_o_x_uncapped.py", "solve_hajek_o_x_uncapped")
+    S["IPW-O-W"] = _load("methods/IPW-O-W/Uncapped/ipw_o_w_uncapped.py", "solve_ipw_o_w_uncapped")
+    S["DoublyRobust-O-W"] = _load("methods/DoublyRobust-O-W/Uncapped/doublyrobust_o_w_uncapped.py", "solve_doublyrobust_o_w_uncapped")
+    _W["S"] = S
+
+def solve_job(job):
+    seed, N, Nte, k, ceps = job
+    common = _W["common"]; d = _W["dgp"]; S = _W["S"]; knn = _W["knn"]; K = d.K
+    obs, full = d.generate(N, seed); X, T, Y = obs["X"], obs["T"], obs["Y"]
+    te, ft = d.generate(Nte, seed + 1000); Xte = te["X"]; Y1t, Y0t = ft["Y1"], ft["Y0"]
+    w, _ = common.ipw_weights_from_data(X, T, K); wraw, _ = common.ipw_weights_from_data(X, T, K, normalize=False)
+    mu = common.outcome_means(X, T, Y, n_arms=K, cross_fit=True)
+    Dm = common.pairwise_distance_matrix(X); eps = tuple(common.tight_epsilon(Dm, T, w, K, is_distance=True, c_eps=ceps))
+    Gk = ["%g" % g for g in GAMMAS]; Lkeys = ["inf" if L is None else ("%g" % L) for L in LGRID]
+    grid = {m: {gk: {lk: float("nan") for lk in Lkeys} for gk in Gk} for m in METHODS}
+    def call(m, g, L):
+        if m == "IPW-O-X": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
+        if m == "DoublyRobust-O-X": return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
+        if m == "Hajek-O-X": return S[m](X, T, Y, wraw, n_arms=K, Gamma=g, maximize=True, discretize=False, lipschitz=L)
+        if m == "IPW-O-W": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, lipschitz=L)
+        return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, lipschitz=L)
+    for m in METHODS:
+        for g in GAMMAS:
+            for L, lk in zip(LGRID, Lkeys):
+                try:
+                    res = call(m, g, L); pe = knn(Xte, X, res.pi[1], k=k)
+                    grid[m]["%g" % g][lk] = float(np.mean(pe * Y1t + (1 - pe) * Y0t))
+                except Exception as ex:
+                    print("%s g%s L%s seed%d FAIL: %s" % (m, g, lk, seed, ex), flush=True)
+    orc = d.oracle_policy(Xte.ravel())
+    refs = {"oracle": float(np.mean(orc * Y1t + (1 - orc) * Y0t)), "never_treat": float(np.mean(Y0t))}
+    return seed, grid, refs
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default="assets/exp_owgap_cont/owgap_lip_gamma_2d.json")
+    ap.add_argument("--n", type=int, default=400); ap.add_argument("--n-test", type=int, default=2000, dest="ntest")
+    ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--k", type=int, default=50)
+    ap.add_argument("--ceps", type=float, default=1.0); ap.add_argument("--workers", type=int, default=2)
+    a = ap.parse_args()
+    seeds = list(range(a.seeds)); Path("gurobi.env").write_text("Threads 1\n")
+    Gk = ["%g" % g for g in GAMMAS]; Lkeys = ["inf" if L is None else ("%g" % L) for L in LGRID]
+    jobs = [(sd, a.n, a.ntest, a.k, a.ceps) for sd in seeds]
+    print("L×Γ 2-D (%d methods): N=%d Nte=%d seeds=%d gammas=%s Ls=%s workers=%d" % (len(METHODS), a.n, a.ntest, a.seeds, Gk, Lkeys, a.workers), flush=True)
+    t0 = time.time()
+    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(DGP_PATH,)) as pool:
+        res = pool.map(solve_job, jobs)
+    surface = {m: {gk: {lk: round(float(np.nanmean([o[m][gk][lk] for _, o, _ in res])), 4) for lk in Lkeys} for gk in Gk} for m in METHODS}
+    oracle = round(float(np.mean([r["oracle"] for _, _, r in res])), 4)
+    never = round(float(np.mean([r["never_treat"] for _, _, r in res])), 4)
+    best = {}
+    for m in METHODS:
+        cells = [(gk, lk, surface[m][gk][lk]) for gk in Gk for lk in Lkeys if surface[m][gk][lk] == surface[m][gk][lk]]
+        bg, bl, bv = max(cells, key=lambda t: t[2]) if cells else ("", "", float("nan"))
+        best[m] = {"gamma": bg, "L": bl, "value": bv}
+    bm = max(METHODS, key=lambda m: best[m]["value"])
+    out = {"N_train": a.n, "N_test": a.ntest, "seeds": seeds, "k": a.k, "methods": METHODS, "gammas": Gk, "Lgrid": Lkeys,
+           "oracle": oracle, "never_treat": never, "surface": surface, "best": best,
+           "best_overall": {"method": bm, "gamma": best[bm]["gamma"], "L": best[bm]["L"], "value": best[bm]["value"]}}
+    Path(a.out).write_text(json.dumps(out, indent=2))
+    print("saved %s  (%.1f min)" % (a.out, (time.time() - t0) / 60), flush=True)
+    print("\n=== best per method (test E[Y], %d seeds) — oracle=%.3f ===" % (a.seeds, oracle))
+    for m in METHODS:
+        print("%-18s best %.3f at Γ=%s, L=%s" % (m, best[m]["value"], best[m]["gamma"], best[m]["L"]))
+    print("BEST OVERALL: %s Γ=%s L=%s -> %.3f" % (bm, best[bm]["gamma"], best[bm]["L"], best[bm]["value"]))
+    # heatmap for the best method
+    try:
+        import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        M = np.array([[surface[bm][gk][lk] for lk in Lkeys] for gk in Gk], float)
+        fig, ax = plt.subplots(figsize=(8.2, 4.7))
+        im = ax.imshow(M, aspect="auto", cmap="viridis", origin="upper", vmin=max(never, -0.1), vmax=oracle)
+        ax.set_xticks(range(len(Lkeys))); ax.set_xticklabels(Lkeys); ax.set_yticks(range(len(Gk))); ax.set_yticklabels(["Γ=" + g for g in Gk])
+        ax.set_xlabel("Lipschitz L  (inf = unit-by-unit)"); ax.set_ylabel("Γ (sensitivity)")
+        for i in range(len(Gk)):
+            for j in range(len(Lkeys)):
+                ax.text(j, i, "%.2f" % M[i, j], ha="center", va="center", fontsize=7, color="white" if M[i, j] < (never + oracle) / 2 else "black")
+        fig.colorbar(im, ax=ax, label="test realised E[Y] (oracle=%.2f)" % oracle)
+        ax.set_title("%s: test realized outcome over L × Γ (best %.3f)" % (bm, best[bm]["value"]), fontsize=9.5)
+        fig.tight_layout(); fig.savefig(os.path.join(os.path.dirname(a.out), "lip_gamma_2d.png"), dpi=120); plt.close(fig)
+        print("saved lip_gamma_2d.png", flush=True)
+    except Exception as ex:
+        print("PNG skipped: %s" % ex, flush=True)
+    print("DONE_MARKER", flush=True)
+
+if __name__ == "__main__":
+    main()

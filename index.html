@@ -2380,7 +2380,7 @@ run_experiment(cfg, generate)                        # writes results/exp_c-pari
       <tr><th>symbol</th><th>meaning</th><th>values</th></tr>
       <tr><td>\(X\)</td><td>covariate (discrete, 7 levels)</td><td>Uniform on linspace\((-1,1,7)\)</td></tr>
       <tr><td>\(S\)</td><td><strong>unobserved</strong> vitality, strongly X-correlated</td><td>\(P(S{=}{+}1\mid X)=\sigma(10X)\), \(S\in\{-1,+1\}\)</td></tr>
-      <tr><td>\(T\)</td><td>treatment</td><td>\(e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),0.02,0.98)\): moderate S-selection (matched \(\Gamma\approx5\), small)</td></tr>
+      <tr><td>\(T\)</td><td>treatment</td><td>\(e(X,S)=\sigma(0.8S-2X)\): moderate S-selection (matched \(\Gamma\approx5\), small)</td></tr>
       <tr><td>\(Y\)</td><td>outcome (continuous)</td><td>\(\mu_t(X,S)+\mathcal N(0,0.6^2)\)</td></tr>
     </table>
     <div class="eq">\[ \mu_0(X,S)=8S,\quad \mu_1(X,S)=9S+1.5X,\quad \text{CATE}(X)=(d_1{-}d_0)\,\mathbb E[S\mid X]+1.5X=(2\sigma(10X){-}1)+1.5X\ \Rightarrow\ \text{treat iff } X>0. \]</div>

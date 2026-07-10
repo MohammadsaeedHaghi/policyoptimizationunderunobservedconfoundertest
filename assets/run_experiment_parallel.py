@@ -58,7 +58,7 @@ def solve_job(job):
     wraw, _ = common.ipw_weights_from_data(obs["X"], obs["T"], K, normalize=False)
     mu = common.outcome_means(obs["X"], obs["T"], obs["Y"], n_arms=K, cross_fit=True)
     Dm = common.pairwise_distance_matrix(obs["X"]); eps = tuple(common.tight_epsilon(Dm, obs["T"], w, K, is_distance=True, c_eps=ceps))
-    out = {m: {"val": [], "pol": {}} for m in ALL}
+    out = {m: {"val": [], "pol": {}, "obj": []} for m in ALL}
     # XX (Γ-free)
     flat = {"IPW-X-X": S[(reg, "IPW-X-X")](obs["X"], obs["T"], obs["Y"], w, n_arms=K, discretize=False, **kw0),
             "DoublyRobust-X-X": S[(reg, "DoublyRobust-X-X")](obs["X"], obs["T"], obs["Y"], w, mu, n_arms=K, discretize=False, **kw0),
@@ -66,6 +66,7 @@ def solve_job(job):
     for m, res in flat.items():
         v = d.exact_value(_tg(res, LV)); g0 = [round(float(x), 4) for x in _tg(res, LV)]
         out[m]["val"] = [round(v, 4)] * len(gammas)
+        out[m]["obj"] = [round(float(getattr(res, "objective_value", float("nan"))), 4)] * len(gammas)
         for g in gammas: out[m]["pol"][_gk(g)] = g0
     for g in gammas:
         res = {"IPW-O-X": S[(reg, "IPW-O-X")](obs["X"], obs["T"], obs["Y"], w, n_arms=K, Gamma=g, discretize=False, **kw0),
@@ -75,6 +76,7 @@ def solve_job(job):
                "DoublyRobust-O-W": S[(reg, "DoublyRobust-O-W")](obs["X"], obs["T"], obs["Y"], w, mu, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, **kw0)}
         for m in OX + OW:
             out[m]["val"].append(round(d.exact_value(_tg(res[m], LV)), 4))
+            out[m]["obj"].append(round(float(getattr(res[m], "objective_value", float("nan"))), 4))
             out[m]["pol"][_gk(g)] = [round(float(x), 4) for x in _tg(res[m], LV)]
         try:
             with open("assets/exp_owgap/.gamma_progress", "a") as _pf:
@@ -112,10 +114,12 @@ def main():
                 for m in ALL: per[m][sk] = o[m]
         mean = {m: [round(float(np.mean([per[m][str(s)]["val"][gi] for s in seeds])), 4) for gi in range(len(gammas))] for m in ALL}
         sd_ = {m: [round(float(np.std([per[m][str(s)]["val"][gi] for s in seeds])), 4) for gi in range(len(gammas))] for m in ALL}
+        objm = {m: [round(float(np.nanmean([per[m][str(s)]["obj"][gi] for s in seeds])), 4) for gi in range(len(gammas))] for m in ALL}
+        objsd = {m: [round(float(np.nanstd([per[m][str(s)]["obj"][gi] for s in seeds])), 4) for gi in range(len(gammas))] for m in ALL}
         polS = {m: {str(s): per[m][str(s)]["pol"] for s in seeds} for m in ALL}
         for m in ALL:
             polS[m]["avg"] = {_gk(g): [round(float(np.mean([polS[m][str(s)][_gk(g)][j] for s in seeds])), 4) for j in range(len(LV))] for g in gammas}
-        out["regimes"][reg] = {"mean": mean, "sd": sd_, "policy_seed0": {m: polS[m]["0"] for m in ALL}, "policy_by_seed": polS}
+        out["regimes"][reg] = {"mean": mean, "sd": sd_, "obj": objm, "obj_sd": objsd, "policy_seed0": {m: polS[m]["0"] for m in ALL}, "policy_by_seed": polS}
     Path(a.out).write_text(json.dumps(out, indent=2))
     print("saved %s  oracle=%.3f  (%.1f min, %d jobs on %d workers)" % (a.out, orc, (time.time() - t0) / 60, len(jobs), a.workers), flush=True)
     for reg in regimes:

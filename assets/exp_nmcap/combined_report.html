@@ -1,0 +1,370 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two stress tests for robust policy optimization under unobserved confounding</title>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap");
+:root{
+  --bg:#f5f6fb; --surface:#ffffff; --fg:#0f172a; --muted:#667085; --border:#e9ebf3; --border2:#eef0f7;
+  --accent:#334155; --accent-d:#1e293b; --accent-soft:#f1f5f9;
+  --c-row:#d62728; --c-ro:#9467bd; --c-regow:#17becf; --c-rego:#1f77b4; --c-ipw:#2ca02c;
+  --c-po:#ff7f0e; --c-dr:#8c564b; --c-kallus:#7f7f7f; --c-oracle:#111111;
+  --c-row-dr:#a01f1f; --c-ro-dr:#6d4a7d;
+  --sh-sm:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.05);
+  --sh-md:0 6px 18px rgba(16,24,40,.09); --sh-lg:0 24px 50px rgba(16,24,40,.16); --radius:16px;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{font-family:"Inter",-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--fg);
+  background:var(--bg);max-width:1140px;margin:0 auto;padding:0 24px 90px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+::selection{background:var(--accent-soft);}
+a{color:var(--accent);text-decoration:none;font-weight:500;} a:hover{color:var(--accent-d);text-decoration:underline;}
+p{margin:.6rem 0;}
+code{background:var(--accent-soft);color:#1e293b;padding:1.5px 6px;border-radius:6px;font-size:.85em;
+  font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+h2{font-size:1.5rem;font-weight:750;letter-spacing:-.022em;margin:6px 0 2px;}
+h3{font-size:1.07rem;font-weight:700;letter-spacing:-.012em;margin:28px 0 8px;color:#1e293b;display:flex;align-items:center;gap:9px;}
+h3::before{content:"";width:4px;height:1.02em;border-radius:3px;background:var(--accent);}
+/* hero */
+.hero{position:relative;overflow:hidden;color:#fff;border-radius:22px;padding:32px 36px;margin:26px 0 16px;
+  background:radial-gradient(130% 150% at 0% 0%,#475569 0%,#334155 46%,#0f172a 100%);box-shadow:var(--sh-lg);}
+.hero::after{content:"";position:absolute;inset:0;opacity:.5;pointer-events:none;
+  background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.10) 1px,transparent 0);background-size:22px 22px;}
+.hero h1{margin:0;font-weight:800;letter-spacing:-.03em;font-size:2.05rem;position:relative;}
+.hero p{margin:.6rem 0 0;color:#e2e8f0;max-width:810px;font-size:1.02rem;position:relative;}
+.intro{color:var(--muted);margin:16px 2px 4px;}
+/* sticky frosted top tabs */
+.tabs{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:8px;margin:14px -24px 20px;padding:12px 24px;
+  background:rgba(245,246,251,.82);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--border);}
+.tab-btn{border:1px solid transparent;background:transparent;font:inherit;font-size:.95rem;font-weight:650;color:var(--muted);
+  cursor:pointer;padding:9px 18px;border-radius:11px;transition:all .16s ease;}
+.tab-btn:hover{color:var(--fg);background:var(--surface);box-shadow:var(--sh-sm);}
+.tab-btn.active{color:#fff;background:linear-gradient(180deg,#475569,#334155);box-shadow:0 5px 16px rgba(51,65,85,.36);}
+.tab-panel{display:none;} .tab-panel.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* subtabs */
+.subtabs{display:flex;flex-wrap:wrap;gap:7px;margin:6px 0 22px;}
+.subtab-btn{border:1px solid var(--border);background:var(--surface);font:inherit;font-size:.85rem;font-weight:600;color:var(--muted);
+  cursor:pointer;padding:6px 13px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;transition:all .15s ease;box-shadow:var(--sh-sm);}
+.subtab-btn:hover{color:var(--fg);transform:translateY(-1px);border-color:#d6d9e8;}
+.subtab-btn.active{color:#fff;background:var(--accent);border-color:var(--accent);box-shadow:0 5px 14px rgba(51,65,85,.32);}
+.subpanel{display:none;} .subpanel.active{display:block;}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;box-shadow:0 0 0 2px rgba(255,255,255,.65);}
+/* cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin:16px 0;box-shadow:var(--sh-sm);}
+.muted{color:var(--muted);font-size:.93rem;} .lead{font-size:1.06rem;color:#334155;}
+/* tables */
+table{border-collapse:separate;border-spacing:0;width:100%;margin:14px 0;font-size:.9rem;background:var(--surface);
+  border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh-sm);}
+th,td{padding:9px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border2);}
+th{background:#fafbfe;font-weight:700;color:#475569;font-size:.83rem;}
+tr:last-child td{border-bottom:none;} table tr:hover td{background:#fbfbff;}
+/* math + figures */
+.eq{overflow-x:auto;padding:2px 0;}
+ol.deriv{padding-left:22px;margin:6px 0;} ol.deriv>li{margin:12px 0;padding-left:4px;}
+.figwrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);
+  background:linear-gradient(180deg,#fcfcff,#f7f8fe);padding:16px;margin:18px 0;box-shadow:var(--sh-sm);}
+.figcap{font-size:.86rem;color:var(--muted);margin:7px 2px 0;}
+/* method header + pills */
+.mhead{display:flex;align-items:center;gap:13px;margin:8px 0 2px;flex-wrap:wrap;} .mhead h2{margin:0;}
+.pill{display:inline-block;font-size:.8rem;font-weight:800;color:#fff;border-radius:999px;padding:4px 14px;letter-spacing:.01em;box-shadow:var(--sh-sm);}
+.tag{display:inline-block;font-size:.78rem;border:1px solid var(--border);border-radius:7px;padding:2px 9px;margin:0 6px 6px 0;color:var(--muted);background:#fafbfe;}
+.accent-bar{height:4px;border-radius:4px;margin:4px 0 18px;opacity:.92;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;} @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+/* dark code block */
+pre{background:#0f172a;color:#e2e8f0;border:1px solid #1e293b;border-radius:13px;padding:15px 17px;overflow-x:auto;
+  box-shadow:var(--sh-md);font-size:.84rem;line-height:1.55;}
+pre code{background:transparent;color:inherit;padding:0;font-size:1em;}
+/* hover tooltips on config field names */
+.tip{position:relative;cursor:help;border-bottom:1px dotted var(--accent);}
+.tip::after{content:attr(data-tip);position:absolute;left:0;top:140%;z-index:60;background:#0f172a;color:#fff;
+  font-family:"Inter",-apple-system,Segoe UI,sans-serif;font-weight:400;font-size:.78rem;line-height:1.5;
+  padding:9px 12px;border-radius:10px;width:max-content;max-width:360px;white-space:normal;
+  box-shadow:var(--sh-lg);opacity:0;visibility:hidden;transform:translateY(-3px);transition:all .15s ease;pointer-events:none;}
+.tip::before{content:"";position:absolute;left:14px;top:124%;border:6px solid transparent;border-bottom-color:#0f172a;
+  opacity:0;visibility:hidden;transition:opacity .15s;z-index:60;}
+.tip:hover::after{opacity:1;visibility:visible;transform:none;} .tip:hover::before{opacity:1;visibility:visible;}
+::-webkit-scrollbar{height:10px;width:10px;} ::-webkit-scrollbar-thumb{background:#cdd2e0;border-radius:6px;border:2px solid var(--bg);}
+::-webkit-scrollbar-thumb:hover{background:#b6bccb;}
+/* interactive policy chart */
+.ichart{margin:14px 0 6px;}
+.ichart-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:9px;}
+.ichart-note{color:var(--muted);font-size:.85rem;}
+.chart-dd{position:relative;display:inline-block;}
+.chart-dd-btn{font:inherit;font-size:.85rem;font-weight:600;color:var(--fg);background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;padding:7px 14px;cursor:pointer;box-shadow:var(--sh-sm);
+  transition:border-color .15s,transform .1s;}
+.chart-dd-btn:hover{border-color:#d6d9e8;transform:translateY(-1px);}
+.chart-dd-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;min-width:184px;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh-md);padding:6px;display:none;}
+.chart-dd-menu.open{display:block;}
+.chart-dd-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;font-size:.88rem;
+  font-weight:500;cursor:pointer;user-select:none;}
+.chart-dd-item:hover{background:var(--accent-soft);}
+.chart-dd-item.sel{background:var(--accent-soft);font-weight:700;}
+.gamma-dd-btn span{font-variant-numeric:tabular-nums;}
+.pchart-row{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}
+.pchart-row .pchart-wrap{flex:1 1 380px;min-width:0;margin:0;}
+.pchart-legend{flex:none;display:flex;flex-direction:column;gap:3px;padding-top:8px;font-size:.83rem;color:var(--fg);}
+.pchart-leg-item{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;padding:2px 5px;border-radius:6px;white-space:nowrap;}
+.pchart-leg-item:hover{background:var(--accent-soft);}
+.pchart-leg-item.off{opacity:.34;text-decoration:line-through;}
+.pchart-leg-item .sw{width:12px;height:12px;border-radius:3px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.08) inset;}
+.msw{width:26px;height:12px;flex:none;}
+/* themed method-explanation boxes: colour-coded by section kind (slate-family theme) */
+.mbox{position:relative;margin:14px 0;padding:12px 16px 13px 18px;border-radius:12px;
+  border:1px solid #e7eaf1;border-left:4px solid var(--mb);background:var(--mbg);}
+.mbox-l{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--mb);margin-bottom:7px;}
+.mbox>h3{margin:.1rem 0 .55rem;font-size:1rem;color:#1e293b;}
+.mbox>p:last-child{margin-bottom:0;}
+.mbox-obj{--mb:#4f46e5;--mbg:#f6f6ff;}
+.mbox-set{--mb:#b45309;--mbg:#fffaf2;}
+.mbox-solve{--mb:#0e7490;--mbg:#f1fbfc;}
+.mbox-args{--mb:#475569;--mbg:#f8fafc;}
+.mbox-note{--mb:#be185d;--mbg:#fff6f9;}
+.chart-dd-item input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex:none;}
+.chart-dd-item .sw{width:13px;height:13px;border-radius:4px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.07) inset;}
+.pchart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--sh-sm);padding:10px 14px;max-width:880px;}
+.pchart-svg{width:100%;height:auto;display:block;}
+.ppanel-grid{display:flex;gap:10px;flex:1 1 540px;flex-wrap:wrap;min-width:0;}
+.ppanel{flex:1 1 300px;min-width:260px;display:flex;flex-direction:column;gap:4px;}
+.ppanel .pchart-wrap{flex:none;max-width:none;padding:8px 10px;}
+.ppanel-title{font-size:.82rem;font-weight:700;text-align:center;color:var(--fg);}
+.innertabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:22px 0 8px;border-top:1px solid var(--border);padding-top:16px;}
+.innertabs-label{font-weight:700;color:var(--fg);margin-right:4px;}
+.inner-btn{font:inherit;font-size:.9rem;font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 16px;cursor:pointer;transition:all .15s;}
+.inner-btn:hover{border-color:#c4b5fd;transform:translateY(-1px);}
+.inner-btn.active{background:#334155;color:#fff;border-color:#334155;box-shadow:0 2px 8px rgba(51,65,85,.3);}
+.inner-panel{display:none;}
+.inner-panel.active{display:block;}
+.pchart-tick{font-size:11px;fill:#9aa3b2;font-family:"JetBrains Mono",ui-monospace,monospace;}
+.pchart-axlab{font-size:12.5px;fill:#5a6473;font-weight:600;}
+.pchart-series{transition:opacity .12s;}
+
+.restab{border-collapse:collapse;margin:10px 0 2px;font-size:.86rem;width:100%;max-width:640px}
+.restab th,.restab td{border:1px solid #e2e8f0;padding:4px 9px;text-align:center}
+.restab th:first-child,.restab td:first-child{text-align:left;white-space:nowrap}
+.restab th{background:#f1f5f9;font-weight:600}
+.restab tr:last-child td{background:#fafafa;font-style:italic}
+</style></head><body>
+
+<div class="hero"><h1>Robust policy optimization under unobserved confounding: two complementary stress tests</h1>
+<p>When can the Wasserstein-balanced robust methods (the <b>O-W</b> family) be trusted? We show two discrete-X,
+binary-treatment DGPs that each break a different naive baseline &mdash; and that the <b>O-W</b> methods are the
+only ones that survive both.</p></div>
+
+<p class="intro">All methods estimate the propensity from \((X,T)\); the hidden confounder \(S\) is never used.
+Methods follow the <code>estimator&ndash;uncertaintyset&ndash;W</code> naming.</p>
+<div class='card'><strong>How to read every figure.</strong> <b>Colour=estimator family</b> (IPW blue, DoublyRobust green, Hajek purple, Direct orange, Oracle grey). <b>Shape=uncertainty set</b>: <code>-X-X</code> dashed (no robustness, &Gamma;-free), <code>-O-X</code> squares (MSM odds-box), <code>-O-W</code> circles (odds-box &cap; Wasserstein balance). Shaded band = &plusmn;1 SD over seeds. Toggle any series in the legend / dropdown. All propensities are ESTIMATED from (X,T); the hidden S is never used.</div>
+
+<div class="card"><h2 style="margin-top:2px">The headline</h2><table class='restab' style='max-width:680px'><tr><th>method</th><th>exp_owgap<br>(unobs-S, UNCAPPED)</th><th>exp_nmcap<br>(non-monotone, CAPPED)</th></tr><tr><td><span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#1f77b4;margin-right:5px'></span>naive IPW-X-X</td><td style='font-weight:700;color:#dc2626'>0.325</td><td style='font-weight:700;color:#16a34a'>0.241</td></tr><tr><td><span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#2ca02c;margin-right:5px'></span>naive DoublyRobust-X-X (AIPW)</td><td style='font-weight:700;color:#16a34a'>0.653</td><td style='font-weight:700;color:#dc2626'>0.186</td></tr><tr><td><span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#1f77b4;margin-right:5px'></span><b>IPW-O-W</b></td><td style='font-weight:700;color:#16a34a'>0.784</td><td style='font-weight:700;color:#16a34a'>0.241</td></tr><tr><td><span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#2ca02c;margin-right:5px'></span><b>DoublyRobust-O-W</b></td><td style='font-weight:700;color:#16a34a'>0.778</td><td style='font-weight:700;color:#16a34a'>0.227</td></tr></table><p class='muted' style='margin:4px 0 0'>Best realised E[Y] over &Gamma;. Green=does well, red=fails. Each naive baseline collapses in ONE setting (IPW under unobserved-S; AIPW under the non-monotone effect); only the O-W methods stay green in both.</p></div>
+
+<h2>Test 1 &mdash; exp_owgap: unobserved-S confounding breaks naive IPW</h2>
+<div class="card"><p><b>Story.</b> Fitness \(X\) (7 levels), hidden vitality \(S\) with \(P(S{=}{+}1\mid X)=\sigma(10X)\)
+(S tracks X). Selection \(e=\sigma(0.8S-2X)\); outcomes \(\mu_0=8S,\ \mu_1=9S+1.5X\) &mdash; vitality dominates both
+arms (huge model bias), the therapy effect is subtle (\(\mathrm{CATE}=E[S\mid X]+1.5X\), treat iff \(X\gt 0\)).
+Naive IPW can't see the hidden-S confounding; the Wasserstein balance reaches \(S\) through its correlation with \(X\).</p></div>
+<div class="grid2"><div><h3>exp_owgap: propensity</h3>
+<div class='ichart' id='ow_prop'></div>
+<p class='figcap'>S-confounded selection.</p>
+</div><div><h3>exp_owgap: outcome means</h3>
+<div class='ichart' id='ow_outcome'></div>
+<p class='figcap'>Vitality dominates both arms.</p>
+</div></div>
+<div class="grid2"><div><h3>exp_owgap: monotone CATE</h3>
+<div class='ichart' id='ow_cate'></div>
+<p class='figcap'>Subtle, monotone effect: treat iff X&gt;0.</p>
+</div><div><h3>exp_owgap: realised value vs &Gamma; (uncapped, 20 seeds)</h3>
+<div class='ichart' id='ow_value_uncap'></div>
+<p class='figcap'>Both O-W on top; SD bands.</p>
+</div></div>
+<div class="grid2"><div><h3>Paired CIs vs naive IPW</h3><table class='restab'><tr><th>vs IPW-X-X</th><th>&Gamma;=2</th><th>&Gamma;=3</th><th>&Gamma;=4</th></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#1f77b4;margin-right:6px'></span>IPW-O-W</td><td style='color:#16a34a'>+0.425<br><span style='font-size:.8em'>[+0.34,+0.51] &#10003;</span></td><td style='color:#16a34a'>+0.452<br><span style='font-size:.8em'>[+0.36,+0.54] &#10003;</span></td><td style='color:#16a34a'>+0.448<br><span style='font-size:.8em'>[+0.36,+0.54] &#10003;</span></td></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#2ca02c;margin-right:6px'></span>DoublyRobust-O-W</td><td style='color:#16a34a'>+0.437<br><span style='font-size:.8em'>[+0.34,+0.54] &#10003;</span></td><td style='color:#16a34a'>+0.416<br><span style='font-size:.8em'>[+0.33,+0.50] &#10003;</span></td><td style='color:#16a34a'>+0.404<br><span style='font-size:.8em'>[+0.33,+0.48] &#10003;</span></td></tr></table><p class='muted' style='margin:4px 0 0'>Paired &Delta; (method &minus; IPW-X-X) per seed, 95% bootstrap CI; &#10003;=CI&gt;0 (significant win), &#10007;=CI&lt;0, &ndash;=ns. 20 seeds.</p></div><div><h3>Paired CIs vs naive AIPW</h3><table class='restab'><tr><th>vs DoublyRobust-X-X</th><th>&Gamma;=2</th><th>&Gamma;=3</th><th>&Gamma;=4</th></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#1f77b4;margin-right:6px'></span>IPW-O-W</td><td style='color:#16a34a'>+0.097<br><span style='font-size:.8em'>[+0.04,+0.13] &#10003;</span></td><td style='color:#16a34a'>+0.124<br><span style='font-size:.8em'>[+0.09,+0.15] &#10003;</span></td><td style='color:#16a34a'>+0.120<br><span style='font-size:.8em'>[+0.08,+0.15] &#10003;</span></td></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#2ca02c;margin-right:6px'></span>DoublyRobust-O-W</td><td style='color:#16a34a'>+0.109<br><span style='font-size:.8em'>[+0.04,+0.16] &#10003;</span></td><td style='color:#16a34a'>+0.088<br><span style='font-size:.8em'>[+0.04,+0.13] &#10003;</span></td><td style='color:#16a34a'>+0.076<br><span style='font-size:.8em'>[+0.04,+0.11] &#10003;</span></td></tr></table><p class='muted' style='margin:4px 0 0'>Paired &Delta; (method &minus; DoublyRobust-X-X) per seed, 95% bootstrap CI; &#10003;=CI&gt;0 (significant win), &#10007;=CI&lt;0, &ndash;=ns. 20 seeds.</p></div></div>
+<p class="muted">Uncapped, 20 seeds: <b>both O-W methods significantly beat naive IPW and naive AIPW</b> at &Gamma;=2&ndash;4
+(CIs exclude 0). The box-only methods do not &mdash; the Wasserstein term is the differentiator.</p>
+
+<h2>Test 2 &mdash; exp_nmcap: a non-monotone effect breaks naive AIPW under the cap</h2>
+<div class="card"><p><b>Story.</b> Severity \(X\), hidden robustness \(S\perp X\). The therapy <b>helps a middle band</b>
+\(X^2\lt 0.3\) and <b>harms the severe edges</b> (\(\mathrm{CATE}=3(0.3-X^2)\)). Clinicians escalate the robust
+\(S{=}{+}1\) and the extreme-severity edges, so the treated edges are a high-\(S\) elite whose outcomes look great.
+The naive outcome model is fooled into crediting the edges; under <b>cap \(\le 50\%\)</b> the naive doubly-robust
+method spends its budget on the harmful edges, while the robust O / O-W methods recover the middle band.</p></div>
+<div class="grid2"><div><h3>exp_nmcap: non-monotone CATE</h3>
+<div class='ichart' id='nm_cate'></div>
+<p class='figcap'>Treat the middle, spare the edges.</p>
+</div><div><h3>exp_nmcap: outcome means</h3>
+<div class='ichart' id='nm_outcome'></div>
+<p class='figcap'>Treatment helps the middle band only.</p>
+</div></div>
+<h3>exp_nmcap: propensity</h3>
+<div class='ichart' id='nm_prop'></div>
+<p class='figcap'>Edge-heavy, S-confounded selection.</p>
+
+<div class="grid2"><div><h3>exp_nmcap: realised value vs &Gamma; (CAPPED, 15 seeds)</h3>
+<div class='ichart' id='nm_value_cap'></div>
+<p class='figcap'>Naive AIPW (green dashed) fails; O-W beats it.</p>
+</div><div><h3>exp_nmcap: realised value vs &Gamma; (uncapped, 15 seeds)</h3>
+<div class='ichart' id='nm_value_uncap'></div>
+<p class='figcap'>AIPW negative; O-W recovers.</p>
+</div></div>
+<div class="grid2"><div><h3>Paired CIs vs naive AIPW (CAPPED)</h3><table class='restab'><tr><th>vs DoublyRobust-X-X</th><th>&Gamma;=2</th><th>&Gamma;=3</th><th>&Gamma;=4</th></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#1f77b4;margin-right:6px'></span>IPW-O-W</td><td style='color:#666'>+0.009<br><span style='font-size:.8em'>[-0.02,+0.05] &ndash;</span></td><td style='color:#666'>-0.029<br><span style='font-size:.8em'>[-0.06,+0.01] &ndash;</span></td><td style='color:#dc2626'>-0.045<br><span style='font-size:.8em'>[-0.08,-0.01] &#10007;</span></td></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#2ca02c;margin-right:6px'></span>DoublyRobust-O-W</td><td style='color:#16a34a'>+0.041<br><span style='font-size:.8em'>[+0.01,+0.07] &#10003;</span></td><td style='color:#16a34a'>+0.031<br><span style='font-size:.8em'>[+0.00,+0.06] &#10003;</span></td><td style='color:#666'>+0.031<br><span style='font-size:.8em'>[-0.00,+0.07] &ndash;</span></td></tr></table><p class='muted' style='margin:4px 0 0'>Paired &Delta; (method &minus; DoublyRobust-X-X) per seed, 95% bootstrap CI; &#10003;=CI&gt;0 (significant win), &#10007;=CI&lt;0, &ndash;=ns. 15 seeds.</p></div><div><h3>Paired CIs vs naive AIPW (UNCAPPED)</h3><table class='restab'><tr><th>vs DoublyRobust-X-X</th><th>&Gamma;=2</th><th>&Gamma;=3</th><th>&Gamma;=4</th></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#1f77b4;margin-right:6px'></span>IPW-O-W</td><td style='color:#16a34a'>+0.180<br><span style='font-size:.8em'>[+0.10,+0.28] &#10003;</span></td><td style='color:#16a34a'>+0.146<br><span style='font-size:.8em'>[+0.05,+0.25] &#10003;</span></td><td style='color:#666'>-0.024<br><span style='font-size:.8em'>[-0.09,+0.05] &ndash;</span></td></tr><tr><td><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#2ca02c;margin-right:6px'></span>DoublyRobust-O-W</td><td style='color:#16a34a'>+0.180<br><span style='font-size:.8em'>[+0.10,+0.28] &#10003;</span></td><td style='color:#16a34a'>+0.138<br><span style='font-size:.8em'>[+0.06,+0.23] &#10003;</span></td><td style='color:#dc2626'>-0.075<br><span style='font-size:.8em'>[-0.14,-0.01] &#10007;</span></td></tr></table><p class='muted' style='margin:4px 0 0'>Paired &Delta; (method &minus; DoublyRobust-X-X) per seed, 95% bootstrap CI; &#10003;=CI&gt;0 (significant win), &#10007;=CI&lt;0, &ndash;=ns. 15 seeds.</p></div></div>
+<p class="muted">15 seeds, paired CIs: UNCAPPED the naive AIPW goes <b>negative</b> (it treats the harmful edges) and
+<b>both O-W beat it by +0.15&ndash;0.18</b> (CIs exclude 0). CAPPED the cap limits the damage, but
+<b>DoublyRobust-O-W still significantly beats naive AIPW</b> (+0.04) &mdash; the exact gap exp_owgap could not close.
+Naive IPW self-corrects here (the edge over-selection shows up in the X-propensity), so it ties O-W &mdash; which is
+why the <em>pair</em> of DGPs matters: no single naive baseline is safe across confounding structures.</p>
+
+<h2>Over-conservatism &mdash; what happens at extreme &Gamma; and &epsilon;</h2>
+<div class="card"><p>The robust set \(U(\Gamma,\epsilon)\) is supposed to cover the <em>plausible</em> amount of hidden
+confounding. Push \(\Gamma\) and the Wasserstein radius \(\epsilon\) to <b>unrealistically large</b> values and the
+worst-case treated value drops below control everywhere, so the value-maximiser hedges to <b>never-treat</b> and the
+realised value <b>collapses</b> (owgap, uncapped). Two lessons:</p>
+<ul><li><b>The pure-IPW methods collapse</b> (IPW-O-W, IPW-O-X) &mdash; from ~oracle 0.85 down to ~0.08 (never-treat)
+at \(c_\epsilon=16,\ \Gamma=1000\); monotone in <em>both</em> knobs.</li>
+<li><b>The doubly-robust methods do NOT collapse</b> &mdash; only the IPW-correction term sees the worst case, so as the
+set explodes they fall back to the (biased) outcome-model policy (~0.6) rather than to never-treat. <b>Hajek-O-X</b>
+(regret) collapses earliest and hardest, to exactly never-treat, by its do-no-harm fallback.</li></ul></div>
+<div class="grid2"><div><h3>Pure-IPW O-W collapses under extreme &Gamma;&times;&epsilon;</h3>
+<div class='ichart' id='ex_ipw'></div>
+<p class='figcap'>IPW-O-W vs &Gamma; for four &epsilon;; toward never-treat.</p>
+</div><div><h3>Doubly-robust is anchored; Hajek collapses hardest</h3>
+<div class='ichart' id='ex_family'></div>
+<p class='figcap'>Family contrast at the extreme.</p>
+</div></div>
+<p class="muted">Takeaway: \(c_\epsilon\!\approx\!1\) (the tight, calibrated radius) is the right operating point;
+cranking \(\Gamma\) and \(\epsilon\) together is assuming-the-impossible and throws away all value.</p>
+
+<div class="card"><b>Honest caveats.</b><ul>
+<li>Under a <b>capacity cap</b>, the cap rescues whichever naive correction is well-specified (propensity in nmcap,
+outcome model in owgap), so beating <em>every</em> naive baseline capped is structurally hard. The O-W methods
+<b>match the best and beat the failing one</b> in every case; the cleanest uniform wins are <b>uncapped</b>.</li>
+<li>The <b>X-X family is &Gamma;-free</b> (flat). The value-objective robust methods keep a bounded worst case, so
+they soften rather than collapse with &Gamma;; only the regret method Hajek-O-X collapses to never-treat.</li>
+<li>All claims are <b>paired across seeds</b> (same data draw) with bootstrap CIs &mdash; the right test for "does
+O-W beat the baseline".</li></ul></div>
+
+<p class="figcap" style="margin-top:22px">Generated by <code>assets/exp_nmcap/build_combined.py</code>. Raw data:
+<code>assets/exp_owgap/owgap_uncap_20seed_ce1.0.json</code>, <code>assets/exp_nmcap/nmcap_results_ce1.0.json</code>,
+<code>combined_charts.json</code>, per-figure PNGs.</p>
+
+<script>var CHART_REG={};
+function toggleDD(btn){var menu=btn.nextElementSibling,willOpen=!menu.classList.contains('open');
+  document.querySelectorAll('.chart-dd-menu.open').forEach(function(m){m.classList.remove('open');});
+  if(willOpen)menu.classList.add('open');}
+document.addEventListener('click',function(e){if(!e.target.closest('.chart-dd'))document.querySelectorAll('.chart-dd-menu.open').forEach(function(m){m.classList.remove('open');});});
+function setSeriesVis(id,mid,on){var reg=CHART_REG[id];if(reg)reg.hidden[mid]=!on;
+  document.querySelectorAll('#'+id+' g[data-method="'+mid+'"]').forEach(function(g){g.style.display=on?'':'none';});
+  var li=document.querySelector('#'+id+' .pchart-leg-item[data-method="'+mid+'"]');if(li)li.classList.toggle('off',!on);
+  var cb=document.querySelector('#'+id+' .chart-dd-item input[data-method="'+mid+'"]');if(cb)cb.checked=on;}
+function toggleSeries(id,mid,on){setSeriesVis(id,mid,on);}
+function toggleLeg(id,mid){var reg=CHART_REG[id];setSeriesVis(id,mid,reg&&reg.hidden[mid]?true:false);}
+function _cfmt(v){return Math.abs(v)>=10?v.toFixed(0):(Math.round(v*1000)/1000);}
+/* ---- method styling: COLOR by estimator family, SHAPE by uncertainty set ----
+   family (1st slot) -> colour; suffix -> line/marker:  -X-X dashed line (no marker),
+   -O-X solid + square,  -O-W solid + circle.  Kallus solid + triangle, Oracle dotted. */
+var FAMILY_COLOR={IPW:'#1f77b4',Hajek:'#9467bd',DoublyRobust:'#2ca02c',Direct:'#ff7f0e',Kallus:'#d62728',Oracle:'#444444'};
+function _mstyle(name,fb){var n=String(name||'').split('(')[0].trim();var fam=n.split('-')[0];
+  var color=FAMILY_COLOR[fam]||fb||'#888',dash=null,marker=null;
+  if(/-O-W$/.test(n))marker='circle';
+  else if(/-O-X$/.test(n))marker='square';
+  else if(/-X-X$/.test(n))dash='6,4';
+  else if(fam==='Kallus')marker='triangle';
+  else if(fam==='Oracle')dash='2,3';
+  return {color:color,dash:dash,marker:marker};}
+function _mk(marker,cx,cy,col){cx=parseFloat(cx);cy=parseFloat(cy);
+  if(marker==='square')return '<rect x="'+(cx-3)+'" y="'+(cy-3)+'" width="6" height="6" fill="'+col+'"/>';
+  if(marker==='triangle')return '<polygon points="'+cx+','+(cy-3.8)+' '+(cx+3.5)+','+(cy+2.9)+' '+(cx-3.5)+','+(cy+2.9)+'" fill="'+col+'"/>';
+  return '<circle cx="'+cx+'" cy="'+cy+'" r="3.1" fill="'+col+'"/>';}
+function _mswatch(st){var ln='<line x1="2" y1="6" x2="24" y2="6" stroke="'+st.color+'" stroke-width="2.4"'+(st.dash?' stroke-dasharray="'+st.dash+'"':'')+'/>';
+  return '<svg class="msw" width="26" height="12" viewBox="0 0 26 12" style="vertical-align:middle">'+ln+(st.marker?_mk(st.marker,13,6,st.color):'')+'</svg>';}
+/* effective per-series style: family default from _mstyle, overridden by explicit se.color/marker/dash/width */
+function _seriesStyle(se){var st=_mstyle(se.label||se.id, se.color);
+  /* family colour wins for recognised methods; se.color only applies to unknown labels (via _mstyle fallback) */
+  if('marker' in se)st.marker=se.marker;
+  if('dash' in se)st.dash=se.dash;
+  st.width=se.width||2.3;return st;}
+function _csvg(data,hidden){
+  var W=820,H=440,mL=60,mR=18,mT=16,mB=46,x0=mL,x1=W-mR,y0=H-mB,y1=mT;
+  var xmin=(data.xmin!=null?data.xmin:Math.min.apply(null,data.x)),xmax=(data.xmax!=null?data.xmax:Math.max.apply(null,data.x));
+  var ymin=(data.ymin!=null?data.ymin:0),ymax=(data.ymax!=null?data.ymax:1);
+  function sx(x){return (x0+(x-xmin)/(xmax-xmin)*(x1-x0)).toFixed(1);}
+  function sy(v){return (y0-(v-ymin)/(ymax-ymin)*(y0-y1)).toFixed(1);}
+  var s='<svg viewBox="0 0 '+W+' '+H+'" class="pchart-svg" preserveAspectRatio="xMidYMid meet" role="img">';
+  var i,yv,y,px,xv;
+  for(i=0;i<5;i++){yv=ymin+(ymax-ymin)*i/4;y=sy(yv);
+    s+='<line x1="'+x0+'" y1="'+y+'" x2="'+x1+'" y2="'+y+'" stroke="#eceef4"/>';
+    s+='<text x="'+(x0-9)+'" y="'+(parseFloat(y)+4)+'" text-anchor="end" class="pchart-tick">'+_cfmt(yv)+'</text>';}
+  if(data.xticks){data.xticks.forEach(function(t){px=sx(t.x);
+    s+='<line x1="'+px+'" y1="'+y1+'" x2="'+px+'" y2="'+y0+'" stroke="#f4f5f9"/>';
+    s+='<text x="'+px+'" y="'+(y0+22)+'" text-anchor="middle" class="pchart-tick">'+t.label+'</text>';});}
+  else{for(i=0;i<5;i++){xv=xmin+(xmax-xmin)*i/4;px=sx(xv);
+    s+='<line x1="'+px+'" y1="'+y1+'" x2="'+px+'" y2="'+y0+'" stroke="#f4f5f9"/>';
+    s+='<text x="'+px+'" y="'+(y0+22)+'" text-anchor="middle" class="pchart-tick">'+(Math.round(xv*100)/100)+'</text>';}}
+  if(data.gammaLine!=null){var gx=sx(data.gammaLine);s+='<line x1="'+gx+'" y1="'+y1+'" x2="'+gx+'" y2="'+y0+'" stroke="#c9ccd6" stroke-dasharray="3,3"/>';}
+  (data.hlines||[]).forEach(function(h){if(h.y<ymin||h.y>ymax)return;var hy=sy(h.y);
+    s+='<line x1="'+x0+'" y1="'+hy+'" x2="'+x1+'" y2="'+hy+'" stroke="'+(h.color||'#888')+'" stroke-width="1.3" stroke-dasharray="'+(h.dash||'5,4')+'"/>';
+    s+='<text x="'+(x1-3)+'" y="'+(parseFloat(hy)-3)+'" text-anchor="end" class="pchart-tick" fill="'+(h.color||'#888')+'">'+h.label+'</text>';});
+  s+='<text x="'+((x0+x1)/2)+'" y="'+(H-7)+'" text-anchor="middle" class="pchart-axlab">'+(data.xlabel||'X')+'</text>';
+  s+='<text transform="translate(15,'+((y0+y1)/2)+') rotate(-90)" text-anchor="middle" class="pchart-axlab">'+(data.ylabel||'y')+'</text>';
+  data.series.forEach(function(se){if(!se.y)return;var hid=hidden&&hidden[se.id];
+    var st=_seriesStyle(se);
+    s+='<g data-method="'+se.id+'" class="pchart-series" style="display:'+(hid?'none':'')+'">';
+    if(se.ysd){var up=[],dn=[];se.y.forEach(function(v,k){if(v==null||se.ysd[k]==null)return;
+        up.push(sx(data.x[k])+','+sy(Math.min(ymax,v+se.ysd[k])));dn.push(sx(data.x[k])+','+sy(Math.max(ymin,v-se.ysd[k])));});
+      if(up.length>1)s+='<polygon points="'+up.concat(dn.reverse()).join(' ')+'" fill="'+st.color+'" fill-opacity="0.13" stroke="none"/>';}
+    var pts=se.y.map(function(v,k){return v==null?null:sx(data.x[k])+','+sy(v);}).filter(function(p){return p!=null;}).join(' ');
+    if(pts)s+='<polyline points="'+pts+'" fill="none" stroke="'+st.color+'" stroke-width="'+st.width+'"'+(st.dash?' stroke-dasharray="'+st.dash+'"':'')+' stroke-linejoin="round" stroke-linecap="round"/>';
+    if(st.marker)se.y.forEach(function(v,k){if(v!=null)s+=_mk(st.marker,sx(data.x[k]),sy(v),st.color);});
+    s+='</g>';});
+  s+='</svg>';return s;}
+function setChartGamma(id,gs,btn){var reg=CHART_REG[id];if(!reg||!reg.data.seriesByGamma[gs])return;
+  reg.data.series=reg.data.seriesByGamma[gs];reg.data._gamma=gs;
+  document.querySelector('#'+id+' .pchart-wrap').innerHTML=_csvg(reg.data,reg.hidden);
+  var b=document.querySelector('#'+id+' .gamma-dd-btn span');if(b)b.textContent='Γ = '+gs+' ';
+  document.querySelectorAll('#'+id+' .gamma-dd-menu .chart-dd-item').forEach(function(it){it.classList.remove('sel');});
+  if(btn)btn.classList.add('sel');
+  document.querySelectorAll('.chart-dd-menu.open').forEach(function(m){m.classList.remove('open');});}
+function setChartSeed(id,sk,btn){var reg=CHART_REG[id];if(!reg||!reg.data.seriesBySeedGamma||!reg.data.seriesBySeedGamma[sk])return;
+  reg.data._seed=sk;reg.data.seriesByGamma=reg.data.seriesBySeedGamma[sk];
+  var g=reg.data._gamma;if(!reg.data.seriesByGamma[g])g=Object.keys(reg.data.seriesByGamma)[0];
+  reg.data._gamma=g;reg.data.series=reg.data.seriesByGamma[g];
+  document.querySelector('#'+id+' .pchart-wrap').innerHTML=_csvg(reg.data,reg.hidden);
+  var cl='';reg.data.seeds.forEach(function(s){if(s.key===sk)cl=s.label;});
+  var b=document.querySelector('#'+id+' .seed-dd-btn span');if(b)b.textContent=cl+' ';
+  document.querySelectorAll('#'+id+' .seed-dd-menu .chart-dd-item').forEach(function(it){it.classList.remove('sel');});
+  if(btn)btn.classList.add('sel');
+  document.querySelectorAll('.chart-dd-menu.open').forEach(function(m){m.classList.remove('open');});}
+function renderChart(id,data){var el=document.getElementById(id);if(!el)return;
+  CHART_REG[id]={data:data,hidden:{}};
+  if(data.seriesBySeedGamma){var s0=data.defaultSeed!=null?String(data.defaultSeed):data.seeds[data.seeds.length-1].key;
+    if(!data.seriesBySeedGamma[s0])s0=data.seeds[0].key;data._seed=s0;data.seriesByGamma=data.seriesBySeedGamma[s0];}
+  if(data.gammas&&data.seriesByGamma){var g0=String(data.defaultGamma!=null?data.defaultGamma:data.gammas[data.gammas.length-1]);
+    if(!data.seriesByGamma[g0])g0=String(data.gammas[0]);data.series=data.seriesByGamma[g0];data._gamma=g0;}
+  var svg=_csvg(data,{});
+  var menu='';data.series.forEach(function(se){
+    menu+='<label class="chart-dd-item"><input type="checkbox" data-method="'+se.id+'" checked onchange="toggleSeries(\''+id+'\',\''+se.id+'\',this.checked)">'+_mswatch(_seriesStyle(se))+se.label+'</label>';});
+  var tools='<div class="chart-dd"><button class="chart-dd-btn" onclick="toggleDD(this)">Show methods ▾</button><div class="chart-dd-menu">'+menu+'</div></div>';
+  if(data.gammas&&data.seriesByGamma){var gmenu='';data.gammas.forEach(function(g){var gss=String(g);
+      gmenu+='<div class="chart-dd-item'+(gss===data._gamma?' sel':'')+'" onclick="setChartGamma(\''+id+'\',\''+gss+'\',this)">Γ = '+gss+(g===data.matchedGamma?'  (matched)':'')+'</div>';});
+    tools+='<div class="chart-dd"><button class="chart-dd-btn gamma-dd-btn" onclick="toggleDD(this)"><span>Γ = '+data._gamma+' </span>▾</button><div class="chart-dd-menu gamma-dd-menu">'+gmenu+'</div></div>';}
+  if(data.seriesBySeedGamma){var curlab='';data.seeds.forEach(function(s){if(s.key===data._seed)curlab=s.label;});
+    var smenu='';data.seeds.forEach(function(s){smenu+='<div class="chart-dd-item'+(s.key===data._seed?' sel':'')+'" onclick="setChartSeed(\''+id+'\',\''+s.key+'\',this)">'+s.label+'</div>';});
+    tools+='<div class="chart-dd"><button class="chart-dd-btn seed-dd-btn" onclick="toggleDD(this)"><span>'+curlab+' </span>▾</button><div class="chart-dd-menu seed-dd-menu">'+smenu+'</div></div>';}
+  var leg='<div class="pchart-legend">';data.series.forEach(function(se){
+    leg+='<div class="pchart-leg-item" data-method="'+se.id+'" title="click to toggle" onclick="toggleLeg(\''+id+'\',\''+se.id+'\')">'+_mswatch(_seriesStyle(se))+se.label+'</div>';});
+  leg+='</div>';
+  el.innerHTML='<div class="ichart-toolbar">'+tools+'<span class="ichart-note">'+(data.note||'')+'  ·  toggle in the legend / dropdown</span></div><div class="pchart-row"><div class="pchart-wrap">'+svg+'</div>'+leg+'</div>';}
+var CH={"ow_outcome":{"x":[-1.0,-0.666667,-0.333333,0.0,0.333333,0.666667,1.0],"xmin":-1.0,"xmax":1.0,"xlabel":"X (discrete)","ylabel":"E[Y(t)|X,S]","ymin":-11.5,"ymax":11.5,"series":[{"id":"m1p","label":"E[Y(1)|X,S=+1]","color":"#1f77b4","y":[7.5,8.0,8.5,9.0,9.5,10.0,10.5],"marker":"square"},{"id":"m1m","label":"E[Y(1)|X,S=&minus;1]","color":"#1f77b4","y":[-10.5,-10.0,-9.5,-9.0,-8.5,-8.0,-7.5],"marker":"circle"},{"id":"m1a","label":"E[Y(1)|X] avg","color":"#16537e","y":[-10.4992,-9.9771,-8.88,0.0,8.88,9.9771,10.4992],"width":4.4},{"id":"m0p","label":"E[Y(0)|X,S=+1]","color":"#dc2626","y":[8.0,8.0,8.0,8.0,8.0,8.0,8.0],"marker":"square"},{"id":"m0m","label":"E[Y(0)|X,S=&minus;1]","color":"#dc2626","y":[-8.0,-8.0,-8.0,-8.0,-8.0,-8.0,-8.0],"marker":"circle"},{"id":"m0a","label":"E[Y(0)|X] avg","color":"#9a1b1b","y":[-7.9993,-7.9797,-7.4489,0.0,7.4489,7.9797,7.9993],"width":4.4}],"note":"Blue=treated, red=control; square S=+1, circle S=&minus;1, bold=avg over S."},"ow_cate":{"x":[-1.0,-0.666667,-0.333333,0.0,0.333333,0.666667,1.0],"xmin":-1.0,"xmax":1.0,"xlabel":"X","ylabel":"CATE(X)=E[Y(1)&minus;Y(0)|X]","ymin":-2.899909204262596,"ymax":2.899909204262595,"series":[{"id":"cate","label":"CATE(X)","color":"#4f46e5","y":[-2.4999,-1.9975,-1.4311,0.0,1.4311,1.9975,2.4999],"width":3.2}],"note":"Treat where CATE&gt;0.","hlines":[{"y":0.0,"color":"#94a3b8","dash":"4,4","label":"no effect"}]},"ow_prop":{"x":[-1.0,-0.666667,-0.333333,0.0,0.333333,0.666667,1.0],"xmin":-1.0,"xmax":1.0,"xlabel":"X","ylabel":"P(treat|X,S)","ymin":0.0,"ymax":1.0,"series":[{"id":"ep","label":"e(X,S=+1)","color":"#1f77b4","y":[0.9427,0.8941,0.8126,0.69,0.5333,0.3697,0.2315],"marker":"square"},{"id":"em","label":"e(X,S=&minus;1)","color":"#dc2626","y":[0.7685,0.6303,0.4667,0.31,0.1874,0.1059,0.0573],"marker":"circle"},{"id":"emarg","label":"marginal &ecirc;(X)","color":"#334155","y":[0.7685,0.6306,0.4786,0.5,0.5214,0.3694,0.2315],"width":3.4}],"note":"Propensity by arm; methods only ever see the estimated &ecirc;(X)."},"nm_outcome":{"x":[-1.0,-0.666667,-0.333333,0.0,0.333333,0.666667,1.0],"xmin":-1.0,"xmax":1.0,"xlabel":"X (discrete)","ylabel":"E[Y(t)|X,S]","ymin":-7.1,"ymax":5.9,"series":[{"id":"m1p","label":"E[Y(1)|X,S=+1]","color":"#1f77b4","y":[1.9,3.5667,4.5667,4.9,4.5667,3.5667,1.9],"marker":"square"},{"id":"m1m","label":"E[Y(1)|X,S=&minus;1]","color":"#1f77b4","y":[-6.1,-4.4333,-3.4333,-3.1,-3.4333,-4.4333,-6.1],"marker":"circle"},{"id":"m1a","label":"E[Y(1)|X] avg","color":"#16537e","y":[-2.1,-0.4333,0.5667,0.9,0.5667,-0.4333,-2.1],"width":4.4},{"id":"m0p","label":"E[Y(0)|X,S=+1]","color":"#dc2626","y":[3.0,3.0,3.0,3.0,3.0,3.0,3.0],"marker":"square"},{"id":"m0m","label":"E[Y(0)|X,S=&minus;1]","color":"#dc2626","y":[-3.0,-3.0,-3.0,-3.0,-3.0,-3.0,-3.0],"marker":"circle"},{"id":"m0a","label":"E[Y(0)|X] avg","color":"#9a1b1b","y":[0.0,0.0,0.0,0.0,0.0,0.0,0.0],"width":4.4}],"note":"Blue=treated, red=control; square S=+1, circle S=&minus;1, bold=avg over S."},"nm_cate":{"x":[-1.0,-0.666667,-0.333333,0.0,0.333333,0.666667,1.0],"xmin":-1.0,"xmax":1.0,"xlabel":"X","ylabel":"CATE(X)=E[Y(1)&minus;Y(0)|X]","ymin":-2.4999999999999996,"ymax":1.2999999999999998,"series":[{"id":"cate","label":"CATE(X)","color":"#4f46e5","y":[-2.1,-0.4333,0.5667,0.9,0.5667,-0.4333,-2.1],"width":3.2}],"note":"Treat where CATE&gt;0.","hlines":[{"y":0.0,"color":"#94a3b8","dash":"4,4","label":"no effect"}]},"nm_prop":{"x":[-1.0,-0.666667,-0.333333,0.0,0.333333,0.666667,1.0],"xmin":-1.0,"xmax":1.0,"xlabel":"X","ylabel":"P(treat|X,S)","ymin":0.0,"ymax":1.0,"series":[{"id":"ep","label":"e(X,S=+1)","color":"#1f77b4","y":[0.98,0.9264,0.8225,0.7685,0.8225,0.9264,0.98],"marker":"square"},{"id":"em","label":"e(X,S=&minus;1)","color":"#dc2626","y":[0.8581,0.5333,0.2959,0.2315,0.2959,0.5333,0.8581],"marker":"circle"},{"id":"emarg","label":"marginal &ecirc;(X)","color":"#334155","y":[0.9191,0.7299,0.5592,0.5,0.5592,0.7299,0.9191],"width":3.4}],"note":"Propensity by arm; methods only ever see the estimated &ecirc;(X)."},"ow_value_uncap":{"x":[1.0,1.5,2.0,2.5,3.0,4.0,5.0,6.0,8.0],"xmin":1.0,"xmax":8.0,"xticks":[{"x":1.0,"label":"1"},{"x":1.5,"label":"1.5"},{"x":2.0,"label":"2"},{"x":2.5,"label":"2.5"},{"x":3.0,"label":"3"},{"x":4.0,"label":"4"},{"x":5.0,"label":"5"},{"x":6.0,"label":"6"},{"x":8.0,"label":"8"}],"xlabel":"sensitivity &Gamma;","ylabel":"realised E[Y] (mean &plusmn; SD)","ymin":-0.5,"ymax":0.927,"series":[{"id":"IPW-X-X","label":"IPW-X-X","color":"#1f77b4","y":[0.3248,0.3248,0.3248,0.3248,0.3248,0.3248,0.3248,0.3248,0.3248],"marker":null,"ysd":[0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205]},{"id":"DoublyRobust-X-X","label":"DoublyRobust-X-X","color":"#2ca02c","y":[0.6527,0.6527,0.6527,0.6527,0.6527,0.6527,0.6527,0.6527,0.6527],"marker":null,"ysd":[0.0446,0.0446,0.0446,0.0446,0.0446,0.0446,0.0446,0.0446,0.0446]},{"id":"Direct-X-X","label":"Direct-X-X","color":"#ff7f0e","y":[0.1165,0.1165,0.1165,0.1165,0.1165,0.1165,0.1165,0.1165,0.1165],"marker":null,"ysd":[0.1068,0.1068,0.1068,0.1068,0.1068,0.1068,0.1068,0.1068,0.1068]},{"id":"IPW-O-X","label":"IPW-O-X","color":"#1f77b4","y":[0.3248,0.4035,0.4029,0.35,0.3327,0.3216,0.2758,0.2615,0.2125],"marker":"square","ysd":[0.205,0.2854,0.2326,0.1874,0.1469,0.1446,0.1236,0.1141,0.1107]},{"id":"DoublyRobust-O-X","label":"DoublyRobust-O-X","color":"#2ca02c","y":[0.6527,0.6425,0.5949,0.5371,0.5424,0.5693,0.571,0.5792,0.5632],"marker":"square","ysd":[0.0446,0.0,0.1258,0.1407,0.1729,0.1787,0.18,0.1781,0.1663]},{"id":"Hajek-O-X","label":"Hajek-O-X","color":"#9467bd","y":[0.3248,0.2345,0.0617,0.0106,0.0029,0.0015,0.0011,-0.0,-0.0],"marker":"square","ysd":[0.205,0.1635,0.086,0.0167,0.0101,0.0065,0.0047,0.0,0.0]},{"id":"IPW-O-W","label":"IPW-O-W","color":"#1f77b4","y":[0.3248,0.6632,0.7497,0.7843,0.777,0.7725,0.7566,0.7395,0.7204],"marker":"circle","ysd":[0.205,0.1538,0.092,0.0291,0.0497,0.0646,0.0653,0.071,0.093]},{"id":"DoublyRobust-O-W","label":"DoublyRobust-O-W","color":"#2ca02c","y":[0.6527,0.6975,0.7622,0.7782,0.7408,0.729,0.7188,0.7154,0.6917],"marker":"circle","ysd":[0.0446,0.0818,0.1385,0.0626,0.0755,0.0869,0.0884,0.0955,0.138]},{"id":"Oracle","label":"Oracle","color":"#444444","y":[0.8469,0.8469,0.8469,0.8469,0.8469,0.8469,0.8469,0.8469,0.8469]}],"hlines":[{"y":0.8469,"color":"#94a3b8","dash":"4,4","label":"oracle"},{"y":0.0,"color":"#cbd5e1","dash":"2,3","label":"never-treat"}],"note":"exp_owgap UNCAPPED, c_&epsilon;=1: both O-W beat every method. 20-seed mean; shaded = &plusmn;1 SD."},"nm_value_uncap":{"x":[1.0,1.5,2.0,2.5,3.0,4.0],"xmin":1.0,"xmax":4.0,"xticks":[{"x":1.0,"label":"1"},{"x":1.5,"label":"1.5"},{"x":2.0,"label":"2"},{"x":2.5,"label":"2.5"},{"x":3.0,"label":"3"},{"x":4.0,"label":"4"}],"xlabel":"sensitivity &Gamma;","ylabel":"realised E[Y] (mean &plusmn; SD)","ymin":-0.5,"ymax":0.37,"series":[{"id":"IPW-X-X","label":"IPW-X-X","color":"#1f77b4","y":[0.1667,0.1667,0.1667,0.1667,0.1667,0.1667],"marker":null,"ysd":[0.0,0.0,0.0,0.0,0.0,0.0]},{"id":"DoublyRobust-X-X","label":"DoublyRobust-X-X","color":"#2ca02c","y":[-0.0133,-0.0133,-0.0133,-0.0133,-0.0133,-0.0133],"marker":null,"ysd":[0.1833,0.1833,0.1833,0.1833,0.1833,0.1833]},{"id":"Direct-X-X","label":"Direct-X-X","color":"#ff7f0e","y":[0.1708,0.1708,0.1708,0.1708,0.1708,0.1708],"marker":null,"ysd":[0.0154,0.0154,0.0154,0.0154,0.0154,0.0154]},{"id":"IPW-O-X","label":"IPW-O-X","color":"#1f77b4","y":[0.1667,0.1667,0.1667,0.1467,0.1298,0.0031],"marker":"square","ysd":[0.0,0.0,0.0,0.0748,0.111,0.1583]},{"id":"DoublyRobust-O-X","label":"DoublyRobust-O-X","color":"#2ca02c","y":[-0.0133,0.0667,0.1667,0.1667,0.1282,-0.0597],"marker":"square","ysd":[0.1833,0.1414,0.0,0.0,0.0807,0.1268]},{"id":"Hajek-O-X","label":"Hajek-O-X","color":"#9467bd","y":[0.1667,0.1629,0.1666,0.1517,0.1176,0.0206],"marker":"square","ysd":[0.0,0.029,0.0497,0.0681,0.088,0.0631]},{"id":"IPW-O-W","label":"IPW-O-W","color":"#1f77b4","y":[0.1667,0.1667,0.1667,0.1467,0.1326,-0.0368],"marker":"circle","ysd":[0.0,0.0,0.0,0.0748,0.1011,0.2074]},{"id":"DoublyRobust-O-W","label":"DoublyRobust-O-W","color":"#2ca02c","y":[-0.0133,0.0667,0.1667,0.1667,0.1248,-0.0887],"marker":"circle","ysd":[0.1833,0.1414,0.0,0.0,0.0852,0.1575]},{"id":"Oracle","label":"Oracle","color":"#444444","y":[0.2905,0.2905,0.2905,0.2905,0.2905,0.2905]}],"hlines":[{"y":0.2905,"color":"#94a3b8","dash":"4,4","label":"oracle"},{"y":0.0,"color":"#cbd5e1","dash":"2,3","label":"never-treat"}],"note":"exp_nmcap UNCAPPED, c_&epsilon;=1: naive AIPW (DR-X-X) goes negative; O / O-W recover. 15-seed mean; shaded = &plusmn;1 SD."},"nm_value_cap":{"x":[1.0,1.5,2.0,2.5,3.0,4.0],"xmin":1.0,"xmax":4.0,"xticks":[{"x":1.0,"label":"1"},{"x":1.5,"label":"1.5"},{"x":2.0,"label":"2"},{"x":2.5,"label":"2.5"},{"x":3.0,"label":"3"},{"x":4.0,"label":"4"}],"xlabel":"sensitivity &Gamma;","ylabel":"realised E[Y] (mean &plusmn; SD)","ymin":-0.5,"ymax":0.37,"series":[{"id":"IPW-X-X","label":"IPW-X-X","color":"#1f77b4","y":[0.2409,0.2409,0.2409,0.2409,0.2409,0.2409],"marker":null,"ysd":[0.0325,0.0325,0.0325,0.0325,0.0325,0.0325]},{"id":"DoublyRobust-X-X","label":"DoublyRobust-X-X","color":"#2ca02c","y":[0.1856,0.1856,0.1856,0.1856,0.1856,0.1856],"marker":null,"ysd":[0.0801,0.0801,0.0801,0.0801,0.0801,0.0801]},{"id":"Direct-X-X","label":"Direct-X-X","color":"#ff7f0e","y":[0.2523,0.2523,0.2523,0.2523,0.2523,0.2523],"marker":null,"ysd":[0.0139,0.0139,0.0139,0.0139,0.0139,0.0139]},{"id":"IPW-O-X","label":"IPW-O-X","color":"#1f77b4","y":[0.2409,0.2388,0.2015,0.1755,0.1569,0.1404],"marker":"square","ysd":[0.0325,0.0328,0.0383,0.0381,0.0328,0.016]},{"id":"DoublyRobust-O-X","label":"DoublyRobust-O-X","color":"#2ca02c","y":[0.1856,0.2233,0.2272,0.2226,0.2174,0.2141],"marker":"square","ysd":[0.0801,0.0414,0.0327,0.0319,0.0296,0.0347]},{"id":"Hajek-O-X","label":"Hajek-O-X","color":"#9467bd","y":[0.2409,0.2179,0.1821,0.154,0.1137,0.0206],"marker":"square","ysd":[0.0325,0.052,0.0739,0.0825,0.0855,0.0631]},{"id":"IPW-O-W","label":"IPW-O-W","color":"#1f77b4","y":[0.2409,0.2392,0.1945,0.1736,0.1566,0.1409],"marker":"circle","ysd":[0.0325,0.0266,0.0394,0.0369,0.0326,0.0158]},{"id":"DoublyRobust-O-W","label":"DoublyRobust-O-W","color":"#2ca02c","y":[0.1856,0.2213,0.227,0.2213,0.2168,0.2165],"marker":"circle","ysd":[0.0801,0.0422,0.0327,0.0335,0.0297,0.0351]},{"id":"Oracle","label":"Oracle","color":"#444444","y":[0.2905,0.2905,0.2905,0.2905,0.2905,0.2905]}],"hlines":[{"y":0.2905,"color":"#94a3b8","dash":"4,4","label":"oracle"},{"y":0.0,"color":"#cbd5e1","dash":"2,3","label":"never-treat"}],"note":"exp_nmcap CAPPED (treat&le;50%), c_&epsilon;=1: naive AIPW fails; O-W beats it. 15-seed mean; shaded = &plusmn;1 SD."},"ex_ipw":{"x":[0.301,0.9031,1.301,2.0,3.0],"xmin":0.301,"xmax":3.0,"xticks":[{"x":0.301,"label":"2"},{"x":0.9031,"label":"8"},{"x":1.301,"label":"20"},{"x":2.0,"label":"100"},{"x":3.0,"label":"1000"}],"xlabel":"log&#8321;&#8320; &Gamma;","ylabel":"realised E[Y]","ymin":-0.05,"ymax":0.897,"series":[{"id":"IPW-O-W@1.0","label":"IPW-O-W, c_&epsilon;=1","color":"#bfdbfe","y":[0.7944,0.7874,0.7487,0.7975,0.7975],"marker":"circle"},{"id":"IPW-O-W@4.0","label":"IPW-O-W, c_&epsilon;=4","color":"#60a5fa","y":[0.7068,0.5187,0.5439,0.5183,0.5183],"marker":"circle"},{"id":"IPW-O-W@8.0","label":"IPW-O-W, c_&epsilon;=8","color":"#2563eb","y":[0.7064,0.3049,0.3056,0.2499,0.2493],"marker":"circle"},{"id":"IPW-O-W@16.0","label":"IPW-O-W, c_&epsilon;=16","color":"#1e3a8a","y":[0.5895,0.1363,0.1363,0.0776,0.0776],"marker":"circle"}],"hlines":[{"y":0.8469252238773564,"color":"#94a3b8","dash":"4,4","label":"oracle"},{"y":0.0,"color":"#cbd5e1","dash":"2,3","label":"never-treat"}],"note":"Pure-IPW O-W (IPW-O-W) vs &Gamma; (to 1000) for four Wasserstein radii. Larger c_&epsilon; AND larger &Gamma; both push the worst case to the unrealistic regime: the value collapses from ~oracle toward never-treat (0.08 at c_&epsilon;=16, &Gamma;=1000)."},"ex_family":{"x":[0.301,0.9031,1.301,2.0,3.0],"xmin":0.301,"xmax":3.0,"xticks":[{"x":0.301,"label":"2"},{"x":0.9031,"label":"8"},{"x":1.301,"label":"20"},{"x":2.0,"label":"100"},{"x":3.0,"label":"1000"}],"xlabel":"log&#8321;&#8320; &Gamma;","ylabel":"realised E[Y]","ymin":-0.1,"ymax":0.897,"series":[{"id":"IPW-O-W","label":"IPW-O-W (c_&epsilon;=16)","color":"#1f77b4","y":[0.5895,0.1363,0.1363,0.0776,0.0776],"marker":"circle"},{"id":"DoublyRobust-O-W","label":"DoublyRobust-O-W (c_&epsilon;=16)","color":"#2ca02c","y":[0.6161,0.4634,0.5658,0.6092,0.6139],"marker":"circle"},{"id":"IPW-O-X","label":"IPW-O-X (box only)","color":"#1f77b4","y":[0.5895,0.1363,0.1363,0.0681,0.0681],"marker":"square"},{"id":"DoublyRobust-O-X","label":"DoublyRobust-O-X (box only)","color":"#2ca02c","y":[0.6161,0.4634,0.5658,0.6092,0.6139],"marker":"square"},{"id":"Hajek-O-X","label":"Hajek-O-X (regret)","color":"#9467bd","y":[0.1121,-0.0,-0.0,-0.0,-0.0],"marker":"square"}],"hlines":[{"y":0.8469252238773564,"color":"#94a3b8","dash":"4,4","label":"oracle"},{"y":0.0,"color":"#cbd5e1","dash":"2,3","label":"never-treat"}],"note":"At the extreme: pure-IPW (IPW-O-W/O-X) and the regret method Hajek-O-X collapse to never-treat; the DOUBLY-ROBUST methods are anchored by their outcome-model term and floor at ~0.6 instead."}};
+renderChart('ow_outcome',CH.ow_outcome);
+renderChart('ow_cate',CH.ow_cate);
+renderChart('ow_prop',CH.ow_prop);
+renderChart('nm_outcome',CH.nm_outcome);
+renderChart('nm_cate',CH.nm_cate);
+renderChart('nm_prop',CH.nm_prop);
+renderChart('ow_value_uncap',CH.ow_value_uncap);
+renderChart('nm_value_uncap',CH.nm_value_uncap);
+renderChart('nm_value_cap',CH.nm_value_cap);
+renderChart('ex_ipw',CH.ex_ipw);
+renderChart('ex_family',CH.ex_family);
+</script></body></html>
