@@ -1,0 +1,56 @@
+/* subtabs */
+.subtabs{display:flex;flex-wrap:wrap;gap:7px;margin:6px 0 22px;}
+.subtab-btn{border:1px solid var(--border);background:var(--surface);font:inherit;font-size:.85rem;font-weight:600;color:var(--muted);
+  cursor:pointer;padding:6px 13px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;transition:all .15s ease;box-shadow:var(--sh-sm);}
+.subtab-btn:hover{color:var(--fg);transform:translateY(-1px);border-color:#d6d9e8;}
+.subtab-btn.active{color:#fff;background:var(--accent);border-color:var(--accent);box-shadow:0 5px 14px rgba(51,65,85,.32);}
+.subpanel{display:none;} .subpanel.active{display:block;}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;box-shadow:0 0 0 2px rgba(255,255,255,.65);}
+/* interactive policy chart */
+.ichart{margin:14px 0 6px;}
+.ichart-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:9px;}
+.ichart-note{color:var(--muted);font-size:.85rem;}
+.chart-dd{position:relative;display:inline-block;}
+.chart-dd-btn{font:inherit;font-size:.85rem;font-weight:600;color:var(--fg);background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;padding:7px 14px;cursor:pointer;box-shadow:var(--sh-sm);
+  transition:border-color .15s,transform .1s;}
+.chart-dd-btn:hover{border-color:#d6d9e8;transform:translateY(-1px);}
+.chart-dd-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;min-width:184px;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh-md);padding:6px;display:none;}
+.chart-dd-menu.open{display:block;}
+.chart-dd-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;font-size:.88rem;
+  font-weight:500;cursor:pointer;user-select:none;}
+.chart-dd-item:hover{background:var(--accent-soft);}
+.chart-dd-item.sel{background:var(--accent-soft);font-weight:700;}
+.gamma-dd-btn span{font-variant-numeric:tabular-nums;}
+.pchart-row{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}
+.pchart-row .pchart-wrap{flex:1 1 380px;min-width:0;margin:0;}
+.pchart-legend{flex:none;display:flex;flex-direction:column;gap:3px;padding-top:8px;font-size:.83rem;color:var(--fg);}
+.pchart-leg-item{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;padding:2px 5px;border-radius:6px;white-space:nowrap;}
+.pchart-leg-item:hover{background:var(--accent-soft);}
+.pchart-leg-item.off{opacity:.34;text-decoration:line-through;}
+.pchart-leg-item .sw{width:12px;height:12px;border-radius:3px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.08) inset;}
+.msw{width:26px;height:12px;flex:none;}
+/* themed method-explanation boxes: colour-coded by section kind (slate-family theme) */
+.mbox{position:relative;margin:14px 0;padding:12px 16px 13px 18px;border-radius:12px;
+  border:1px solid #e7eaf1;border-left:4px solid var(--mb);background:var(--mbg);}
+.mbox-l{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--mb);margin-bottom:7px;}
+.mbox>h3{margin:.1rem 0 .55rem;font-size:1rem;color:#1e293b;}
+.mbox>p:last-child{margin-bottom:0;}
+.mbox-obj{--mb:#4f46e5;--mbg:#f6f6ff;}
+.mbox-set{--mb:#b45309;--mbg:#fffaf2;}
+.mbox-solve{--mb:#0e7490;--mbg:#f1fbfc;}
+.mbox-args{--mb:#475569;--mbg:#f8fafc;}
+.mbox-note{--mb:#be185d;--mbg:#fff6f9;}
+.chart-dd-item input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex:none;}
+.chart-dd-item .sw{width:13px;height:13px;border-radius:4px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.07) inset;}
+.pchart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--sh-sm);padding:10px 14px;max-width:880px;}
+.pchart-svg{width:100%;height:auto;display:block;}
+.ppanel-grid{display:flex;gap:10px;flex:1 1 540px;flex-wrap:wrap;min-width:0;}
+.ppanel{flex:1 1 300px;min-width:260px;display:flex;flex-direction:column;gap:4px;}
+.ppanel .pchart-wrap{flex:none;max-width:none;padding:8px 10px;}
+.ppanel-title{font-size:.82rem;font-weight:700;text-align:center;color:var(--fg);}
+.pchart-tick{font-size:11px;fill:#9aa3b2;font-family:"JetBrains Mono",ui-monospace,monospace;}
+.pchart-axlab{font-size:12.5px;fill:#5a6473;font-weight:600;}
+.pchart-series{transition:opacity .12s;}

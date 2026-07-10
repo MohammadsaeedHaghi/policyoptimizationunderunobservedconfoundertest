@@ -60,6 +60,7 @@ def solve_doublyrobust_o_x_uncapped(
     mesh_range: Tuple[float, float] = (-1.0, 1.0),
     rounding_digits: int = 6,
     debug: bool = False,
+    lipschitz=None,
 ) -> RODoublyRobustResult:
     """Solve the UNCAPPED R-O-DoublyRobust (box-only AIPW) LP. Same as the capped solver minus ``cap``."""
     # ---- 0. coerce inputs -----------------------------------------------------------------------
@@ -114,6 +115,12 @@ def solve_doublyrobust_o_x_uncapped(
         m.addConstr(mu[i] - nu[i] == (1.0 / n) * float(resid[i]) * pi[t, i] - beta[t], name=f"stat_{i}")
 
     # --- policy constraints: simplex + tie ONLY (NO capacity) ---
+    if lipschitz is not None:                              # L-Lipschitz policy class (1-D: consecutive sorted pairs)
+        _o = np.argsort(np.asarray(support_X).ravel()); _xs = np.asarray(support_X).ravel()[_o]
+        for _a in range(n - 1):
+            _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
+            m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+            m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
     for i in range(n):
         m.addConstr(gp.quicksum(pi[k, i] for k in range(K)) == 1.0, name=f"simplex_{i}")
     for g in groups:

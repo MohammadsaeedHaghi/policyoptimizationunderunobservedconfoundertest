@@ -24,7 +24,7 @@
   },
   "support": {
     "snap": true,
-    "mesh": 6,
+    "mesh": 5,
     "mesh_range": [
       -1.0,
       1.0
@@ -33,10 +33,36 @@
   },
   "methods": [
     {
-      "name": "IPW",
+      "name": "IPW-O-W",
       "variants": [
         "Capped",
         "Uncapped"
+      ]
+    },
+    {
+      "name": "IPW-O-X",
+      "variants": [
+        "Capped",
+        "Uncapped"
+      ]
+    },
+    {
+      "name": "IPW-X-X",
+      "variants": [
+        "Capped",
+        "Uncapped"
+      ]
+    },
+    {
+      "name": "Kallus",
+      "variants": [
+        "Flat"
+      ]
+    },
+    {
+      "name": "DoublyRobust-X-X",
+      "variants": [
+        "Capped"
       ]
     }
   ]
