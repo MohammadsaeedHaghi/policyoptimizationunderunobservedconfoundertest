@@ -20,6 +20,9 @@ assignment depends on an unobserved confounder. Methods are organized by the
 | `results/` | Saved experiment outputs (see `results/SAVING.md`) |
 | `application/` | Streamlit "Policy Lab" GUI app |
 | `tests/` | Test suite |
+| `scripts/` | One-off SLURM / launch scripts for individual experiment runs |
+| `_archive/` | Superseded report snapshots, backups, and run logs (kept for reference) |
+| `selected experiment/` | Standalone `report.html` build (see its `build_report.py`) |
 | `index.html` | Interactive research report (all experiment tabs) |
 | `memory/` | Project notes / running summary of the work |
 | `run_experiment.py` | Single-process config-driven runner |
