@@ -32,8 +32,17 @@ V2R = J("exp_owgap_v2/owgap_v2_20seed_ce1.0.json") or J("exp_owgap_v2/owgap_v2_c
 V2R_CE = {ce: J(f"exp_owgap_v2/owgap_v2_20seed_ce{ce}.json") for ce in ("1.0", "1.5", "2.0")}
 KV2 = J("exp_owgap_v2/kallus_v2.json")
 V2CAP = {c: J(f"exp_owgap_v2/owgap_v2_cap{c}_ce1.0.json") for c in ("40", "50")}   # cap robustness
-# continuous v2: prefer the final 8-seed/Nte=4000 file over the 3-seed pilot
-C2DV2 = J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d_final.json") or J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d.json")
+# continuous v2: prefer the Shapley-deployment rerun, then the final KNN 8-seed file, then the pilot
+C2DV2 = (J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d_shapley.json")
+         or J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d_final.json")
+         or J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d.json"))
+
+def dep_lab(RJ, short=False):
+    """Human name of the off-support deployment used by a 2-D result file."""
+    if RJ and RJ.get("deploy") == "shapley":
+        return "Shapley extension" if short else \
+            "the Shapley extension (closed-form Lipschitz min-max interpolant, exact at the support points)"
+    return "KNN" if short else "KNN averaging over the k=50 nearest support points"
 
 MC = {"Oracle": "#111111", "IPW-O-W": "#d62728", "DoublyRobust-O-W": "#a01f1f",
       "IPW-O-X": "#9467bd", "DoublyRobust-O-X": "#6d4a7d", "Hajek-O-X": "#ff7f0e",
@@ -411,9 +420,9 @@ math{font-size:1.05em;}
 # section HTML is collected per tab, assembled at the end
 T = {"dgp": [], "disc": [], "cont": [], "real": []}
 
-# diabetes real-data results (auto-fill as jobs land)
-DIA = J("exp_diabetes/diab_inregime_lip_gamma_2d.json")
-DIB = J("exp_diabetes/diab_real_lip_gamma_2d.json")
+# diabetes real-data results (auto-fill as jobs land; prefer the Shapley-deployment reruns)
+DIA = J("exp_diabetes/diab_inregime_lip_gamma_2d_shapley.json") or J("exp_diabetes/diab_inregime_lip_gamma_2d.json")
+DIB = J("exp_diabetes/diab_real_lip_gamma_2d_shapley.json") or J("exp_diabetes/diab_real_lip_gamma_2d.json")
 KDA = J("exp_diabetes/kallus_diab_inregime.json")
 KDB = J("exp_diabetes/kallus_diab_real.json")
 
@@ -451,7 +460,8 @@ tightest feasible value):</p>
 numbers are quoted at &Gamma; = &Lambda; (no tuning), with full &Gamma;-curves showing
 misspecification behavior. <b>Value.</b> Discrete experiments report exact (noise-free) policy
 value on the level grid; continuous experiments report realized test value on fresh draws with
-known potential outcomes, deploying support policies by KNN. <b>Uncertainty.</b> Mean &plusmn; SD
+known potential outcomes, deploying support policies off-support via {dep_lab(C2DV2)}.
+<b>Uncertainty.</b> Mean &plusmn; SD
 over seeds, plus paired per-seed 95% CIs for the headline margins. <b>Ablations.</b> Coupling
 strength &alpha; (when does balance help), transport budget c<sub>&varepsilon;</sub>, capacity
 budget (30/40/50%), and the Lipschitz constant L (continuous).</p>""")
@@ -911,8 +921,9 @@ if C2DV2:
 <h2 id="s-v2cont">2. v2 continuous: L &times; &Gamma; on the showcase DGP</h2>
 <p>The same v2 constants with continuous X (oracle threshold x*=0.137, oracle
 {C2DV2['oracle']:.3f}, never-treat {C2DV2['never_treat']:.3f}, all-treat
-{C2DV2.get('all_treat', float('nan')):.3f}; naive DR baseline {nds}). N=400 train, 2000 test,
-KNN deployment, 3 seeds.</p>
+{C2DV2.get('all_treat', float('nan')):.3f}; naive DR baseline {nds}).
+N={C2DV2['N_train']} train, {C2DV2['N_test']} test, {len(C2DV2['seeds'])} seeds;
+off-support deployment: {dep_lab(C2DV2)}.</p>
 {heatmap(["G=" + g for g in Gk2], Lk2, Mv2, "v2 IPW-O-W: test E[Y] over Gamma x L (oracle %.2f)" % C2DV2["oracle"], "Gamma", "Lipschitz L (inf = per-unit)", max(C2DV2["never_treat"], -0.6), C2DV2["oracle"])}
 {linechart(sL2, title="v2 slice at Gamma=%s: the effect of L" % bo2["gamma"], xlab="L index: 0=inf ... 7=0.5", ylab="test E[Y]", hlines=[("oracle", "#111", C2DV2["oracle"], "5 4"), ("naive DR", MC["DoublyRobust-X-X"], nd if nd is not None else 0.0, "6 3"), ("never-treat", "#888", C2DV2["never_treat"], "2 3")], xticks=list(range(len(Lk2))))}
 <p class="muted">Best overall: {bo2['method']} at &Gamma;={bo2['gamma']}, L={bo2['L']} &rarr;
@@ -951,9 +962,10 @@ if C2DV2 and "policies_seed0" in C2DV2:
 <h2 id="s-contpols">3. Policy curves: &pi;(x) vs x for every method, &Gamma;, and L</h2>
 <p>The complete answer to "what policy did each method actually pick": choose a method, a
 &Gamma;, and a Lipschitz constant L, and the plot shows the seed-0 learned policy
-&pi;(x) over x &isin; [-1, 1] (KNN-deployed) for that cell of the Section-2 surface. Dashed
-references: the oracle (treat iff x &gt; 0.137) and the naive DR plug-in (threshold shifted left
-to &asymp;-0.3 by hidden-vitality bias: it over-treats the ambiguous band).</p>
+&pi;(x) over x &isin; [-1, 1] for that cell of the Section-2 surface, deployed off-support via
+{dep_lab(C2DV2)}. Dashed references: the oracle (treat iff x &gt; 0.137) and the naive DR
+plug-in (threshold shifted left to &asymp;-0.3 by hidden-vitality bias: it over-treats the
+ambiguous band).{" Unlike KNN averaging, this deployment is exact at the support points, so the L=&infin; curves show the per-unit overfitting oscillation directly rather than a smoothed band." if C2DV2.get("deploy") == "shapley" else ""}</p>
 {pol_widget_html("cont", PD["cont"], defaults={"m": ["IPW-O-W", "DoublyRobust-O-W"], "g": bo2["gamma"], "l": bo2["L"]})}
 <p>What to look for as you move the dropdowns: at <b>L = &infin;</b> the curve is jagged &mdash;
 per-unit policies overfit each support point, and changing &Gamma; barely moves them (the
