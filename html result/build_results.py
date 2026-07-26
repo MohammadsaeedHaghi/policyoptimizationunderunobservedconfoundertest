@@ -109,6 +109,43 @@ def linechart(series, W=560, H=330, xlab="", ylab="", title="", bands=None, hlin
         leg = f'<div class="leg">{items}</div>'
     return f'<figure class="fig">{"".join(p)}{leg}</figure>'
 
+def scatterchart(pts, lines, W=560, H=330, xlab="", ylab="", title="", legend=True):
+    """pts: list of (label, color, xs, ys) scatter series; lines: list of (label, color, xs, ys, dash)."""
+    padL, padR, padT, padB = 52, 14, 30, 42
+    xs_all = [x for _, _, xs, _ in pts for x in xs] + [x for _, _, xs, _, _ in lines for x in xs]
+    ys_all = [y for _, _, _, ys in pts for y in ys] + [y for _, _, _, ys, _ in lines for y in ys]
+    x0, x1 = min(xs_all), max(xs_all); ylo, yhi = min(ys_all), max(ys_all)
+    ypad = 0.06 * (yhi - ylo + 1e-9); ylo -= ypad; yhi += ypad
+    def X(v): return padL + (v - x0) / (x1 - x0 + 1e-12) * (W - padL - padR)
+    def Y(v): return H - padB - (v - ylo) / (yhi - ylo + 1e-12) * (H - padT - padB)
+    p = [f'<svg viewBox="0 0 {W} {H}" class="chart" role="img" aria-label="{esc(title)}">']
+    p.append(f'<text x="{padL}" y="16" class="ct">{esc(title)}</text>')
+    for t in _ticks(ylo + ypad, yhi - ypad):
+        if t < ylo or t > yhi: continue
+        p.append(f'<line x1="{padL}" y1="{Y(t):.1f}" x2="{W-padR}" y2="{Y(t):.1f}" class="grid"/>')
+        p.append(f'<text x="{padL-6}" y="{Y(t)+3.5:.1f}" class="tk" text-anchor="end">{t:g}</text>')
+    for t in _ticks(x0, x1, 6):
+        if t < x0 - 1e-9 or t > x1 + 1e-9: continue
+        p.append(f'<text x="{X(t):.1f}" y="{H-padB+16}" class="tk" text-anchor="middle">{t:g}</text>')
+    for lab, col, xs, ys in pts:
+        for x, y in zip(xs, ys):
+            p.append(f'<circle cx="{X(x):.1f}" cy="{Y(y):.1f}" r="1.7" fill="{col}" opacity="0.45"/>')
+    for lab, col, xs, ys, dash in lines:
+        ptsl = " ".join(f"{X(x):.1f},{Y(y):.1f}" for x, y in zip(xs, ys))
+        d = f' stroke-dasharray="{dash}"' if dash else ""
+        p.append(f'<polyline points="{ptsl}" fill="none" stroke="{col}" stroke-width="2"{d}/>')
+    p.append(f'<line x1="{padL}" y1="{H-padB}" x2="{W-padR}" y2="{H-padB}" class="ax"/>')
+    p.append(f'<line x1="{padL}" y1="{padT}" x2="{padL}" y2="{H-padB}" class="ax"/>')
+    p.append(f'<text x="{(padL+W-padR)/2:.0f}" y="{H-8}" class="al" text-anchor="middle">{esc(xlab)}</text>')
+    p.append(f'<text x="14" y="{(padT+H-padB)/2:.0f}" class="al" text-anchor="middle" transform="rotate(-90 14 {(padT+H-padB)/2:.0f})">{esc(ylab)}</text>')
+    p.append('</svg>')
+    leg = ""
+    if legend:
+        items = "".join(f'<span class="li"><span class="sw" style="background:{col}"></span>{esc(lab)}</span>'
+                        for lab, col, *_ in list(pts) + list(lines))
+        leg = f'<div class="leg">{items}</div>'
+    return f'<figure class="fig">{"".join(p)}{leg}</figure>'
+
 def heatmap(rows, cols, Mv, title, rlab, clab, vmin, vmax, W=620, H=300):
     padL, padR, padT, padB = 64, 86, 30, 40
     cw = (W - padL - padR) / len(cols); ch = (H - padT - padB) / len(rows)
@@ -556,6 +593,33 @@ dgp_figs = '<div class="figrow">' + figcap(
     "oracle &pi;*(X) = 1{CATE(X) &gt; 0}.") + figcap(
     linechart([("P(T=1 | X, S=+1)", "#2ca02c", list(xg), list(ep), ""), ("P(T=1 | X, S=-1)", "#9467bd", list(xg), list(em), "")], title="Confounded propensity", xlab="X", ylab="P(T=1 | X,S)"),
     "P(T=1 | X,S) = clip(&sigma;(0.8S - 2X), 0.02, 0.98); &Lambda; = exp(2&middot;0.8) = 4.95.") + '</div>'
+
+# mu_t(X,S) lines and one realized draw of the potential outcomes Y(t)
+mu1p, mu1m = 3 * xg + 8, 3 * xg - 10          # mu1 = 9S + 3X - 1 at S = +1 / -1
+mu0p, mu0m = np.full_like(xg, 8.0), np.full_like(xg, -8.0)
+eY0 = 8 * ES; eY1 = 9 * ES + 3 * xg - 1       # E[Y(t)|X]: mu_t averaged over S|X
+import importlib.util as _ilu
+_sp = _ilu.spec_from_file_location("v2dgp_plot", os.path.join(A, "exp_owgap_v2", "dgp.py"))
+_dm = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_dm)
+_obs, _full = _dm.generate(600, 0)
+_rj = np.random.default_rng(1).uniform(-0.06, 0.06, 600)
+_Xj = _obs["X"].ravel() + _rj
+mu_y_figs = '<div class="figrow">' + figcap(
+    linechart([("mu1(X, S=+1)", "#d62728", list(xg), list(mu1p), ""),
+               ("mu0(X, S=+1)", "#1f77b4", list(xg), list(mu0p), ""),
+               ("mu1(X, S=-1)", "#d62728", list(xg), list(mu1m), "5 4"),
+               ("mu0(X, S=-1)", "#1f77b4", list(xg), list(mu0m), "5 4")],
+              title="Mean potential outcomes mu_t(X,S)", xlab="X", ylab="mu_t(X,S)"),
+    "&mu;<sub>0</sub>(X,S) = 8S, &nbsp;&mu;<sub>1</sub>(X,S) = 9S + 3X - 1; "
+    "&mu;<sub>1</sub> - &mu;<sub>0</sub> = S + 3X - 1.") + figcap(
+    scatterchart([("Y(1) draws", "#d62728", list(_Xj), list(_full["Y1"])),
+                  ("Y(0) draws", "#1f77b4", list(_Xj), list(_full["Y0"]))],
+                 [("E[Y(1)|X]", "#a01f1f", list(xg), list(eY1), "6 4"),
+                  ("E[Y(0)|X]", "#144d73", list(xg), list(eY0), "6 4")],
+                 title="Potential outcomes Y(t), one draw (N=600, seed 0)", xlab="X (jittered)", ylab="Y(t)"),
+    "Y(t) = &mu;<sub>t</sub>(X,S) + N(0, 0.6&sup2;); dashed: "
+    "E[Y(t)|X] = E<sub>S|X</sub>[&mu;<sub>t</sub>(X,S)], with "
+    "E[Y(1)|X] - E[Y(0)|X] = CATE(X).") + '</div>'
 EQ0 = M(r"X \sim \mathrm{Unif}\{-1,\,-\tfrac{2}{3},\,\ldots,\,1\}\ \text{(7 levels; continuous variant: } X\sim\mathrm{Unif}[-1,1]\text{)},\qquad S\mid X \in \{\pm 1\},\ \ P(S{=}{+}1\mid X)=\sigma(10X)")
 EQ1 = M(r"T\mid X,S \sim \mathrm{Bernoulli}(e(X,S)),\qquad e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),\,0.02,\,0.98)")
 EQ2 = M(r"\mu_0=8S,\quad \mu_1=9S+3X-1,\quad Y(t)=\mu_t+\mathcal{N}(0,0.6^2)")
@@ -585,7 +649,8 @@ p = &sigma;(&alpha;X) is non-negligible. At the strong coupling &alpha;=10 this 
 consequence of ANY monotone X&ndash;S coupling crossing one-half, not a planted artifact; the
 continuous experiment shows the band version of the same effect, and the coupling sweep (Discrete
 tab, Section 3) shows what happens as the region widens.</div>
-{dgp_figs}""")
+{dgp_figs}
+{mu_y_figs}""")
 
 # (base-DGP headline, base Kallus, and N=1000 sections removed 2026-07-26: the report is
 #  v2-only; the burden-free variant survives as the design rationale in the DGP tab, and the
