@@ -146,6 +146,37 @@ def scatterchart(pts, lines, W=560, H=330, xlab="", ylab="", title="", legend=Tr
         leg = f'<div class="leg">{items}</div>'
     return f'<figure class="fig">{"".join(p)}{leg}</figure>'
 
+def barchart(cats, series, title, ylab, W=560, H=330, catlab="X level"):
+    """Grouped bars over categorical x. series: list of (label, color, values)."""
+    padL, padR, padT, padB = 52, 14, 30, 42
+    ys_all = [v for _, _, vs in series for v in vs] + [0.0]
+    ylo, yhi = min(ys_all), max(ys_all)
+    ypad = 0.08 * (yhi - ylo + 1e-9); ylo -= ypad; yhi += ypad
+    def Y(v): return H - padB - (v - ylo) / (yhi - ylo + 1e-12) * (H - padT - padB)
+    ncat, nser = len(cats), len(series)
+    slot = (W - padL - padR) / ncat; bw = slot * 0.8 / max(nser, 1)
+    p = [f'<svg viewBox="0 0 {W} {H}" class="chart" role="img" aria-label="{esc(title)}">']
+    p.append(f'<text x="{padL}" y="16" class="ct">{esc(title)}</text>')
+    for t in _ticks(ylo + ypad, yhi - ypad):
+        if t < ylo or t > yhi: continue
+        p.append(f'<line x1="{padL}" y1="{Y(t):.1f}" x2="{W-padR}" y2="{Y(t):.1f}" class="grid"/>')
+        p.append(f'<text x="{padL-6}" y="{Y(t)+3.5:.1f}" class="tk" text-anchor="end">{t:g}</text>')
+    y0 = Y(0.0)
+    for si, (lab, col, vs) in enumerate(series):
+        for ci, v in enumerate(vs):
+            x = padL + slot * ci + slot * 0.1 + bw * si
+            yt = Y(max(v, 0.0)); hgt = abs(y0 - Y(v))
+            p.append(f'<rect x="{x:.1f}" y="{yt:.1f}" width="{bw:.1f}" height="{max(hgt,0.5):.1f}" fill="{col}" opacity="0.9"/>')
+    p.append(f'<line x1="{padL}" y1="{y0:.1f}" x2="{W-padR}" y2="{y0:.1f}" class="ax"/>')
+    for ci, c in enumerate(cats):
+        p.append(f'<text x="{padL+slot*(ci+0.5):.1f}" y="{H-padB+16}" class="tk" text-anchor="middle">{esc(str(c))}</text>')
+    p.append(f'<line x1="{padL}" y1="{padT}" x2="{padL}" y2="{H-padB}" class="ax"/>')
+    p.append(f'<text x="{(padL+W-padR)/2:.0f}" y="{H-8}" class="al" text-anchor="middle">{esc(catlab)}</text>')
+    p.append(f'<text x="14" y="{(padT+H-padB)/2:.0f}" class="al" text-anchor="middle" transform="rotate(-90 14 {(padT+H-padB)/2:.0f})">{esc(ylab)}</text>')
+    p.append('</svg>')
+    items = "".join(f'<span class="li"><span class="sw" style="background:{col}"></span>{esc(lab)}</span>' for lab, col, _ in series)
+    return f'<figure class="fig">{"".join(p)}<div class="leg">{items}</div></figure>'
+
 def heatmap(rows, cols, Mv, title, rlab, clab, vmin, vmax, W=620, H=300):
     padL, padR, padT, padB = 64, 86, 30, 40
     cw = (W - padL - padR) / len(cols); ch = (H - padT - padB) / len(rows)
@@ -620,6 +651,24 @@ mu_y_figs = '<div class="figrow">' + figcap(
     "Y(t) = &mu;<sub>t</sub>(X,S) + N(0, 0.6&sup2;); dashed: "
     "E[Y(t)|X] = E<sub>S|X</sub>[&mu;<sub>t</sub>(X,S)], with "
     "E[Y(1)|X] - E[Y(0)|X] = CATE(X).") + '</div>'
+
+# what the analyst sees (no S) + the selection composition behind it
+_Yo, _To = _obs["Y"], _obs["T"]
+pT1 = ps1 * ep / (ps1 * ep + (1 - ps1) * em)                      # P(S=+1 | T=1, X)
+pT0 = ps1 * (1 - ep) / (ps1 * (1 - ep) + (1 - ps1) * (1 - em))    # P(S=+1 | T=0, X)
+obs_figs = '<div class="figrow">' + figcap(
+    scatterchart([("treated (T=1)", "#d62728", list(_Xj[_To == 1]), list(_Yo[_To == 1])),
+                  ("untreated (T=0)", "#1f77b4", list(_Xj[_To == 0]), list(_Yo[_To == 0]))],
+                 [],
+                 title="What the analyst sees: (X, T, Y), S hidden (N=600, seed 0)", xlab="X (jittered)", ylab="Y"),
+    "Observed data: Y = Y(T). E[Y | T=1, X=0] - E[Y | T=0, X=0] &asymp; +5.5, while "
+    "CATE(0) = -1.") + figcap(
+    linechart([("P(S=+1 | T=1, X)", "#d62728", list(xg), list(pT1), ""),
+               ("P(S=+1 | T=0, X)", "#1f77b4", list(xg), list(pT0), ""),
+               ("P(S=+1 | X)", "#334155", list(xg), list(ps1), "4 3")],
+              title="Vitality composition of the two arms", xlab="X", ylab="P(S=+1 | T, X)"),
+    "P(S{=}{+}1 | T{=}t, X) &propto; P(S{=}{+}1|X) &middot; P(T{=}t|X,S{=}{+}1); the "
+    "T=1/T=0 gap is the within-level selection, maximal at X=0.") + '</div>'
 EQ0 = M(r"X \sim \mathrm{Unif}\{-1,\,-\tfrac{2}{3},\,\ldots,\,1\}\ \text{(7 levels; continuous variant: } X\sim\mathrm{Unif}[-1,1]\text{)},\qquad S\mid X \in \{\pm 1\},\ \ P(S{=}{+}1\mid X)=\sigma(10X)")
 EQ1 = M(r"T\mid X,S \sim \mathrm{Bernoulli}(e(X,S)),\qquad e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),\,0.02,\,0.98)")
 EQ2 = M(r"\mu_0=8S,\quad \mu_1=9S+3X-1,\quad Y(t)=\mu_t+\mathcal{N}(0,0.6^2)")
@@ -648,9 +697,10 @@ p = &sigma;(&alpha;X) is non-negligible. At the strong coupling &alpha;=10 this 
 |X|&lesssim;0.2 that shifts the naive decision threshold. This concentration is the unavoidable
 consequence of ANY monotone X&ndash;S coupling crossing one-half, not a planted artifact; the
 continuous experiment shows the band version of the same effect, and the coupling sweep (Discrete
-tab, Section 3) shows what happens as the region widens.</div>
+tab, Section 4) shows what happens as the region widens.</div>
 {dgp_figs}
-{mu_y_figs}""")
+{mu_y_figs}
+{obs_figs}""")
 
 # (base-DGP headline, base Kallus, and N=1000 sections removed 2026-07-26: the report is
 #  v2-only; the burden-free variant survives as the design rationale in the DGP tab, and the
@@ -676,7 +726,7 @@ def _alpha_section():
         arows.append(f"<tr><td>&alpha;={a}</td><td>{cc}</td><td>{fmt(R['oracle'])}</td><td>{fmt(naive)}</td>"
                      f"<td>{fmt(ow)}</td><td class='{cls}'>{marg:+.3f}</td></tr>")
     return f"""
-<h2 id="s-alpha">3. Coupling sweep: when does O-W win?</h2>
+<h2 id="s-alpha">4. Coupling sweep: when does O-W win?</h2>
 <p>The X&ndash;S coupling &alpha; in P(S=+1|X)=&sigma;(&alpha;X) is swept over {{1,2,4,6,10}}
 (N=600, 8 seeds, c<sub>&epsilon;</sub>=1.0, on the burden-free outcome variant &mdash; the
 coupling and propensity are identical to the showcase DGP, so the boundary transfers) while the
@@ -933,6 +983,63 @@ each method spends its 30% budget: O-W concentrates it on the top levels, the na
 roughly a third of it on X=0. This &Gamma;-stability of the selected policy &mdash; not just of
 the value &mdash; is the Wasserstein constraint's visible fingerprint.</p>""")
 
+# ---- mechanism section: why each method picks its policy (from make_mechanism.py) ----
+MECH = J("exp_owgap_v2/mechanism.json")
+if MECH:
+    ml = [f"{x:.2g}" for x in MECH["levels"]]
+    sc, dis, cur, GGm = MECH["scores"], MECH["dists"], MECH["curves"], MECH["gamma_grid"]
+    tc = MECH["true_cate"]
+    T["disc"].append(f"""
+<h2 id="s-mech">3. Why each method picks its policy: the worst-case mechanics</h2>
+<p>Everything below is computed on the seed-0 draw (N=600) with the empirically fitted weights
+w&#770;<sub>i</sub> = 1/e&#770;(T<sub>i</sub>|X<sub>i</sub>), the MSM box
+[1+(w&#770;-1)/&Gamma;, 1+&Gamma;(w&#770;-1)], and &mdash; for the box&cap;W rows &mdash; the
+per-arm Hajek-normalized reweighted level distribution constrained to W<sub>1</sub>-distance
+&le; &epsilon; from the pooled empirical distribution (&epsilon; = the fitted weights' own
+distance, i.e. the tightest budget). This is the mechanism of the production LPs in a form
+solvable in closed form / by a small LP; exact numbers differ slightly from the full solver.</p>
+<h3>The ranking each criterion induces</h3>
+<p>Per-level score at the matched &Gamma;=5: the worst-case change in the objective from
+treating level j versus not treating it (holding the rest of the policy at the oracle);
+true CATE shown for reference.</p>
+<div class="figrow">
+{barchart(ml, [("naive plug-in score", MC["DoublyRobust-X-X"], sc["naive"]), ("true CATE", "#94a3b8", tc)], "Naive: E[Y|T=1,X] - E[Y|T=0,X]", "score")}
+{barchart(ml, [("box-only worst-case score", MC["DoublyRobust-O-X"], sc["box"]), ("true CATE", "#94a3b8", tc)], "Odds-box only (G=5)", "score")}
+{barchart(ml, [("box + W worst-case score", MC["IPW-O-W"], sc["boxw"]), ("true CATE", "#94a3b8", tc)], "Odds-box + Wasserstein (G=5)", "score")}
+</div>
+<div class="card finding"><b>Reading the rankings.</b> The naive score reproduces true CATE at
+every level except X=0, where selection inflates it to {sc["naive"][3]:+.1f} (truth -1)
+&rarr; naive methods treat X=0 first. The box-only score is PATHOLOGICAL: with &Gamma;=5 of
+per-unit freedom and no balance constraint, the worst case is dominated by weight inflation on
+whichever arm holds the mass &mdash; it awards {sc["box"][0]:+.1f} to treating the frailest
+level (true CATE -5) simply because the control arm's worst case there is even worse. Its
+ranking is unrelated to CATE, which is why pure box methods are erratic at moderate &Gamma; and
+the self-normalized ones (Hajek, Kallus) flee to never-treat. The box&cap;W score recovers the
+true SIGN at all seven levels; at X=0 it is mildly positive ({sc["boxw"][3]:+.2f}), which is
+exactly why IPW-O-W hedges there (&pi;(0) &asymp; 0.47) instead of committing.</div>
+<h3>What the adversary is allowed to do to the treated arm</h3>
+{barchart(ml, [("pooled empirical", "#94a3b8", dis["empirical"]), ("fitted weights", "#334155", dis["fitted"]),
+               ("box adversary", MC["DoublyRobust-O-X"], dis["box_adversary"]),
+               ("box + W adversary", MC["IPW-O-W"], dis["boxw_adversary"])],
+          "Treated-arm reweighted level distribution (oracle policy, G=5)", "P(level)", W=760, catlab="X level")}
+<p class="muted figcap">Box alone: the adversary piles {100*sum(dis["box_adversary"][:4]):.0f}%
+of treated-arm mass onto the four lowest levels (fabricating a frail treated arm). Adding the
+W constraint pins the reweighted distribution to the empirical one &mdash; the box&cap;W
+adversary's column is visually identical to the fitted weights'.</p>
+<h3>Worst-case value of a FIXED policy vs &Gamma;</h3>
+<div class="figrow">
+{linechart([("oracle", "#111111", GGm, cur["oracle"]["box"], ""), ("naive policy", MC["DoublyRobust-X-X"], GGm, cur["naive"]["box"], ""), ("never-treat", "#888888", GGm, cur["never"]["box"], "4 3")], title="Odds-box only: worst case dives for EVERY policy", xlab="Gamma", ylab="worst-case value", xticks=GGm)}
+{linechart([("oracle", "#111111", GGm, cur["oracle"]["boxw"], ""), ("naive policy", MC["DoublyRobust-X-X"], GGm, cur["naive"]["boxw"], ""), ("never-treat", "#888888", GGm, cur["never"]["boxw"], "4 3")], title="Box + Wasserstein: an informative band", xlab="Gamma", ylab="worst-case value", xticks=GGm)}
+</div>
+<div class="card finding"><b>Reading the curves.</b> Box only: by &Gamma;=5 every policy's worst
+case sits near {cur["oracle"]["box"][6]:.0f} &mdash; differences between good and bad policies
+are swamped by arm-level weight inflation, so the criterion carries almost no signal (and
+regret-normalized box methods collapse onto the one certain policy, never-treat). Box&cap;W:
+worst cases stay within ~1 unit of the true values at every &Gamma;
+(oracle {cur["oracle"]["boxw"][6]:+.2f} vs never-treat {cur["never"]["boxw"][6]:+.2f} at
+&Gamma;=5), so maximizing it still distinguishes policies &mdash; robustness without
+paralysis. This pair of panels is the entire O-W argument in two pictures.</div>""")
+
 _a = _alpha_section()
 if _a: T["disc"].append(_a)
 
@@ -1073,7 +1180,7 @@ T["real"].append("""
 rescaled to [-1,1]; hidden confounder S = acuity (prior inpatient/ER visits, diagnoses, facility
 discharge), median-split; treatment T = the real insulin decision (53% treated). The REAL
 X&ndash;S coupling is weak: corr(X,S)=0.196, matched &Gamma;=1.26 &mdash; by the coupling-sweep
-diagnostic (Discrete tab, Section 3) this dataset sits OUTSIDE the O-W operating regime. We
+diagnostic (Discrete tab, Section 4) this dataset sits OUTSIDE the O-W operating regime. We
 therefore run two complementary experiments rather than forcing a win:</p>
 <div class="card"><b>Experiment A &mdash; in-regime semi-synthetic (real covariates, simulated
 confounding).</b> Real bootstrapped X (real covariate geometry); S ~ Bern(&sigma;(12(X-0.07)))
