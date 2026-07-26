@@ -190,6 +190,94 @@ def mean_policy_matrix(R, reg, m):
     Mv = [[float(np.mean([pbs[s][gk][j] for s in seeds])) for j in range(nl)] for gk in gks]
     return gks, Mv
 
+# ---------------- interactive policy viewer ----------------
+PD = {}   # widget-id -> dataset, embedded as JSON for the in-page pi(X) plotter
+
+def pol_widget_html(wid, d, defaults=None):
+    """Controls + plot container for one policy dataset; drawing happens in pwDraw() (JS)."""
+    df = defaults or {}
+    def opts(vals, dv):
+        o = []
+        for v in vals:
+            sel = ' selected' if str(v) == str(dv) else ''
+            o.append(f'<option value="{v}"{sel}>{v}</option>')
+        return "".join(o)
+    c = [f'<div class="polw" id="pw-{wid}"><div class="ctl">']
+    c.append(f'<label>method <select id="pw-{wid}-m">{opts(d["methods"], df.get("m", d["methods"][0]))}</select></label>')
+    c.append(f'<label>&Gamma; <select id="pw-{wid}-g">{opts(d["gammas"], df.get("g", d["gammas"][0]))}</select></label>')
+    if d["kind"] == "2d":
+        c.append(f'<label>L <select id="pw-{wid}-l">{opts(d["Ls"], df.get("l", d["Ls"][0]))}</select></label>')
+    if d["kind"] == "disc":
+        c.append(f'<label>regime <select id="pw-{wid}-r">{opts(d["regimes"], df.get("r", "uncap"))}</select></label>')
+    c.append(f'<label class="cb"><input type="checkbox" id="pw-{wid}-all"> overlay all methods</label>')
+    c.append(f'</div><div id="pw-{wid}-plot" class="fig"></div></div>')
+    return "".join(c)
+
+PW_JS = """
+const MCJS = %(MC)s;
+function pwSvg(xs, series){
+  const W=760,H=340,pL=52,pR=14,pT=24,pB=42;
+  const x0=xs[0],x1=xs[xs.length-1],ylo=-0.06,yhi=1.06;
+  const X=v=>pL+(v-x0)/(x1-x0)*(W-pL-pR);
+  const Y=v=>H-pB-(v-ylo)/(yhi-ylo)*(H-pT-pB);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
+  for (const t of [0,0.25,0.5,0.75,1]){
+    s+='<line x1="'+pL+'" y1="'+Y(t).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(t).toFixed(1)+'" class="grid"/>';
+    s+='<text x="'+(pL-6)+'" y="'+(Y(t)+3.5).toFixed(1)+'" class="tk" text-anchor="end">'+t+'</text>';
+  }
+  for (const t of [-1,-0.5,0,0.5,1]){
+    if (t<x0-1e-9||t>x1+1e-9) continue;
+    s+='<text x="'+X(t).toFixed(1)+'" y="'+(H-pB+16)+'" class="tk" text-anchor="middle">'+t+'</text>';
+  }
+  for (const se of series){
+    const pts=xs.map((x,i)=>X(x).toFixed(1)+','+Y(se.ys[i]).toFixed(1)).join(' ');
+    s+='<polyline points="'+pts+'" fill="none" style="stroke:'+se.col+'" stroke-width="2.2"'+
+       (se.dash?' stroke-dasharray="'+se.dash+'"':'')+'/>';
+    if (xs.length<=9){
+      for (let i=0;i<xs.length;i++)
+        s+='<circle cx="'+X(xs[i]).toFixed(1)+'" cy="'+Y(se.ys[i]).toFixed(1)+'" r="3.4" style="fill:'+se.col+'"/>';
+    }
+  }
+  s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">X</text>';
+  s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+
+     ((pT+H-pB)/2)+')">pi(X) = treatment probability</text>';
+  return s+'</svg>';
+}
+function pwDraw(wid){
+  const d=PD[wid]; if(!d) return;
+  const gv=(s)=>{const e=document.getElementById('pw-'+wid+'-'+s); return e?e.value:null;};
+  const m=gv('m'), g=gv('g'), l=gv('l'), reg=gv('r')||'uncap';
+  const all=document.getElementById('pw-'+wid+'-all').checked;
+  let series=[], note='';
+  if (d.kind==='2d'){
+    series.push({lab:'oracle', col:'var(--fg)', ys:d.refs.oracle, dash:'6 4'});
+    series.push({lab:'naive DR plug-in', col:'#8c564b', ys:d.refs.naive, dash:'6 3'});
+    for (const mm of (all?d.methods:[m]))
+      series.push({lab:mm+'  (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:''});
+  } else {
+    series.push({lab:reg==='uncap'?'oracle':'capped oracle', col:'var(--fg)',
+                 ys:reg==='uncap'?d.refs.oracle_uncap:d.refs.oracle_cap, dash:'6 4'});
+    for (const mm of (all?d.methods:[m])){
+      const c=d.pol[reg][mm]&&d.pol[reg][mm][g];
+      if (c) series.push({lab:mm+'  (G='+g+', '+reg+')', col:MCJS[mm]||'#7f7f7f', ys:c, dash:''});
+      else if (!all) note='<p class="muted">'+mm+' has no '+reg+' variant (uncapped-only method).</p>';
+    }
+  }
+  let leg='<div class="leg">'+series.map(se=>'<span class="li"><span class="sw" style="background:'+
+          se.col+'"></span>'+se.lab+'</span>').join('')+'</div>';
+  let vals='';
+  if (d.kind==='disc' && !all && series.length>1){
+    const ys=series[series.length-1].ys;
+    vals='<div class="muted mono" style="padding:0 8px 8px">pi = ['+ys.map(v=>Math.round(v*100)/100).join(', ')+']</div>';
+  }
+  document.getElementById('pw-'+wid+'-plot').innerHTML=pwSvg(d.grid,series)+leg+vals+note;
+}
+document.addEventListener('change',e=>{const w=e.target.closest('.polw'); if(w) pwDraw(w.id.slice(3));});
+for (const k of Object.keys(PD)) pwDraw(k);
+"""
+
 # ---------------- data digests ----------------
 def uncap_series(R, methods, kal=None):
     gam = R["gammas"]; mean = R["regimes"]["uncap"]["mean"]
@@ -279,6 +367,11 @@ svg.chart{width:100%;height:auto;display:block;}
 .al{font-size:11px;fill:var(--muted);font-weight:600;} .grid{stroke:var(--border);stroke-width:1;}
 .ax{stroke:var(--muted);stroke-width:1.2;} .hm{font-size:8.6px;font-weight:600;}
 .sk{font-size:8.4px;fill:var(--muted);}
+.ctl{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;margin:12px 0 4px;}
+.ctl label{font-size:.84rem;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+.ctl select{font:inherit;font-size:.86rem;padding:4px 10px;border-radius:9px;border:1px solid var(--border);
+ background:var(--surface);color:var(--fg);}
+.ctl .cb input{accent-color:var(--accent);width:15px;height:15px;}
 .leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
 .li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
@@ -748,40 +841,38 @@ if V2R and V2D:
     orc_c_s = "(" + ", ".join(f"{v:g}" for v in cap_orc) + ")"
     POL_METHODS = ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X",
                    "IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"]
-    pol_figs = {}
+    disc_pol = {}
     for reg in ("uncap", "cap"):
-        figs = []
+        disc_pol[reg] = {}
         for m in POL_METHODS:
             if m not in V2R["regimes"][reg].get("policy_by_seed", {}): continue
             gks, Mv = mean_policy_matrix(V2R, reg, m)
-            figs.append(heatmap(["G=" + g for g in gks], lvl_labs, Mv,
-                                f"{m} ({'uncapped' if reg == 'uncap' else 'capped 30%'})",
-                                "Gamma", "X level", 0.0, 1.0, W=470, H=300))
-        pol_figs[reg] = figs
-    kal_fig = ""
+            disc_pol[reg][m] = {gk: row for gk, row in zip(gks, Mv)}
     if KV2:
         gksK, MvK = mean_policy_matrix(KV2, "uncap", "Kallus")
-        kal_fig = heatmap(["G=" + g for g in gksK], lvl_labs, MvK,
-                          "Kallus (uncapped; parametric softmax)", "Gamma", "X level", 0.0, 1.0, W=470, H=300)
+        disc_pol["uncap"]["Kallus"] = {gk: row for gk, row in zip(gksK, MvK)}
+    PD["disc"] = {"kind": "disc", "grid": [float(x) for x in V2R["grid"]],
+                  "gammas": gks, "regimes": ["uncap", "cap"],
+                  "methods": POL_METHODS + (["Kallus"] if KV2 else []),
+                  "pol": disc_pol,
+                  "refs": {"oracle_uncap": [0.0 if c <= 0 else 1.0 for c in V2D["cate"]],
+                           "oracle_cap": cap_orc}}
     T["disc"].append(f"""
-<h2 id="s-pols">6. Selected policies: every method at every &Gamma; (v2, mean over {len(V2R['seeds'])} seeds)</h2>
-<p>Each panel is one method; each row is the policy that method selects at that &Gamma;, averaged
-over all {len(V2R['seeds'])} seeds. Cell value and color = treatment probability &pi;(X) at that
-level (yellow = treat, purple = do not treat). References: <b>uncapped oracle {orc_u_s}</b>,
-<b>capped(30%) oracle {orc_c_s}</b> on the levels (-1, ..., +1).</p>
-<p>How to read the panels: the naive X-X rows are constant in &Gamma; (plug-ins ignore it) and
-always treat the selection-inflated X=0 level; the box-only O-X rows drain toward never-treat
-(all-purple) as &Gamma; grows &mdash; worst-case pessimism with nothing to anchor it; the O-W rows
-stay anchored near the oracle across the whole &Gamma; range, hedging only the ambiguous X=0
-level; Kallus drains like O-X. This &Gamma;-stability of the selected policy &mdash; not just of
-the value &mdash; is the Wasserstein constraint's visible fingerprint.</p>
-<h3>Uncapped</h3>
-<div class="figrow">{''.join(pol_figs['uncap'])}{kal_fig}</div>
-<h3>Capped 30%</h3>
-<p class="muted">Under the cap the question becomes WHERE each method spends its 30% budget:
-O-W concentrates it on the top levels; the naive methods burn roughly a third of it on X=0
-(true CATE = -1).</p>
-<div class="figrow">{''.join(pol_figs['cap'])}</div>""")
+<h2 id="s-pols">6. Selected policies: &pi;(X) vs X for every method and &Gamma; (v2, mean over {len(V2R['seeds'])} seeds)</h2>
+<p>Pick a method, a &Gamma;, and the regime; the plot shows the policy that method selects,
+as treatment probability &pi;(X) over the 7 levels, <b>averaged over all {len(V2R['seeds'])}
+seeds</b>, with the oracle for that regime as the dashed reference (uncapped oracle {orc_u_s},
+capped(30%) oracle {orc_c_s}). Tick "overlay all methods" to compare everyone at once at the
+chosen &Gamma;.</p>
+{pol_widget_html("disc", PD["disc"], defaults={"m": "IPW-O-W", "g": "5", "r": "uncap"})}
+<p>What to look for: the naive X-X curves do not move with &Gamma; (plug-ins ignore it) and
+always treat the selection-inflated X=0 level (true CATE = -1); the box-only O-X curves drain
+toward never-treat as &Gamma; grows &mdash; worst-case pessimism with nothing to anchor it &mdash;
+and Kallus drains the same way; the O-W curves stay anchored near the oracle across the whole
+&Gamma; range, hedging only the ambiguous X=0 level. Under the cap the question becomes WHERE
+each method spends its 30% budget: O-W concentrates it on the top levels, the naive methods burn
+roughly a third of it on X=0. This &Gamma;-stability of the selected policy &mdash; not just of
+the value &mdash; is the Wasserstein constraint's visible fingerprint.</p>""")
 
 # ---- v2 continuous -> cont tab (auto-fills once job 10579938 lands) ----
 if C2DV2:
@@ -809,22 +900,14 @@ methods over 6 &Gamma; &times; 8 L on the v2 continuous DGP, with naive-DR / ora
 all-treat references and per-(&Gamma;,L) seed-0 policy curves for the explanation figures.
 This section fills automatically when it lands &mdash; rerun build_results.py.</p>""")
 
-# ---- policy stripes for any L x Gamma 2-D result (continuous + diabetes) ----
-def policy_2d_figs(RJ):
-    """One stripe figure per method: rows = oracle/naive refs + every Gamma x L cell (seed 0)."""
-    ps = RJ["policies_seed0"]; Gk, Lk = RJ["gammas"], RJ["Lgrid"]
-    pg, refs = RJ["policy_grid"], ps["_refs"]
-    figs = []
-    for m in RJ["methods"]:
-        labs = ["oracle", "naive DR"]; Mv = [refs["oracle"], refs["naive_dr"]]; seps = [2]
-        for gi, g in enumerate(Gk):
-            for l in Lk:
-                labs.append(f"G={g}  L={l}"); Mv.append(ps[m][g][l])
-            if gi < len(Gk) - 1: seps.append(2 + (gi + 1) * len(Lk))
-        figs.append(stripemap(labs, Mv, pg, f"{m}: selected policy pi(x) at every Gamma x L (seed 0)",
-                              xlab="x   (color = treatment probability: yellow = treat, purple = do not treat)",
-                              seps=seps))
-    return figs
+# ---- interactive policy viewer datasets for any L x Gamma 2-D result (continuous + diabetes) ----
+def policy_2d_dataset(RJ):
+    """PD entry for the pi(X) widget: seed-0 policy curve per method x Gamma x L + refs."""
+    ps = RJ["policies_seed0"]
+    return {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
+            "gammas": RJ["gammas"], "Ls": RJ["Lgrid"], "methods": RJ["methods"],
+            "pol": {m: ps[m] for m in RJ["methods"]},
+            "refs": {"oracle": ps["_refs"]["oracle"], "naive": ps["_refs"]["naive_dr"]}}
 
 def policy_2d_bestchart(RJ, title):
     ps = RJ["policies_seed0"]; pg, refs = RJ["policy_grid"], ps["_refs"]
@@ -837,23 +920,24 @@ def policy_2d_bestchart(RJ, title):
 
 if C2DV2 and "policies_seed0" in C2DV2:
     bo2 = C2DV2["best_overall"]
+    PD["cont"] = policy_2d_dataset(C2DV2)
     T["cont"].append(f"""
-<h2 id="s-contpols">3. Policy curves: every method at every &Gamma; &times; L</h2>
-<p>The complete answer to "what policy did each method actually pick": for each method, every
-(&Gamma;, L) cell of the Section-2 surface as one horizontal stripe &mdash; the seed-0 learned
-policy &pi;(x) over x &isin; [-1, 1], KNN-deployed. The two reference stripes on top are the
-oracle (treat iff x &gt; 0.137) and the naive DR plug-in (threshold shifted left to &asymp;-0.3
-by hidden-vitality bias: it over-treats the ambiguous band).</p>
-<p>What the stripes show, mechanically: <b>L = &infin; rows are speckled</b> &mdash; per-unit
-policies overfit each support point, and &Gamma; barely changes them (the inert-&Gamma; column of
-the surface). <b>Moderate L (1.5&ndash;3) rows are clean two-block stripes</b> whose boundary sits
-near the oracle's. As &Gamma; grows, <b>box-only O-X stripes darken to all-purple</b>
-(worst-case collapse to never-treat), while the <b>O-W stripes keep a stable yellow treat-region</b>
-&mdash; the Wasserstein anchor at work; the boundary drifts only slightly right (more
-conservative) with &Gamma;. Best overall cell: {bo2['method']} at &Gamma;={bo2['gamma']},
-L={bo2['L']}.</p>
-{policy_2d_bestchart(C2DV2, "Best-cell policies vs oracle and naive (seed 0)")}
-{''.join(policy_2d_figs(C2DV2))}""")
+<h2 id="s-contpols">3. Policy curves: &pi;(x) vs x for every method, &Gamma;, and L</h2>
+<p>The complete answer to "what policy did each method actually pick": choose a method, a
+&Gamma;, and a Lipschitz constant L, and the plot shows the seed-0 learned policy
+&pi;(x) over x &isin; [-1, 1] (KNN-deployed) for that cell of the Section-2 surface. Dashed
+references: the oracle (treat iff x &gt; 0.137) and the naive DR plug-in (threshold shifted left
+to &asymp;-0.3 by hidden-vitality bias: it over-treats the ambiguous band).</p>
+{pol_widget_html("cont", PD["cont"], defaults={"m": "IPW-O-W", "g": bo2["gamma"], "l": bo2["L"]})}
+<p>What to look for as you move the dropdowns: at <b>L = &infin;</b> the curve is jagged &mdash;
+per-unit policies overfit each support point, and changing &Gamma; barely moves them (the
+inert-&Gamma; column of the surface). At <b>moderate L (1.5&ndash;3)</b> the curve is a clean
+step whose boundary sits near the oracle's. Raising &Gamma; drains the <b>box-only O-X</b>
+curves toward &pi;&equiv;0 (worst-case collapse to never-treat), while the <b>O-W</b> curves keep
+a stable treat-region &mdash; the Wasserstein anchor at work; their boundary drifts only slightly
+right (more conservative) with &Gamma;. Best overall cell: {bo2['method']} at
+&Gamma;={bo2['gamma']}, L={bo2['L']}.</p>
+{policy_2d_bestchart(C2DV2, "Best-cell policies vs oracle and naive (seed 0)")}""")
     if J("exp_owgap_v2_cont/kallus_v2_cont.json"):
         KVC = J("exp_owgap_v2_cont/kallus_v2_cont.json")
         gksK, MvK = mean_policy_matrix(KVC, "uncap", "Kallus")
@@ -940,25 +1024,27 @@ it forecasts.</div>""")
 
 # selected policies for both diabetes experiments: every method x Gamma x L
 if DIA and "policies_seed0" in DIA:
+    PD["diabA"] = policy_2d_dataset(DIA)
     T["real"].append(f"""
-<h3>Experiment A: selected policies, every method at every &Gamma; &times; L</h3>
-<p>Same stripe format as the Continuous tab (seed 0; yellow = give insulin, purple = do not).
-The oracle treats the frailest patients (x above &asymp; the 79th percentile of frailty); the
-naive DR stripe is almost all-purple &mdash; the under-treatment failure ("insulin looks
-harmful"). Watch the O-W stripes recover a stable frail-side treat region as &Gamma; reaches the
-matched value 5, while at L=&infin; nothing works and box-only methods overshoot toward all-purple
-at large &Gamma;.</p>
-{policy_2d_bestchart(DIA, "Experiment A: best-cell policies vs oracle and naive (seed 0)")}
-{''.join(policy_2d_figs(DIA))}""")
+<h3>Experiment A: selected policies &mdash; &pi;(x) vs frailty x, by method, &Gamma;, and L</h3>
+<p>Same viewer as the Continuous tab (seed 0; &pi;(x) = probability of giving insulin). The
+oracle treats the frailest patients (x above &asymp; the 79th percentile of frailty); the naive
+DR curve is nearly &pi;&equiv;0 &mdash; the under-treatment failure ("insulin looks harmful").
+Move &Gamma; toward the matched value 5 to watch the O-W curve recover a stable frail-side
+treat-region; at L=&infin; nothing works, and box-only methods overshoot toward &pi;&equiv;0 at
+large &Gamma;.</p>
+{pol_widget_html("diabA", PD["diabA"], defaults={"m": "IPW-O-W", "g": "4", "l": "3"})}
+{policy_2d_bestchart(DIA, "Experiment A: best-cell policies vs oracle and naive (seed 0)")}""")
 if DIB and "policies_seed0" in DIB:
+    PD["diabB"] = policy_2d_dataset(DIB)
     T["real"].append(f"""
-<h3>Experiment B: selected policies, every method at every &Gamma; &times; L</h3>
+<h3>Experiment B: selected policies &mdash; &pi;(x) vs x, by method, &Gamma;, and L</h3>
 <p>The fully-real coupling (matched &Gamma; = 1.26). Here the correct behavior is to CHANGE
-LITTLE: naive is already near-oracle, so the best robust stripes are the low-&Gamma; ones that
-track the naive/oracle boundary, and raising &Gamma; visibly erodes the treat region &mdash; the
+LITTLE: naive is already near-oracle, so the best robust curves are the low-&Gamma; ones that
+track the naive/oracle boundary; raising &Gamma; visibly erodes the treat-region &mdash; the
 over-hedging the diagnostic predicts out-of-regime.</p>
-{policy_2d_bestchart(DIB, "Experiment B: best-cell policies vs oracle and naive (seed 0)")}
-{''.join(policy_2d_figs(DIB))}""")
+{pol_widget_html("diabB", PD["diabB"], defaults={"m": "IPW-O-W", "g": "1", "l": "3"})}
+{policy_2d_bestchart(DIB, "Experiment B: best-cell policies vs oracle and naive (seed 0)")}""")
 
 # ---- status ----
 sq_html = esc(sq) if sq else "(queue empty at build time)"
@@ -990,6 +1076,15 @@ function showTab(id){{
 (function(){{const h=location.hash.replace('#','');
   if(['dgp','disc','cont','real'].includes(h)) showTab(h);}})();
 </script>""")
+
+# ---- policy-viewer data + plotter (must come after the widget divs) ----
+def _r3(o):
+    if isinstance(o, list): return [_r3(x) for x in o]
+    if isinstance(o, dict): return {k: _r3(v) for k, v in o.items()}
+    if isinstance(o, float): return round(o, 3)
+    return o
+html.append("<script>\nconst PD = " + json.dumps(_r3(PD), separators=(",", ":")) + ";\n"
+            + (PW_JS % {"MC": json.dumps(MC)}) + "\n</script>")
 
 html.append(f"""
 <h2 id="s-status">Compute status at build time</h2>
