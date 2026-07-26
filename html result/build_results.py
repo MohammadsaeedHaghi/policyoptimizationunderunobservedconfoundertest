@@ -757,13 +757,35 @@ EQ4 = M(r"\mu_1 = 9S + 3X - 1 \;\Rightarrow\; \mathrm{CATE}(X) = (2\sigma(10X)-1
 if V2D:
     lv = V2D["levels"]; ct = V2D["cate"]; ch = V2D["catehat_naive_inf"]; vv = V2D["values"]
     idx = list(range(len(lv)))
-    v2fig = figcap(
+    # finite-sample companion: naive CATE-hat per level, mean +- SD over 20 seeds of N=600
+    _LVv = np.asarray(_dm.LEVELS, float)
+    _ch20 = []
+    for _sd in range(20):
+        _o, _ = _dm.generate(600, _sd)
+        _Xs, _Ts, _Ys = _o["X"].ravel(), _o["T"], _o["Y"]
+        _lv = np.searchsorted(_LVv, _Xs - 1e-9)
+        _ch20.append([float(_Ys[(_lv == j) & (_Ts == 1)].mean() - _Ys[(_lv == j) & (_Ts == 0)].mean())
+                      for j in range(len(_LVv))])
+    _ch20 = np.asarray(_ch20)
+    _chm, _chs = _ch20.mean(0), _ch20.std(0)
+    v2fig = '<div class="figrow">' + figcap(
         linechart([("true CATE", "#111", lv, ct, ""), ("naive CATE-hat (infinite data)", MC["DoublyRobust-X-X"], lv, ch, "")],
                   title="The ranking inversion at X=0", xlab="X level", ylab="CATE",
                   hlines=[("0", "#888", 0.0, "4 3")]),
         "Black: CATE(X). Brown: the infinite-data naive limit "
         "E[Y | T=1, X] - E[Y | T=0, X]; the difference is confounding bias, "
-        "non-negligible only at X=0 (-1 &rarr; +5.5).")
+        "non-negligible only at X=0 (-1 &rarr; +5.5).") + figcap(
+        linechart([("true CATE", "#111", lv, ct, ""),
+                   ("naive CATE-hat, mean of 20 seeds", MC["DoublyRobust-X-X"], list(_LVv), [float(v) for v in _chm], "")],
+                  title="Finite sample: bias dwarfs noise (20 seeds, N=600)", xlab="X level", ylab="CATE",
+                  hlines=[("0", "#888", 0.0, "4 3")],
+                  bands=[("+-1 SD", MC["DoublyRobust-X-X"], list(_LVv),
+                          [float(m - s) for m, s in zip(_chm, _chs)],
+                          [float(m + s) for m, s in zip(_chm, _chs)])]),
+        "Same comparison at N=600: mean &plusmn; 1 SD of the within-level difference over 20 "
+        "seeds. At six levels the band straddles the truth (sampling noise, shrinks with N); "
+        "at X=0 the entire band sits near +5.5 while CATE(0) = -1 &mdash; bias &Gt; noise, so "
+        "more data cannot fix it.") + '</div>'
     T["dgp"].append(f"""
 <h2 id="s-v2">2. Design rationale: why the burden and the scarce cap exist</h2>
 <p>The DGP above was reached by an explicit design iteration, worth reporting because it explains
