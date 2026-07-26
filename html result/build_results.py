@@ -265,6 +265,35 @@ function pwSvg(xs, series){
      ((pT+H-pB)/2)+')">pi(X) = treatment probability</text>';
   return s+'</svg>';
 }
+function pwScat(xs, series, naive){
+  const W=760,H=300,pL=52,pR=14,pT=24,pB=42;
+  const x0=Math.min(...xs),x1=Math.max(...xs),ylo=-0.06,yhi=1.06;
+  const X=v=>pL+(v-x0)/(x1-x0)*(W-pL-pR);
+  const Y=v=>H-pB-(v-ylo)/(yhi-ylo)*(H-pT-pB);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
+  s+='<text x="'+pL+'" y="14" class="ct">Raw pointwise policy pi(X_i) at the '+xs.length+
+     ' support points (seed 0) - solver output BEFORE extension</text>';
+  for (const t of [0,0.5,1]){
+    s+='<line x1="'+pL+'" y1="'+Y(t).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(t).toFixed(1)+'" class="grid"/>';
+    s+='<text x="'+(pL-6)+'" y="'+(Y(t)+3.5).toFixed(1)+'" class="tk" text-anchor="end">'+t+'</text>';
+  }
+  for (const t of [-1,-0.5,0,0.5,1]){
+    if (t<x0-1e-9||t>x1+1e-9) continue;
+    s+='<text x="'+X(t).toFixed(1)+'" y="'+(H-pB+16)+'" class="tk" text-anchor="middle">'+t+'</text>';
+  }
+  if (naive)
+    for (let i=0;i<xs.length;i++)
+      s+='<circle cx="'+X(xs[i]).toFixed(1)+'" cy="'+Y(naive[i]/100).toFixed(1)+'" r="1.5" style="fill:#8c564b" opacity="0.28"/>';
+  for (const se of series)
+    for (let i=0;i<xs.length;i++)
+      s+='<circle cx="'+X(xs[i]).toFixed(1)+'" cy="'+Y(se.ys[i]/100).toFixed(1)+'" r="1.9" style="fill:'+se.col+'" opacity="0.8"/>';
+  s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">X_i (training support)</text>';
+  s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+
+     ((pT+H-pB)/2)+')">pi(X_i)</text>';
+  return s+'</svg>';
+}
 function pwDraw(wid){
   const d=PD[wid]; if(!d) return;
   const gv=(s)=>{const e=document.getElementById('pw-'+wid+'-'+s); return (e&&e.tagName==='SELECT')?e.value:null;};
@@ -293,7 +322,14 @@ function pwDraw(wid){
     const ys=series[series.length-1].ys;
     vals='<div class="muted mono" style="padding:0 8px 8px">pi = ['+ys.map(v=>Math.round(v*100)/100).join(', ')+']</div>';
   }
-  document.getElementById('pw-'+wid+'-plot').innerHTML=pwSvg(d.grid,series)+leg+vals+note;
+  let head='';
+  if (d.kind==='2d' && d.sup){
+    const ss=[];
+    for (const mm of ms)
+      if (d.sup[mm] && d.sup[mm][g] && d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l]});
+    head=pwScat(d.supX, ss, d.supNaive||null);
+  }
+  document.getElementById('pw-'+wid+'-plot').innerHTML=head+pwSvg(d.grid,series)+leg+vals+note;
 }
 document.addEventListener('change',e=>{const w=e.target.closest('.polw'); if(w) pwDraw(w.id.slice(3));});
 document.addEventListener('click',e=>{
@@ -939,12 +975,22 @@ This section fills automatically when it lands &mdash; rerun build_results.py.</
 
 # ---- interactive policy viewer datasets for any L x Gamma 2-D result (continuous + diabetes) ----
 def policy_2d_dataset(RJ):
-    """PD entry for the pi(X) widget: seed-0 policy curve per method x Gamma x L + refs."""
+    """PD entry for the pi(X) widget: seed-0 policy curve per method x Gamma x L + refs,
+    plus (when the run saved it) the RAW per-unit support policy for the verification scatter."""
     ps = RJ["policies_seed0"]
-    return {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
-            "gammas": RJ["gammas"], "Ls": RJ["Lgrid"], "methods": RJ["methods"],
-            "pol": {m: ps[m] for m in RJ["methods"]},
-            "refs": {"oracle": ps["_refs"]["oracle"], "naive": ps["_refs"]["naive_dr"]}}
+    d = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
+         "gammas": RJ["gammas"], "Ls": RJ["Lgrid"], "methods": RJ["methods"],
+         "pol": {m: ps[m] for m in RJ["methods"]},
+         "refs": {"oracle": ps["_refs"]["oracle"], "naive": ps["_refs"]["naive_dr"]}}
+    sup = RJ.get("policies_support_seed0") or (RJ.get("policies_support_by_seed") or {}).get("0")
+    if sup and "_X" in sup:
+        d["supX"] = [round(float(x), 3) for x in sup["_X"]]
+        d["sup"] = {m: {g: {l: [int(round(float(v) * 100)) for v in sup[m][g][l]]
+                            for l in RJ["Lgrid"] if l in sup[m][g]}
+                        for g in RJ["gammas"]} for m in RJ["methods"]}
+        if "_naive_dr" in sup:
+            d["supNaive"] = [int(round(float(v) * 100)) for v in sup["_naive_dr"]]
+    return d
 
 def policy_2d_bestchart(RJ, title):
     ps = RJ["policies_seed0"]; pg, refs = RJ["policy_grid"], ps["_refs"]
@@ -966,6 +1012,14 @@ if C2DV2 and "policies_seed0" in C2DV2:
 {dep_lab(C2DV2)}. Dashed references: the oracle (treat iff x &gt; 0.137) and the naive DR
 plug-in (threshold shifted left to &asymp;-0.3 by hidden-vitality bias: it over-treats the
 ambiguous band).{" Unlike KNN averaging, this deployment is exact at the support points, so the L=&infin; curves show the per-unit overfitting oscillation directly rather than a smoothed band." if C2DV2.get("deploy") == "shapley" else ""}</p>
+<p><b>Verification plot.</b> The first panel shows the RAW pointwise solver output: the
+{C2DV2['N_train']} per-unit values &pi;(X<sub>i</sub>) that the LP actually chose at the training
+support (seed 0; faint brown dots = the naive plug-in's raw 0/1 decisions). The second panel is
+the same policy after off-support extension. Because the Shapley operator is exact at support
+points, the extended curve must pass through the dot cloud wherever the plot grid comes close to
+a support point &mdash; at L=&infin; both panels oscillate together, and at L&le;3 the dots
+already lie on a smooth ramp that the extension simply traces. Any systematic gap between the
+two panels would indicate an extension bug.</p>
 {pol_widget_html("cont", PD["cont"], defaults={"m": ["IPW-O-W", "DoublyRobust-O-W"], "g": bo2["gamma"], "l": bo2["L"]})}
 <p>What to look for as you move the dropdowns: at <b>L = &infin;</b> the curve is jagged &mdash;
 per-unit policies overfit each support point, and changing &Gamma; barely moves them (the
