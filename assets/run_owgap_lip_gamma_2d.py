@@ -77,8 +77,10 @@ def solve_job(job):
     Dm = common.pairwise_distance_matrix(X); eps = tuple(common.tight_epsilon(Dm, T, w, K, is_distance=True, c_eps=ceps))
     Gk = ["%g" % g for g in GAMMAS]; Lkeys = ["inf" if L is None else ("%g" % L) for L in LGRID]
     grid = {m: {gk: {lk: float("nan") for lk in Lkeys} for gk in Gk} for m in METHODS}
-    pol = {m: {gk: {} for gk in Gk} for m in METHODS} if seed == 0 else None
-    sup = {m: {gk: {} for gk in Gk} for m in METHODS} if seed == 0 else None   # raw support policies
+    # SAVE EVERYTHING, EVERY SEED: deployed curves AND raw per-unit support policies.
+    # Re-solving the LPs because an output was discarded is never acceptable.
+    pol = {m: {gk: {} for gk in Gk} for m in METHODS}
+    sup = {m: {gk: {} for gk in Gk} for m in METHODS}
     Pg = PGRID.reshape(-1, 1)
     def call(m, g, L):
         if m == "IPW-O-X": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
@@ -92,9 +94,8 @@ def solve_job(job):
                 try:
                     res = call(m, g, L); pe = dep(Xte, X, res.pi[1])
                     grid[m]["%g" % g][lk] = float(np.mean(pe * Y1t + (1 - pe) * Y0t))
-                    if pol is not None:
-                        pol[m]["%g" % g][lk] = [round(float(v), 4) for v in dep(Pg, X, res.pi[1])]
-                        sup[m]["%g" % g][lk] = [round(float(v), 4) for v in res.pi[1]]
+                    pol[m]["%g" % g][lk] = [round(float(v), 4) for v in dep(Pg, X, res.pi[1])]
+                    sup[m]["%g" % g][lk] = [round(float(v), 4) for v in res.pi[1]]
                 except Exception as ex:
                     print("%s g%s L%s seed%d FAIL: %s" % (m, g, lk, seed, ex), flush=True)
     orc = d.oracle_policy(Xte.ravel())
@@ -104,10 +105,10 @@ def solve_job(job):
     refs = {"oracle": float(np.mean(orc * Y1t + (1 - orc) * Y0t)), "never_treat": float(np.mean(Y0t)),
             "all_treat": float(np.mean(Y1t)),
             "naive_dr": float(np.mean(nve * Y1t + (1 - nve) * Y0t))}
-    if pol is not None:
-        pol["_refs"] = {"oracle": [round(float(v), 4) for v in d.oracle_policy(PGRID)],
-                        "naive_dr": [round(float(v), 4) for v in dep(Pg, X, nv)]}
-        sup["_X"] = [round(float(v), 5) for v in np.asarray(X).ravel()]
+    pol["_refs"] = {"oracle": [round(float(v), 4) for v in d.oracle_policy(PGRID)],
+                    "naive_dr": [round(float(v), 4) for v in dep(Pg, X, nv)]}
+    sup["_X"] = [round(float(v), 5) for v in np.asarray(X).ravel()]
+    sup["_naive_dr"] = [round(float(v), 4) for v in nv]
     return seed, grid, refs, pol, sup
 
 def main():
@@ -133,8 +134,11 @@ def main():
     never = round(float(np.mean([r["never_treat"] for _, _, r, _, _ in res])), 4)
     all_treat = round(float(np.mean([r["all_treat"] for _, _, r, _, _ in res])), 4)
     naive_dr = round(float(np.mean([r["naive_dr"] for _, _, r, _, _ in res])), 4)
-    policies = next((p for sd, _, _, p, _ in res if sd == 0 and p is not None), None)
-    support_pol = next((s for sd, _, _, _, s in res if sd == 0 and s is not None), None)
+    pol_by_seed = {str(sd): p for sd, _, _, p, _ in res}
+    sup_by_seed = {str(sd): s for sd, _, _, _, s in res}
+    refs_by_seed = {str(sd): r for sd, _, r, _, _ in res}
+    policies = pol_by_seed.get("0")
+    support_pol = sup_by_seed.get("0")
     best = {}
     for m in METHODS:
         cells = [(gk, lk, surface[m][gk][lk]) for gk in Gk for lk in Lkeys if surface[m][gk][lk] == surface[m][gk][lk]]
@@ -146,6 +150,8 @@ def main():
            "oracle": oracle, "never_treat": never, "all_treat": all_treat, "naive_dr": naive_dr,
            "dgp": str(Path(a.dgp).resolve()), "policy_grid": PGRID.tolist(), "policies_seed0": policies,
            "policies_support_seed0": support_pol,
+           "policies_by_seed": pol_by_seed, "policies_support_by_seed": sup_by_seed,
+           "refs_by_seed": refs_by_seed,
            "surface": surface, "best": best,
            "best_overall": {"method": bm, "gamma": best[bm]["gamma"], "L": best[bm]["L"], "value": best[bm]["value"]}}
     Path(a.out).write_text(json.dumps(out, indent=2))
