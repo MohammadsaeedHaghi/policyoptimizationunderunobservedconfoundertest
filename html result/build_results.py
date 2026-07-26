@@ -194,22 +194,33 @@ def mean_policy_matrix(R, reg, m):
 PD = {}   # widget-id -> dataset, embedded as JSON for the in-page pi(X) plotter
 
 def pol_widget_html(wid, d, defaults=None):
-    """Controls + plot container for one policy dataset; drawing happens in pwDraw() (JS)."""
+    """Controls + plot container for one policy dataset; drawing happens in pwDraw() (JS).
+    Methods are checkbox chips: any subset can be overlaid on the same axes."""
     df = defaults or {}
+    dm = df.get("m", [d["methods"][0]])
+    if isinstance(dm, str): dm = [dm]
     def opts(vals, dv):
         o = []
         for v in vals:
             sel = ' selected' if str(v) == str(dv) else ''
             o.append(f'<option value="{v}"{sel}>{v}</option>')
         return "".join(o)
-    c = [f'<div class="polw" id="pw-{wid}"><div class="ctl">']
-    c.append(f'<label>method <select id="pw-{wid}-m">{opts(d["methods"], df.get("m", d["methods"][0]))}</select></label>')
+    chips = []
+    for m in d["methods"]:
+        chk = " checked" if m in dm else ""
+        chips.append(f'<label class="mchip"><input type="checkbox" data-m="{m}"{chk}>'
+                     f'<span class="sw" style="background:{MC.get(m, "#7f7f7f")}"></span>{m}</label>')
+    c = [f'<div class="polw" id="pw-{wid}">']
+    c.append(f'<div class="ctl"><span class="ctt">overlay methods:</span>'
+             f'<span class="mck" id="pw-{wid}-m">{"".join(chips)}</span>'
+             f'<button type="button" class="mbtn" data-sel="all">all</button>'
+             f'<button type="button" class="mbtn" data-sel="none">none</button></div>')
+    c.append('<div class="ctl">')
     c.append(f'<label>&Gamma; <select id="pw-{wid}-g">{opts(d["gammas"], df.get("g", d["gammas"][0]))}</select></label>')
     if d["kind"] == "2d":
         c.append(f'<label>L <select id="pw-{wid}-l">{opts(d["Ls"], df.get("l", d["Ls"][0]))}</select></label>')
     if d["kind"] == "disc":
         c.append(f'<label>regime <select id="pw-{wid}-r">{opts(d["regimes"], df.get("r", "uncap"))}</select></label>')
-    c.append(f'<label class="cb"><input type="checkbox" id="pw-{wid}-all"> overlay all methods</label>')
     c.append(f'</div><div id="pw-{wid}-plot" class="fig"></div></div>')
     return "".join(c)
 
@@ -247,34 +258,41 @@ function pwSvg(xs, series){
 }
 function pwDraw(wid){
   const d=PD[wid]; if(!d) return;
-  const gv=(s)=>{const e=document.getElementById('pw-'+wid+'-'+s); return e?e.value:null;};
-  const m=gv('m'), g=gv('g'), l=gv('l'), reg=gv('r')||'uncap';
-  const all=document.getElementById('pw-'+wid+'-all').checked;
+  const gv=(s)=>{const e=document.getElementById('pw-'+wid+'-'+s); return (e&&e.tagName==='SELECT')?e.value:null;};
+  const g=gv('g'), l=gv('l'), reg=gv('r')||'uncap';
+  const ms=Array.from(document.querySelectorAll('#pw-'+wid+'-m input:checked')).map(e=>e.dataset.m);
   let series=[], note='';
   if (d.kind==='2d'){
     series.push({lab:'oracle', col:'var(--fg)', ys:d.refs.oracle, dash:'6 4'});
     series.push({lab:'naive DR plug-in', col:'#8c564b', ys:d.refs.naive, dash:'6 3'});
-    for (const mm of (all?d.methods:[m]))
+    for (const mm of ms)
       series.push({lab:mm+'  (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:''});
   } else {
     series.push({lab:reg==='uncap'?'oracle':'capped oracle', col:'var(--fg)',
                  ys:reg==='uncap'?d.refs.oracle_uncap:d.refs.oracle_cap, dash:'6 4'});
-    for (const mm of (all?d.methods:[m])){
+    for (const mm of ms){
       const c=d.pol[reg][mm]&&d.pol[reg][mm][g];
       if (c) series.push({lab:mm+'  (G='+g+', '+reg+')', col:MCJS[mm]||'#7f7f7f', ys:c, dash:''});
-      else if (!all) note='<p class="muted">'+mm+' has no '+reg+' variant (uncapped-only method).</p>';
+      else note='<p class="muted" style="padding:0 8px 8px">'+mm+' has no '+reg+' variant (uncapped-only method).</p>';
     }
   }
+  if (!ms.length) note='<p class="muted" style="padding:0 8px 8px">Select at least one method above to overlay it.</p>';
   let leg='<div class="leg">'+series.map(se=>'<span class="li"><span class="sw" style="background:'+
           se.col+'"></span>'+se.lab+'</span>').join('')+'</div>';
   let vals='';
-  if (d.kind==='disc' && !all && series.length>1){
+  if (d.kind==='disc' && ms.length===1 && series.length>1){
     const ys=series[series.length-1].ys;
     vals='<div class="muted mono" style="padding:0 8px 8px">pi = ['+ys.map(v=>Math.round(v*100)/100).join(', ')+']</div>';
   }
   document.getElementById('pw-'+wid+'-plot').innerHTML=pwSvg(d.grid,series)+leg+vals+note;
 }
 document.addEventListener('change',e=>{const w=e.target.closest('.polw'); if(w) pwDraw(w.id.slice(3));});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.mbtn'); if(!b) return;
+  const w=b.closest('.polw');
+  w.querySelectorAll('.mck input').forEach(i=>{i.checked=(b.dataset.sel==='all');});
+  pwDraw(w.id.slice(3));
+});
 for (const k of Object.keys(PD)) pwDraw(k);
 """
 
@@ -371,7 +389,15 @@ svg.chart{width:100%;height:auto;display:block;}
 .ctl label{font-size:.84rem;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
 .ctl select{font:inherit;font-size:.86rem;padding:4px 10px;border-radius:9px;border:1px solid var(--border);
  background:var(--surface);color:var(--fg);}
-.ctl .cb input{accent-color:var(--accent);width:15px;height:15px;}
+.ctt{font-size:.84rem;font-weight:600;color:var(--muted);}
+.mck{display:inline-flex;flex-wrap:wrap;gap:4px 8px;}
+.mchip{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:600;color:var(--muted);
+ border:1px solid var(--border);border-radius:99px;padding:2px 10px;cursor:pointer;background:var(--surface);}
+.mchip input{accent-color:var(--accent);width:13px;height:13px;margin:0;cursor:pointer;}
+.mchip:has(input:checked){color:var(--fg);border-color:var(--accent);background:var(--accent-soft);}
+.mbtn{font:inherit;font-size:.75rem;font-weight:700;color:var(--muted);background:var(--surface);
+ border:1px solid var(--border);border-radius:8px;padding:2px 10px;cursor:pointer;}
+.mbtn:hover{color:var(--fg);background:var(--accent-soft);}
 .leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
 .li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
@@ -859,12 +885,12 @@ if V2R and V2D:
                            "oracle_cap": cap_orc}}
     T["disc"].append(f"""
 <h2 id="s-pols">6. Selected policies: &pi;(X) vs X for every method and &Gamma; (v2, mean over {len(V2R['seeds'])} seeds)</h2>
-<p>Pick a method, a &Gamma;, and the regime; the plot shows the policy that method selects,
-as treatment probability &pi;(X) over the 7 levels, <b>averaged over all {len(V2R['seeds'])}
-seeds</b>, with the oracle for that regime as the dashed reference (uncapped oracle {orc_u_s},
-capped(30%) oracle {orc_c_s}). Tick "overlay all methods" to compare everyone at once at the
-chosen &Gamma;.</p>
-{pol_widget_html("disc", PD["disc"], defaults={"m": "IPW-O-W", "g": "5", "r": "uncap"})}
+<p>Tick any set of methods to overlay them, then pick a &Gamma; and the regime; the plot shows
+each selected method's policy as treatment probability &pi;(X) over the 7 levels, <b>averaged
+over all {len(V2R['seeds'])} seeds</b>, with the oracle for that regime as the dashed reference
+(uncapped oracle {orc_u_s}, capped(30%) oracle {orc_c_s}). With a single method ticked, the
+exact &pi; vector is printed under the plot.</p>
+{pol_widget_html("disc", PD["disc"], defaults={"m": ["IPW-O-W", "DoublyRobust-X-X"], "g": "5", "r": "uncap"})}
 <p>What to look for: the naive X-X curves do not move with &Gamma; (plug-ins ignore it) and
 always treat the selection-inflated X=0 level (true CATE = -1); the box-only O-X curves drain
 toward never-treat as &Gamma; grows &mdash; worst-case pessimism with nothing to anchor it &mdash;
@@ -928,7 +954,7 @@ if C2DV2 and "policies_seed0" in C2DV2:
 &pi;(x) over x &isin; [-1, 1] (KNN-deployed) for that cell of the Section-2 surface. Dashed
 references: the oracle (treat iff x &gt; 0.137) and the naive DR plug-in (threshold shifted left
 to &asymp;-0.3 by hidden-vitality bias: it over-treats the ambiguous band).</p>
-{pol_widget_html("cont", PD["cont"], defaults={"m": "IPW-O-W", "g": bo2["gamma"], "l": bo2["L"]})}
+{pol_widget_html("cont", PD["cont"], defaults={"m": ["IPW-O-W", "DoublyRobust-O-W"], "g": bo2["gamma"], "l": bo2["L"]})}
 <p>What to look for as you move the dropdowns: at <b>L = &infin;</b> the curve is jagged &mdash;
 per-unit policies overfit each support point, and changing &Gamma; barely moves them (the
 inert-&Gamma; column of the surface). At <b>moderate L (1.5&ndash;3)</b> the curve is a clean
@@ -1033,7 +1059,7 @@ DR curve is nearly &pi;&equiv;0 &mdash; the under-treatment failure ("insulin lo
 Move &Gamma; toward the matched value 5 to watch the O-W curve recover a stable frail-side
 treat-region; at L=&infin; nothing works, and box-only methods overshoot toward &pi;&equiv;0 at
 large &Gamma;.</p>
-{pol_widget_html("diabA", PD["diabA"], defaults={"m": "IPW-O-W", "g": "4", "l": "3"})}
+{pol_widget_html("diabA", PD["diabA"], defaults={"m": ["IPW-O-W", "DoublyRobust-O-W"], "g": "4", "l": "3"})}
 {policy_2d_bestchart(DIA, "Experiment A: best-cell policies vs oracle and naive (seed 0)")}""")
 if DIB and "policies_seed0" in DIB:
     PD["diabB"] = policy_2d_dataset(DIB)
