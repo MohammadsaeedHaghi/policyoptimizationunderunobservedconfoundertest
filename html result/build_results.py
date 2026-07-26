@@ -550,33 +550,21 @@ def figcap(fig, cap):
 
 dgp_figs = '<div class="figrow">' + figcap(
     linechart([("P(S=+1|X)", "#334155", list(xg), list(ps1), "")], title="Hidden-vitality coupling", xlab="X (fitness)", ylab="P(S=+1|X)", legend=False),
-    "<b>What this shows:</b> the probability that a patient at fitness X has high hidden "
-    "vitality (S=+1). The steep &sigma;(10X) makes fitness an excellent proxy for vitality "
-    "everywhere EXCEPT near X=0, where vitality is a coin flip given X &mdash; the one place "
-    "where hidden confounding can bias a within-level comparison.") + figcap(
+    "P(S=+1 | X) = &sigma;(10X). Var(S | X) = 4&sigma;(10X)(1-&sigma;(10X)), maximal at X=0.") + figcap(
     linechart([("CATE(X)", "#d62728", list(xg), list(cate), "")], title="True CATE: treat iff X>0 (CATE(0)=-1)", xlab="X", ylab="CATE", hlines=[("0", "#888", 0.0, "4 3")], legend=False),
-    "<b>What CATE means here:</b> CATE(X) = E[Y(1) - Y(0) | X] &mdash; the true average effect "
-    "of therapy for a patient at fitness X, with the hidden vitality S averaged out "
-    "(E[S|X] = 2&sigma;(10X)-1). Positive means therapy helps. It is negative below X=0 "
-    "because the fixed burden (-1) and the vitality differential outweigh the fitness benefit "
-    "3X; the oracle treats exactly the levels where this curve is above zero. This is ground "
-    "truth from the DGP, not an estimate &mdash; recovering its SIGN per level is the whole "
-    "learning problem.") + figcap(
+    "CATE(X) = E[Y(1) - Y(0) | X] = (2&sigma;(10X)-1) + 3X - 1; "
+    "oracle &pi;*(X) = 1{CATE(X) &gt; 0}.") + figcap(
     linechart([("e(X,S=+1)", "#2ca02c", list(xg), list(ep), ""), ("e(X,S=-1)", "#9467bd", list(xg), list(em), "")], title="Confounded propensity", xlab="X", ylab="e(X,S)"),
-    "<b>What this shows:</b> the true treatment-assignment probability e(X,S) = P(T=1 | X,S). "
-    "At every fitness level the vital (green) are more likely to receive therapy than the "
-    "frail (purple); the vertical gap between the curves IS the hidden confounding "
-    "(selection odds ratio &Lambda; = 4.95). An analyst sees only the X-average of the two "
-    "curves &mdash; the gap itself is invisible from data.") + '</div>'
-EQ1 = M(r"P(S{=}{+}1\mid X)=\sigma(10X),\quad e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),0.02,0.98)")
+    "e(X,S) = P(T=1 | X,S); &Lambda; = exp(2&middot;0.8) = 4.95.") + '</div>'
+EQ0 = M(r"X \sim \mathrm{Unif}\{-1,\,-\tfrac{2}{3},\,\ldots,\,1\}\ \text{(7 levels; continuous variant: } X\sim\mathrm{Unif}[-1,1]\text{)},\qquad S\mid X \in \{\pm 1\},\ \ P(S{=}{+}1\mid X)=\sigma(10X)")
+EQ1 = M(r"T\mid X,S \sim \mathrm{Bernoulli}(e(X,S)),\qquad e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),\,0.02,\,0.98)")
 EQ2 = M(r"\mu_0=8S,\quad \mu_1=9S+3X-1,\quad Y(t)=\mu_t+\mathcal{N}(0,0.6^2)")
 EQ3 = M(r"\mathrm{CATE}(X)=(2\sigma(10X)-1)+3X-1 \;\Rightarrow\; \text{oracle treats iff } X>0,\;\; \mathrm{CATE}(0)=-1")
 T["dgp"].append(f"""
 <h2 id="s-dgp">1. The data-generating process</h2>
-<p>Aggressive therapy under hidden vitality, with a fixed therapy burden. Seven discrete fitness
-levels X uniform in [-1,1]; unobserved vitality S; treatment T; outcome Y (higher is better).
-N=600 per seed unless stated. The continuous experiment uses the identical constants with
-X ~ Uniform(-1,1).</p>
+<p>Aggressive therapy under hidden vitality, with a fixed therapy burden: fitness X is observed,
+vitality S is unobserved, Y is the outcome (higher is better). N=600 per seed unless stated.</p>
+<div class="eq">{EQ0}</div>
 <div class="eq">{EQ1}</div>
 <div class="eq">{EQ2}</div>
 <div class="eq">{EQ3}</div>
@@ -658,12 +646,9 @@ if V2D:
         linechart([("true CATE", "#111", lv, ct, ""), ("naive CATE-hat (infinite data)", MC["DoublyRobust-X-X"], lv, ch, "")],
                   title="The ranking inversion at X=0", xlab="X level", ylab="CATE",
                   hlines=[("0", "#888", 0.0, "4 3")]),
-        "<b>What this shows:</b> the true CATE per level (black) versus what a naive plug-in "
-        "estimator converges to with INFINITE data (brown) &mdash; the residual gap is pure "
-        "confounding bias, not sampling noise. The two curves agree everywhere except X=0, "
-        "where selection on hidden vitality inflates the estimate from -1 (mildly harmful) to "
-        "about +5.5 (apparently the best level in the study). One wrong number is enough to "
-        "invert the treatment ranking, which is what the capped experiment exploits.")
+        "Black: CATE(X). Brown: the infinite-data naive limit "
+        "E[Y | T=1, X] - E[Y | T=0, X]; the difference is confounding bias, "
+        "non-negligible only at X=0 (-1 &rarr; +5.5).")
     T["dgp"].append(f"""
 <h2 id="s-v2">2. Design rationale: why the burden and the scarce cap exist</h2>
 <p>The DGP above was reached by an explicit design iteration, worth reporting because it explains
