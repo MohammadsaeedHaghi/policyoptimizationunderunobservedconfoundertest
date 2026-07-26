@@ -37,6 +37,8 @@ def _init(dgp_path):
     S["DoublyRobust-O-W"] = _load("methods/DoublyRobust-O-W/Uncapped/doublyrobust_o_w_uncapped.py", "solve_doublyrobust_o_w_uncapped")
     _W["S"] = S
 
+PGRID = np.linspace(-1.0, 1.0, 41)   # fixed eval grid for saved policy curves (seed 0)
+
 def solve_job(job):
     seed, N, Nte, k, ceps = job
     common = _W["common"]; d = _W["dgp"]; S = _W["S"]; knn = _W["knn"]; K = d.K
@@ -47,6 +49,8 @@ def solve_job(job):
     Dm = common.pairwise_distance_matrix(X); eps = tuple(common.tight_epsilon(Dm, T, w, K, is_distance=True, c_eps=ceps))
     Gk = ["%g" % g for g in GAMMAS]; Lkeys = ["inf" if L is None else ("%g" % L) for L in LGRID]
     grid = {m: {gk: {lk: float("nan") for lk in Lkeys} for gk in Gk} for m in METHODS}
+    pol = {m: {gk: {} for gk in Gk} for m in METHODS} if seed == 0 else None
+    Pg = PGRID.reshape(-1, 1)
     def call(m, g, L):
         if m == "IPW-O-X": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
         if m == "DoublyRobust-O-X": return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
@@ -59,11 +63,21 @@ def solve_job(job):
                 try:
                     res = call(m, g, L); pe = knn(Xte, X, res.pi[1], k=k)
                     grid[m]["%g" % g][lk] = float(np.mean(pe * Y1t + (1 - pe) * Y0t))
+                    if pol is not None:
+                        pol[m]["%g" % g][lk] = [round(float(v), 4) for v in knn(Pg, X, res.pi[1], k=k)]
                 except Exception as ex:
                     print("%s g%s L%s seed%d FAIL: %s" % (m, g, lk, seed, ex), flush=True)
     orc = d.oracle_policy(Xte.ravel())
-    refs = {"oracle": float(np.mean(orc * Y1t + (1 - orc) * Y0t)), "never_treat": float(np.mean(Y0t))}
-    return seed, grid, refs
+    # naive DoublyRobust-X-X baseline: per-unit sign of the cross-fit linear CATE-hat, KNN-deployed
+    nv = (mu[:, 1] - mu[:, 0] > 0).astype(float)
+    nve = knn(Xte, X, nv, k=k)
+    refs = {"oracle": float(np.mean(orc * Y1t + (1 - orc) * Y0t)), "never_treat": float(np.mean(Y0t)),
+            "all_treat": float(np.mean(Y1t)),
+            "naive_dr": float(np.mean(nve * Y1t + (1 - nve) * Y0t))}
+    if pol is not None:
+        pol["_refs"] = {"oracle": [round(float(v), 4) for v in d.oracle_policy(PGRID)],
+                        "naive_dr": [round(float(v), 4) for v in knn(Pg, X, nv, k=k)]}
+    return seed, grid, refs, pol
 
 def main():
     ap = argparse.ArgumentParser()
@@ -71,17 +85,21 @@ def main():
     ap.add_argument("--n", type=int, default=400); ap.add_argument("--n-test", type=int, default=2000, dest="ntest")
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--k", type=int, default=50)
     ap.add_argument("--ceps", type=float, default=1.0); ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--dgp", default=DGP_PATH, help="path to a DGP module (default: exp_owgap_cont)")
     a = ap.parse_args()
     seeds = list(range(a.seeds)); Path("gurobi.env").write_text("Threads 1\n")
     Gk = ["%g" % g for g in GAMMAS]; Lkeys = ["inf" if L is None else ("%g" % L) for L in LGRID]
     jobs = [(sd, a.n, a.ntest, a.k, a.ceps) for sd in seeds]
-    print("L×Γ 2-D (%d methods): N=%d Nte=%d seeds=%d gammas=%s Ls=%s workers=%d" % (len(METHODS), a.n, a.ntest, a.seeds, Gk, Lkeys, a.workers), flush=True)
+    print("L×Γ 2-D (%d methods): N=%d Nte=%d seeds=%d gammas=%s Ls=%s workers=%d dgp=%s" % (len(METHODS), a.n, a.ntest, a.seeds, Gk, Lkeys, a.workers, a.dgp), flush=True)
     t0 = time.time()
-    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(DGP_PATH,)) as pool:
+    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(str(Path(a.dgp).resolve()),)) as pool:
         res = pool.map(solve_job, jobs)
-    surface = {m: {gk: {lk: round(float(np.nanmean([o[m][gk][lk] for _, o, _ in res])), 4) for lk in Lkeys} for gk in Gk} for m in METHODS}
-    oracle = round(float(np.mean([r["oracle"] for _, _, r in res])), 4)
-    never = round(float(np.mean([r["never_treat"] for _, _, r in res])), 4)
+    surface = {m: {gk: {lk: round(float(np.nanmean([o[m][gk][lk] for _, o, _, _ in res])), 4) for lk in Lkeys} for gk in Gk} for m in METHODS}
+    oracle = round(float(np.mean([r["oracle"] for _, _, r, _ in res])), 4)
+    never = round(float(np.mean([r["never_treat"] for _, _, r, _ in res])), 4)
+    all_treat = round(float(np.mean([r["all_treat"] for _, _, r, _ in res])), 4)
+    naive_dr = round(float(np.mean([r["naive_dr"] for _, _, r, _ in res])), 4)
+    policies = next((p for sd, _, _, p in res if sd == 0 and p is not None), None)
     best = {}
     for m in METHODS:
         cells = [(gk, lk, surface[m][gk][lk]) for gk in Gk for lk in Lkeys if surface[m][gk][lk] == surface[m][gk][lk]]
@@ -89,11 +107,13 @@ def main():
         best[m] = {"gamma": bg, "L": bl, "value": bv}
     bm = max(METHODS, key=lambda m: best[m]["value"])
     out = {"N_train": a.n, "N_test": a.ntest, "seeds": seeds, "k": a.k, "methods": METHODS, "gammas": Gk, "Lgrid": Lkeys,
-           "oracle": oracle, "never_treat": never, "surface": surface, "best": best,
+           "oracle": oracle, "never_treat": never, "all_treat": all_treat, "naive_dr": naive_dr,
+           "dgp": str(Path(a.dgp).resolve()), "policy_grid": PGRID.tolist(), "policies_seed0": policies,
+           "surface": surface, "best": best,
            "best_overall": {"method": bm, "gamma": best[bm]["gamma"], "L": best[bm]["L"], "value": best[bm]["value"]}}
     Path(a.out).write_text(json.dumps(out, indent=2))
     print("saved %s  (%.1f min)" % (a.out, (time.time() - t0) / 60), flush=True)
-    print("\n=== best per method (test E[Y], %d seeds) — oracle=%.3f ===" % (a.seeds, oracle))
+    print("\n=== best per method (test E[Y], %d seeds) — oracle=%.3f never=%.3f all=%.3f naiveDR=%.3f ===" % (a.seeds, oracle, never, all_treat, naive_dr))
     for m in METHODS:
         print("%-18s best %.3f at Γ=%s, L=%s" % (m, best[m]["value"], best[m]["gamma"], best[m]["L"]))
     print("BEST OVERALL: %s Γ=%s L=%s -> %.3f" % (bm, best[bm]["gamma"], best[bm]["L"], best[bm]["value"]))

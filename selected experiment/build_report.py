@@ -626,6 +626,256 @@ if X4N16_CES:
 else:
     tab_x4n16 = None
 
+# ---------- N=600 × 20-seed full-grid rerun (paper-grade seed count on every cell) ----------
+S20F = 'owgap_results_20seed_ce%s.json'
+S20_CES = [ce for ce in ['1.0','1.5','2.0'] if os.path.exists(os.path.join(OWG, S20F % ce))]
+def gen_s20_plot(ce, reg):
+    d = json.load(open(os.path.join(OWG, S20F % ce)))
+    G = d['gammas']; orc = d['oracle']; ns = len(d['seeds']); mean = d['regimes'][reg]['mean']; sd = d['regimes'][reg].get('sd', {})
+    fig, ax = plt.subplots(figsize=(7,4.3))
+    for m in N1000_ORDER:
+        if m not in mean: continue
+        y = np.array(mean[m], float); c, ls, mk = _n1style(m)
+        ax.plot(G, y, ls, color=c, marker=mk, ms=4.5, lw=2, label=m)
+        if m in sd: s = np.array(sd[m], float); ax.fill_between(G, y-s, y+s, color=c, alpha=.13, lw=0)
+    ax.axhline(orc, color='#444', ls=':', label='oracle %.2f' % orc); ax.axhline(0, color='#bbb', ls=':')
+    ax.set_xlabel('Γ'); ax.set_ylabel('realised E[Y] (mean ± SD, %d seeds)' % ns)
+    ax.set_ylim(-0.06, orc+0.07); ax.grid(alpha=.25); ax.legend(fontsize=6.5, ncol=2)
+    ax.set_title('N=600 × %d seeds, %s, c_ε=%s' % (ns, 'UNCAPPED' if reg=='uncap' else 'CAPPED (treat≤50%%)', ce), fontsize=9)
+    out = 'val_s20_%s_ce%s.png' % (reg, ce); fig.tight_layout(); fig.savefig(os.path.join(OWG, out), dpi=120); plt.close(fig)
+    return out
+def restab_s20(ce, reg, cols):
+    d = json.load(open(os.path.join(OWG, S20F % ce)))
+    G = d['gammas']; orc = d['oracle']; mean = d['regimes'][reg]['mean']; sd = d['regimes'][reg].get('sd', {})
+    idx = [(c, G.index(c)) for c in cols if c in G]
+    th = ''.join("<th>Γ=%s</th>" % (int(c) if c==int(c) else c) for c,_ in idx)
+    rows = ''
+    for m in N1000_ORDER:
+        if m not in mean: continue
+        sw = "<span class='sw' style='background:%s'></span>" % FAM.get(m.split('-')[0], '#888')
+        cells = ''.join("<td>%.2f<span class='sub'> ±%.2f</span></td>" % (mean[m][i], sd.get(m, [0]*len(G))[i]) for _,i in idx)
+        cls = " class='hl'" if m.endswith('-O-W') else ""
+        rows += "<tr%s><td>%s%s</td>%s</tr>" % (cls, sw, m, cells)
+    rows += "<tr><td><span class='sw' style='background:#444'></span>Oracle</td>%s</tr>" % ''.join("<td>%.2f</td>" % orc for _ in idx)
+    return "<table class='restab'><tr><th>method</th>%s</tr>%s</table>" % (th, rows)
+def _s20_regime(reg):
+    figs = grid([(gen_s20_plot(ce, reg), 'c_ε=%s' % ce, '20 seeds per cell, mean ± SD — realised E[Y] vs Γ.') for ce in S20_CES])
+    tbl = restab_s20('1.0', reg, [1.0,1.5,2.0,3.0,4.0,5.0,6.0,8.0]) if '1.0' in S20_CES else '<p class="sub">c_ε=1.0 table pending.</p>'
+    return ("<h3>Realised value vs Γ (ε present: %s)</h3>%s"
+            "<h3>Result table (c_ε=1.0, mean ± SD — O-W rows highlighted)</h3><div class='panel'>%s</div>" % (', '.join(S20_CES), figs, tbl))
+if S20_CES:
+    _ns20 = len(json.load(open(os.path.join(OWG, S20F % S20_CES[0])))['seeds'])
+    tab_s20 = ("<div class='mhead'><span class='pill' style='background:#166534'>N=600 × 20 seeds</span>"
+      "<h2 style='border:none;margin:0'>exp_owgap full grid at %d seeds (2-worker rerun)</h2></div>"
+      "<p class='lead'>The original N=600 grid used 5 seeds (20 only for the uncapped c_ε=1 paired CI). This rerun puts "
+      "<b>%d seeds with SD bands on every cell</b> — both regimes, all three ε — so the headline figures carry uniform, "
+      "paper-grade error bars. Same DGP (<code>exp_owgap/dgp.py</code>). ε completed so far: <b>%s</b> of {1.0, 1.5, 2.0} "
+      "— this tab updates as the remaining ε land.</p>" % (_ns20, _ns20, ', '.join(S20_CES)) + LEGEND +
+      "<h3 style='margin-top:28px'>Results by regime</h3>" + inner_tabs_n('s20', [
+          ('Uncapped', _s20_regime('uncap')),
+          ('Capped', _s20_regime('cap'))]))
+else:
+    tab_s20 = None
+
+# ---------- Kallus & Zhou (2021) parametric baseline on exp_owgap (box-only, uncapped) ----------
+KAL20 = os.path.join(OWG, 'owgap_kallus_20seed.json')
+def _kallus_owgap_section():
+    k = json.load(open(KAL20)); KG = k['gammas']; ns = len(k['seeds'])
+    km = np.array(k['regimes']['uncap']['mean']['Kallus'], float); ks = np.array(k['regimes']['uncap']['sd']['Kallus'], float)
+    v = charts['val_uncap_ce1']; xs = v['x']
+    fig, ax = plt.subplots(figsize=(7,4.3))
+    for lab in ['IPW-O-W','DoublyRobust-O-W','DoublyRobust-X-X','IPW-X-X']:
+        s = next(s for s in v['series'] if s.get('label', s['id']) == lab)
+        c, ls, mk = _n1style(lab)
+        ax.plot(xs, s['y'], ls, color=c, marker=mk, ms=4.5, lw=2, label=lab)
+    ax.plot(KG, km, '-', color=FAM['Kallus'], marker='D', ms=4.5, lw=2, label='Kallus (softmax, box)')
+    ax.fill_between(KG, km-ks, km+ks, color=FAM['Kallus'], alpha=.13, lw=0)
+    orc = next(s for s in v['series'] if s.get('label', s['id']) == 'Oracle')['y'][0]
+    ax.axhline(orc, color='#444', ls=':', label='oracle %.2f' % orc); ax.axhline(0, color='#bbb', ls=':')
+    ax.set_xlabel('Γ'); ax.set_ylabel('realised E[Y]'); ax.grid(alpha=.25); ax.legend(fontsize=7, ncol=2)
+    ax.set_title('Kallus & Zhou parametric baseline vs the O-W methods (uncapped, c_ε=1, %d Kallus seeds)' % ns, fontsize=9)
+    fig.tight_layout(); fig.savefig(os.path.join(OWG, 'val_kallus_owgap.png'), dpi=120); plt.close(fig)
+    cols = [1.0,1.5,2.0,3.0,5.0,8.0]; idx = [(c, KG.index(c)) for c in cols if c in KG]
+    th = ''.join("<th>Γ=%s</th>" % (int(c) if c==int(c) else c) for c,_ in idx)
+    row = ''.join("<td>%.2f<span class='sub'> ±%.2f</span></td>" % (km[i], ks[i]) for _,i in idx)
+    tbl = ("<table class='restab'><tr><th>method</th>%s</tr><tr><td><span class='sw' style='background:%s'></span>"
+           "Kallus (softmax, box)</td>%s</tr></table>" % (th, FAM['Kallus'], row))
+    return ("<h3 style='margin-top:28px'>Kallus &amp; Zhou (2021) parametric baseline</h3>"
+      "<p class='sub'>The closest prior method: softmax policy class, marginal-sensitivity box, worst-case <i>regret</i> vs the "
+      "all-control baseline (<code>methods/Kallus/kallus.py</code>; flat/uncapped — a smooth softmax cannot enforce a hard capacity, "
+      "so it appears in the uncapped comparison only).</p>"
+      + grid([('val_kallus_owgap.png', 'Kallus vs O-W (uncapped, c_ε=1)',
+               'Kallus (red diamonds, mean ± SD) against the O-W methods and the naive plug-ins.')])
+      + "<div class='panel'>" + tbl + "</div>"
+      "<div class='note'><b>Finding (Kallus baseline).</b> Kallus peaks at Γ=1 (%.2f) and hedges to ≈0 — its all-control anchor, "
+      "which here equals never-treat (E[Y]=0) — by Γ≈2.5. Its do-no-harm regret objective guarantees it never falls <i>below</i> the "
+      "baseline, but in a DGP whose oracle sits at %.2f it cannot capture the gain either: at the matched Γ=5 it returns %.2f vs "
+      "IPW-O-W %.2f. The Wasserstein-balanced value methods dominate it at every Γ &gt; 1.</div>"
+      % (km[0], orc, km[KG.index(5.0)] if 5.0 in KG else float('nan'),
+         next(s for s in v['series'] if s.get('label', s['id'])=='IPW-O-W')['y'][xs.index(5.0)]))
+if os.path.exists(KAL20):
+    tab_owgap = tab_owgap + _kallus_owgap_section()
+# matched-Γ operating point (reviewer-facing: the win does NOT require tuning Γ to the peak)
+_g5x = charts['val_uncap_ce1']; _g5i = _g5x['x'].index(5.0)
+_g5 = {s.get('label', s['id']): s['y'][_g5i] for s in _g5x['series']}
+tab_owgap = tab_owgap + ("<div class='good'><b>At the matched Γ — no tuning.</b> The DGP's true selection odds ratio is "
+  "Λ = e<sup>2·0.8</sup> ≈ 4.95, so <b>Γ=5 is the honest, matched operating point</b>. There: IPW-O-W = %.2f and "
+  "DoublyRobust-O-W = %.2f vs best naive (AIPW) %.2f and box-only DR-O-X %.2f (oracle %.2f). The O-W margin holds at the "
+  "matched Γ, not just at the per-method peak — the headline does not depend on picking Γ favourably.</div>"
+  % (_g5['IPW-O-W'], _g5['DoublyRobust-O-W'], _g5['DoublyRobust-X-X'], _g5['DoublyRobust-O-X'], _g5['Oracle']))
+
+# ---------- ALPHA coupling-strength sweep: how predictable must the hidden S be from X? ----------
+ALP = os.path.join(HERE, 'exp_owgap_alpha')
+ALPHAS_ALL = [1, 2, 4, 6, 10]
+_SEQA = {1:'#bdd7e7', 2:'#6baed6', 4:'#3182bd', 6:'#08519c', 10:'#08306b'}   # sequential: light=weak coupling
+ALP_DIAG = os.path.join(ALP, 'alpha_diag.json')
+ALP_RES = {a: os.path.join(ALP, 'owgap_alpha%d_ce1.0.json' % a) for a in ALPHAS_ALL
+           if os.path.exists(os.path.join(ALP, 'owgap_alpha%d_ce1.0.json' % a))}
+ALP_KAL = {a: os.path.join(ALP, 'kallus_alpha%d.json' % a) for a in ALPHAS_ALL
+           if os.path.exists(os.path.join(ALP, 'kallus_alpha%d.json' % a))}
+if os.path.exists(ALP_DIAG):
+    _ad = json.load(open(ALP_DIAG)); _adp = _ad['per']; _axf = np.array(_ad['x_fine'], float)
+    def _alpha_diag_pngs():
+        fig, ax = plt.subplots(figsize=(7,4.3))
+        for a in ALPHAS_ALL:
+            pa = _adp[str(a)]
+            ax.plot(_axf, pa['ps1_fine'], color=_SEQA[a], lw=2, label='α=%d (corr %.2f)' % (a, pa['corr_XS']))
+            ax.plot(pa['levels'], pa['ps1_levels'], 'o', color=_SEQA[a], ms=4)
+        ax.axhline(0.5, color='#bbb', ls=':'); ax.set_xlabel('X'); ax.set_ylabel('P(S=+1 | X)')
+        ax.grid(alpha=.25); ax.legend(fontsize=8); ax.set_title('P(S=+1|X)=σ(αX) across the sweep', fontsize=10)
+        fig.tight_layout(); fig.savefig(os.path.join(OWG, 'alpha_ps1.png'), dpi=120); plt.close(fig)
+        fig, ax = plt.subplots(figsize=(7,4.3))
+        for a in ALPHAS_ALL:
+            pa = _adp[str(a)]
+            ax.plot(_axf, pa['cate_fine'], color=_SEQA[a], lw=2, label='α=%d' % a)
+            ax.plot(pa['levels'], pa['cate_levels'], 'o', color=_SEQA[a], ms=4)
+        ax.axhline(0, color='#bbb', ls=':'); ax.axvline(0, color='#bbb', ls=':')
+        ax.set_xlabel('X'); ax.set_ylabel('CATE(X)'); ax.grid(alpha=.25); ax.legend(fontsize=8)
+        ax.set_title('CATE(X) = (2σ(αX)−1) + 1.5X — treat iff X&gt;0 for every α'.replace('&gt;','>'), fontsize=10)
+        fig.tight_layout(); fig.savefig(os.path.join(OWG, 'alpha_cate.png'), dpi=120); plt.close(fig)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6,4.0))
+        cx = [_adp[str(a)]['corr_XS'] for a in ALPHAS_ALL]; ct = [_adp[str(a)]['corr_TS'] for a in ALPHAS_ALL]
+        ax1.plot(ALPHAS_ALL, cx, 'o-', color='#08519c', lw=2, label='corr(X, S)')
+        ax1.plot(ALPHAS_ALL, ct, 's--', color='#6baed6', lw=2, label='corr(T, S)')
+        ax1.axhline(0.20, color='#b45309', ls=':', lw=1.5, label='diabetes real corr(X,S) ≈ 0.20')
+        ax1.set_xlabel('α'); ax1.set_ylabel('correlation'); ax1.grid(alpha=.25); ax1.legend(fontsize=8)
+        ax1.set_title('How observable the hidden S is', fontsize=10)
+        orc = [_adp[str(a)]['oracle'] for a in ALPHAS_ALL]
+        ax2.plot(ALPHAS_ALL, orc, 'o-', color='#444', lw=2, label='oracle E[Y]')
+        ax2.axhline(0, color='#bbb', ls=':', label='never-treat = all-treat = 0')
+        ax2.set_xlabel('α'); ax2.set_ylabel('exact E[Y]'); ax2.grid(alpha=.25); ax2.legend(fontsize=8)
+        ax2.set_title('Value ceilings vs α', fontsize=10)
+        fig.tight_layout(); fig.savefig(os.path.join(OWG, 'alpha_summary.png'), dpi=120); plt.close(fig)
+        return [('alpha_ps1.png', 'The coupling P(S=+1|X)', 'σ(αX) from near-flat (α=1) to near-deterministic (α=10); dots = the 7 X levels.'),
+                ('alpha_cate.png', 'CATE(X) per α', 'The treatment rule is treat-iff-X&gt;0 for every α — only the oracle VALUE changes.'),
+                ('alpha_summary.png', 'Observability & ceilings vs α', 'corr(X,S) spans 0.31→0.85; the real-data diabetes coupling (≈0.20) sits just below α=1. Never-treat = all-treat = 0 at every α (symmetric DGP).')]
+    def gen_alpha_plot(a, reg):
+        fig, ax = plt.subplots(figsize=(7,4.3))
+        pa = _adp[str(a)]; have = False
+        if a in ALP_RES:
+            d = json.load(open(ALP_RES[a])); G = d['gammas']; mean = d['regimes'][reg]['mean']; sd = d['regimes'][reg].get('sd', {})
+            ns = len(d['seeds']); have = True
+            for m in N1000_ORDER:
+                if m not in mean: continue
+                y = np.array(mean[m], float); c, ls, mk = _n1style(m)
+                ax.plot(G, y, ls, color=c, marker=mk, ms=4.5, lw=2, label=m)
+                if m in sd: s = np.array(sd[m], float); ax.fill_between(G, y-s, y+s, color=c, alpha=.13, lw=0)
+        if reg == 'uncap' and a in ALP_KAL:
+            k = json.load(open(ALP_KAL[a])); km = np.array(k['regimes']['uncap']['mean']['Kallus'], float)
+            ks = np.array(k['regimes']['uncap']['sd']['Kallus'], float)
+            ax.plot(k['gammas'], km, '-', color=FAM['Kallus'], marker='D', ms=4.5, lw=2, label='Kallus (softmax, box)')
+            ax.fill_between(k['gammas'], km-ks, km+ks, color=FAM['Kallus'], alpha=.13, lw=0)
+        ax.axhline(pa['oracle'], color='#444', ls=':', label='oracle %.2f' % pa['oracle']); ax.axhline(0, color='#bbb', ls=':')
+        ax.set_xlabel('Γ'); ax.set_ylabel('realised E[Y]'); ax.grid(alpha=.25); ax.legend(fontsize=6.5, ncol=2)
+        ax.set_ylim(-0.12, 0.92)
+        ax.set_title('α=%d, corr(X,S)=%.2f — %s, c_ε=1.0%s' % (a, pa['corr_XS'],
+                     'UNCAPPED' if reg=='uncap' else 'CAPPED (treat≤50%)', '' if have else '  [LP sweep pending — Kallus only]'), fontsize=9)
+        out = 'val_alpha%d_%s.png' % (a, reg); fig.tight_layout(); fig.savefig(os.path.join(OWG, out), dpi=120); plt.close(fig)
+        return out
+    def restab_alpha(a, reg='uncap'):
+        d = json.load(open(ALP_RES[a])); G = d['gammas']; mean = d['regimes'][reg]['mean']; sd = d['regimes'][reg].get('sd', {})
+        cols = [1.0,2.0,3.0,5.0,8.0]; idx = [(c, G.index(c)) for c in cols if c in G]
+        th = ''.join("<th>Γ=%s</th>" % (int(c) if c==int(c) else c) for c,_ in idx)
+        rows = ''
+        for m in N1000_ORDER:
+            if m not in mean: continue
+            sw = "<span class='sw' style='background:%s'></span>" % FAM.get(m.split('-')[0], '#888')
+            cells = ''.join("<td>%.2f</td>" % mean[m][i] for _,i in idx)
+            cls = " class='hl'" if m.endswith('-O-W') else ""
+            rows += "<tr%s><td>%s%s</td>%s</tr>" % (cls, sw, m, cells)
+        if reg == 'uncap' and a in ALP_KAL:
+            k = json.load(open(ALP_KAL[a])); KG = k['gammas']; km = k['regimes']['uncap']['mean']['Kallus']
+            kidx = [(c, KG.index(c)) for c in cols if c in KG]
+            rows += "<tr><td><span class='sw' style='background:%s'></span>Kallus</td>%s</tr>" % (
+                FAM['Kallus'], ''.join("<td>%.2f</td>" % km[i] for _,i in kidx))
+        rows += "<tr><td><span class='sw' style='background:#444'></span>Oracle</td>%s</tr>" % (
+            ''.join("<td>%.2f</td>" % _adp[str(a)]['oracle'] for _ in idx))
+        return "<table class='restab'><tr><th>method</th>%s</tr>%s</table>" % (th, rows)
+    def gen_alpha_headline():
+        MG = 5.0
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6,4.1))
+        A = sorted(ALP_RES); vals = {}
+        for a in A:
+            d = json.load(open(ALP_RES[a])); G = d['gammas']; mean = d['regimes']['uncap']['mean']
+            gi = G.index(MG)
+            vals[a] = {m: (mean[m][gi], max(mean[m])) for m in mean}
+            vals[a]['_naive'] = max(max(mean[m]) for m in ('IPW-X-X','DoublyRobust-X-X','Direct-X-X') if m in mean)
+        for m in ['IPW-O-W','DoublyRobust-O-W','DoublyRobust-O-X','DoublyRobust-X-X','IPW-X-X']:
+            c, ls, mk = _n1style(m)
+            ax1.plot(A, [vals[a][m][0] for a in A], ls, color=c, marker=mk, ms=5, lw=2, label=m)
+        if ALP_KAL:
+            ky = []
+            for a in A:
+                k = json.load(open(ALP_KAL[a])); ky.append(k['regimes']['uncap']['mean']['Kallus'][k['gammas'].index(MG)])
+            ax1.plot(A, ky, '-', color=FAM['Kallus'], marker='D', ms=5, lw=2, label='Kallus')
+        ax1.plot(A, [_adp[str(a)]['oracle'] for a in A], ':', color='#444', lw=2, label='oracle')
+        ax1.set_xlabel('α (coupling strength)'); ax1.set_ylabel('realised E[Y] at matched Γ=5')
+        ax1.grid(alpha=.25); ax1.legend(fontsize=6.5, ncol=2); ax1.set_title('Value at the matched Γ vs α', fontsize=10)
+        for m, lab in [('IPW-O-W','IPW-O-W − best naive'), ('DoublyRobust-O-W','DR-O-W − best naive')]:
+            c, _, mk = _n1style(m)
+            ax2.plot(A, [vals[a][m][0] - vals[a]['_naive'] for a in A], '-', color=c, marker=mk, ms=5, lw=2, label=lab + ' (Γ=5)')
+            ax2.plot(A, [vals[a][m][1] - vals[a]['_naive'] for a in A], '--', color=c, lw=1.6, label=lab + ' (best Γ)')
+        ax2.axhline(0, color='#bbb', ls=':')
+        ax2.set_xlabel('α (coupling strength)'); ax2.set_ylabel('O-W margin over best naive')
+        ax2.grid(alpha=.25); ax2.legend(fontsize=7); ax2.set_title('Where the Wasserstein term earns its keep', fontsize=10)
+        fig.tight_layout(); fig.savefig(os.path.join(OWG, 'alpha_headline.png'), dpi=120); plt.close(fig)
+        return 'alpha_headline.png'
+    _adrows = ''.join("<tr><td>α=%d</td><td>%.2f</td><td>%.2f</td><td>%.2f</td><td>%.2f</td><td>%.3f</td><td>%.2f</td></tr>" % (
+        a, _adp[str(a)]['corr_XS'], _adp[str(a)]['corr_TS'], min(_adp[str(a)]['lambda_true']), _adp[str(a)]['p_T1'],
+        _adp[str(a)]['p_S1'], _adp[str(a)]['oracle']) for a in ALPHAS_ALL)
+    _adtbl = ("<table class='restab'><tr><th>variant</th><th>corr(X,S)</th><th>corr(T,S)</th><th>true Λ</th>"
+              "<th>P(T=1)</th><th>P(S=+1)</th><th>oracle E[Y]</th></tr>%s</table>" % _adrows)
+    def _alpha_regime(reg):
+        figs = grid([(gen_alpha_plot(a, reg), 'α=%d (corr %.2f)' % (a, _adp[str(a)]['corr_XS']),
+                      'Realised E[Y] vs Γ, mean ± SD.') for a in ALPHAS_ALL if a in ALP_RES or (reg=='uncap' and a in ALP_KAL)])
+        tbls = ''.join("<h4>α=%d</h4><div class='panel'>%s</div>" % (a, restab_alpha(a, reg)) for a in sorted(ALP_RES))
+        head = ''
+        if reg == 'uncap' and len(ALP_RES) >= 2:
+            head = grid([(gen_alpha_headline(), 'Headline: value & O-W margin vs α',
+                          'Left: E[Y] at the matched Γ=5 for every method vs α. Right: the O-W margin over the best naive plug-in, at Γ=5 (solid) and at each method’s best Γ (dashed).')])
+        pend = '' if len(ALP_RES) == len(ALPHAS_ALL) else ("<div class='note'><b>LP sweep in progress</b> — α done so far: {%s} of {1,2,4,6,10} "
+               "(SLURM job chain, 2 Gurobi workers). Kallus (numpy-only) is already complete for all α; this tab fills in as each α lands.</div>"
+               % (', '.join(str(a) for a in sorted(ALP_RES)) or 'none'))
+        return pend + head + "<h3>Per-α results</h3>" + figs + (("<h3>Result tables (c_ε=1.0, mean)</h3>" + tbls) if ALP_RES else '')
+    tab_alpha = ("<div class='mhead'><span class='pill' style='background:#b45309'>Coupling sweep α</span>"
+      "<h2 style='border:none;margin:0'>How predictable must the hidden confounder be?</h2></div>"
+      "<p class='lead'><b>The scoping experiment.</b> The Wasserstein term balances the <i>observed</i> X — it can only reach the "
+      "hidden S through the coupling P(S=+1|X)=σ(αX). Base owgap uses α=10 (near-deterministic, corr(X,S)=0.85), which a reviewer "
+      "can call a knife-edge. This sweep varies <b>α ∈ {1,2,4,6,10}</b> — corr(X,S) from 0.31 to 0.85 — while holding <b>everything "
+      "else fixed</b>: same selection strength on S (true Λ ≈ 4.95 at every α, so Γ=5 stays the matched point), same outcome model "
+      "(μ₀=8S, μ₁=9S+1.5X), same treat-iff-X&gt;0 oracle rule. It turns the strong-coupling assumption into a measured, "
+      "gracefully-degrading regime statement. The real-data diabetes coupling (corr ≈ 0.20) sits just below α=1.</p>"
+      + "<h3>How the data looks at each α</h3>" + grid(_alpha_diag_pngs())
+      + "<h3>DGP summary per α (Monte-Carlo, n=200k)</h3><div class='panel'>" + _adtbl + "</div>"
+      "<div class='note'><b>Reading the table.</b> α moves ONLY the X–S coupling: the selection odds ratio Λ stays 4.95, "
+      "treatment stays ~50%, and the S-split stays balanced. The oracle ceiling falls as α drops (0.85 → 0.56) because with a "
+      "weaker coupling, X carries less of the CATE — there is simply less signal for ANY X-measurable policy to exploit.</div>"
+      + "<h3 style='margin-top:28px'>Results by regime</h3>" + inner_tabs_n('alpha', [
+          ('Uncapped', _alpha_regime('uncap')),
+          ('Capped', _alpha_regime('cap'))]))
+else:
+    tab_alpha = None
+
 # ---------- interactive policy explorer: π(treat|X) vs X with dropdowns ----------
 POLICY = {}; GRID_BY_DS = {}
 def _ingest_policy(path, ds, ep):
@@ -655,6 +905,8 @@ for _ce in ['1.0','1.5','2.0']:
     if os.path.exists(_p): _ingest_policy(_p, 'X4 (N=300)', _ce)
     _p = os.path.join(OWX4, 'owgap_x4_n16_ce%s.json' % _ce)
     if os.path.exists(_p): _ingest_policy(_p, 'X4 (N=16)', _ce)
+    _p = os.path.join(OWG, S20F % _ce)
+    if os.path.exists(_p): _ingest_policy(_p, 'N=600 (20 seeds)', _ce)
 # continuous-X extended policies (KNN / Shapley), ingested at c_eps=1.0 on the dense grid
 _pk = os.path.join(HERE, 'exp_owgap_cont', 'owgap_cont_knn_policies.json')
 if os.path.exists(_pk): _ingest_policy(_pk, 'Cont-KNN (N=400)', '1.0')
@@ -666,13 +918,20 @@ _psm = os.path.join(HERE, 'exp_owgap_cont', 'owgap_cont_extend_mesh25_shapley_po
 if os.path.exists(_psm): _ingest_policy(_psm, 'Cont-Shapley-mesh (N=400)', '1.0')
 _ingest_lip(os.path.join(HERE, 'exp_owgap_cont', 'owgap_lipschitz.json'), 'Cont-Lipschitz X-X (N=400)')
 _ingest_lip(os.path.join(HERE, 'exp_owgap_cont', 'owgap_lipschitz_robust.json'), 'Cont-Lipschitz robust Γ=2 (N=400)')
+# alpha coupling sweep (LP results + numpy-only Kallus baseline) and the Kallus 20-seed baseline on base owgap
+for _a in [1, 2, 4, 6, 10]:
+    _p = os.path.join(HERE, 'exp_owgap_alpha', 'owgap_alpha%d_ce1.0.json' % _a)
+    if os.path.exists(_p): _ingest_policy(_p, 'Alpha α=%d (N=600)' % _a, '1.0')
+    _p = os.path.join(HERE, 'exp_owgap_alpha', 'kallus_alpha%d.json' % _a)
+    if os.path.exists(_p): _ingest_policy(_p, 'Alpha α=%d (N=600)' % _a, '1.0')
+if os.path.exists(KAL20): _ingest_policy(KAL20, 'N=600', '1.0')
 _datasets = list(POLICY.keys()) or ['(none)']
 _epslist = sorted({e for ds in POLICY.values() for e in ds}) or ['1.0']
-_methods = ['IPW-X-X','DoublyRobust-X-X','Direct-X-X','IPW-O-X','DoublyRobust-O-X','Hajek-O-X','IPW-O-W','DoublyRobust-O-W']
+_methods = ['IPW-X-X','DoublyRobust-X-X','Direct-X-X','IPW-O-X','DoublyRobust-O-X','Hajek-O-X','IPW-O-W','DoublyRobust-O-W','Kallus']
 _gammakeys = ['1','1.5','2','2.5','3','4','5','6','8']
 _lipkeys = ['inf','20','10','5','3','2','1.5','1','0.75','0.5','0.25']   # L values for the Cont-Lipschitz datasets
 _gammakeys = _gammakeys + [k for k in _lipkeys if k not in _gammakeys]
-_seedkeys = ['avg','0','1','2','3','4','5','6','7']
+_seedkeys = ['avg'] + [str(s) for s in range(20)]
 def _selrow(idd, label, op):
     return "<label class='polsel'>%s<select id='%s' onchange='drawPolicy()'>%s</select></label>" % (label, idd, ''.join('<option>%s</option>' % o for o in op))
 _methcheck = ("<div class='polsel' style='min-width:215px'>methods (check one or more)<div class='polchecks'>" + ''.join("<label class='polcheck'><input type='checkbox' class='pol-mcb' value='%s'%s onchange='drawPolicy()'>%s</label>" % (mm, ' checked' if mm in ('IPW-O-W','DoublyRobust-X-X') else '', mm) for mm in _methods) + "</div></div>")
@@ -1206,7 +1465,7 @@ table.sep td.win{color:var(--ow);font-weight:700;} table.sep td.fail{color:#dc26
 .polsel select{font:inherit;font-weight:500;text-transform:none;letter-spacing:0;color:var(--fg);padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;}
 """
 FULL_CSS = BASE_CSS + "\n/* ===== report-specific additions ===== */" + REPORT_EXTRA_CSS
-_CHART_MORDER = ['IPW-X-X','DoublyRobust-X-X','Direct-X-X','IPW-O-X','DoublyRobust-O-X','Hajek-O-X','IPW-O-W','DoublyRobust-O-W']
+_CHART_MORDER = ['IPW-X-X','DoublyRobust-X-X','Direct-X-X','IPW-O-X','DoublyRobust-O-X','Hajek-O-X','IPW-O-W','DoublyRobust-O-W','Kallus']
 def _numk(k):
     try: return float(k)
     except Exception: return 1e18
@@ -1259,6 +1518,12 @@ if tab_n1000: tab_n1000 = tab_n1000 + _pchart_section('N=1000')
 if tab_x3: tab_x3 = tab_x3 + _pchart_section('X3 (N=200)')
 if tab_x4: tab_x4 = tab_x4 + _pchart_section('X4 (N=300)')
 if tab_x4n16: tab_x4n16 = tab_x4n16 + _pchart_section('X4 (N=16)')
+if tab_s20: tab_s20 = tab_s20 + _pchart_section('N=600 (20 seeds)')
+if tab_alpha:
+    _alds = [ds for ds in _ds_list if ds.startswith('Alpha ')]
+    if _alds:
+        tab_alpha = tab_alpha + "<h3 style='margin-top:28px'>Learned policies π(treat | X)</h3>" + \
+            "".join(_pchart_section(ds, ds) for ds in _alds)
 if tab_cont:
     _contds = [ds for ds in _ds_list if ds.startswith('Cont-')]
     tab_cont = tab_cont + "<h3 style='margin-top:28px'>Learned policies π(treat | X)</h3>" + \
@@ -1277,6 +1542,8 @@ TABS = [("overview","Overview"),("owgap","exp_owgap (N=600)")]
 PANELS = {"overview":tab_overview, "owgap":tab_owgap}
 if tab_n1000:
     TABS.append(("n1000","exp_owgap (N=1000)")); PANELS["n1000"] = tab_n1000
+if tab_s20:
+    TABS.append(("s20","N=600 × 20 seeds")); PANELS["s20"] = tab_s20
 if tab_x3:
     TABS.append(("x3","X\u2208{\u22121,0,1} (N=200)")); PANELS["x3"] = tab_x3
 if tab_x4:
@@ -1285,6 +1552,8 @@ if tab_x4n16:
     TABS.append(("x4n16","X4 small-sample (N=16)")); PANELS["x4n16"] = tab_x4n16
 if tab_cont:
     TABS.append(("cont","Continuous X")); PANELS["cont"] = tab_cont
+if tab_alpha:
+    TABS.append(("alpha","Coupling sweep (α)")); PANELS["alpha"] = tab_alpha
 TABS.append(("sanity","Sanity check")); PANELS["sanity"] = tab_sanity
 TABS.append(("policy","Policy explorer")); PANELS["policy"] = tab_policy
 btns = ''.join("<button class='tab-btn%s' onclick=\"showTab('%s',this)\">%s</button>" % (" active" if i==0 else "", k, lbl) for i,(k,lbl) in enumerate(TABS))
