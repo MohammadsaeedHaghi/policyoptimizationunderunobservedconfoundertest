@@ -554,8 +554,8 @@ dgp_figs = '<div class="figrow">' + figcap(
     linechart([("CATE(X)", "#d62728", list(xg), list(cate), "")], title="True CATE: treat iff X>0 (CATE(0)=-1)", xlab="X", ylab="CATE", hlines=[("0", "#888", 0.0, "4 3")], legend=False),
     "CATE(X) = E[Y(1) - Y(0) | X] = (2&sigma;(10X)-1) + 3X - 1; "
     "oracle &pi;*(X) = 1{CATE(X) &gt; 0}.") + figcap(
-    linechart([("e(X,S=+1)", "#2ca02c", list(xg), list(ep), ""), ("e(X,S=-1)", "#9467bd", list(xg), list(em), "")], title="Confounded propensity", xlab="X", ylab="e(X,S)"),
-    "e(X,S) = P(T=1 | X,S); &Lambda; = exp(2&middot;0.8) = 4.95.") + '</div>'
+    linechart([("P(T=1 | X, S=+1)", "#2ca02c", list(xg), list(ep), ""), ("P(T=1 | X, S=-1)", "#9467bd", list(xg), list(em), "")], title="Confounded propensity", xlab="X", ylab="P(T=1 | X,S)"),
+    "P(T=1 | X,S) = clip(&sigma;(0.8S - 2X), 0.02, 0.98); &Lambda; = exp(2&middot;0.8) = 4.95.") + '</div>'
 EQ0 = M(r"X \sim \mathrm{Unif}\{-1,\,-\tfrac{2}{3},\,\ldots,\,1\}\ \text{(7 levels; continuous variant: } X\sim\mathrm{Unif}[-1,1]\text{)},\qquad S\mid X \in \{\pm 1\},\ \ P(S{=}{+}1\mid X)=\sigma(10X)")
 EQ1 = M(r"T\mid X,S \sim \mathrm{Bernoulli}(e(X,S)),\qquad e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),\,0.02,\,0.98)")
 EQ2 = M(r"\mu_0=8S,\quad \mu_1=9S+3X-1,\quad Y(t)=\mu_t+\mathcal{N}(0,0.6^2)")
