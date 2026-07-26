@@ -515,52 +515,59 @@ try:
     sq = subprocess.run(["squeue", "-u", "haghim", "-h", "-o", "%A %j %T"], capture_output=True, text=True, timeout=10).stdout.strip()
 except Exception:
     sq = ""
-chips = ['<span class="chip ok">20-seed N=600: DONE (3 epsilons)</span>',
-         '<span class="chip ok">Alpha sweep: DONE</span>',
-         '<span class="chip ok">Kallus baseline: DONE</span>']
-if "owgap_v2c" in sq: chips.append('<span class="chip run">v2 continuous L x Gamma: QUEUED</span>')
-if "owgap_v2 " in sq + " ": chips.append('<span class="chip run">v2 discrete pilot: RUNNING</span>')
+chips = ['<span class="chip ok">Discrete: 20 seeds x 3 budgets DONE</span>',
+         '<span class="chip ok">Continuous L x Gamma (Shapley): DONE</span>',
+         '<span class="chip ok">Coupling sweep: DONE</span>',
+         '<span class="chip ok">Diabetes A/B: DONE</span>']
+if "ceps" in sq: chips.append('<span class="chip run">continuous c-eps 1.5/2.0: RUNNING</span>')
+cbest = C2DV2["best_overall"]["value"] if C2DV2 else float("nan")
 html.append(f"""
 <div class="hero">
-<h1>OWGAP &mdash; every result so far</h1>
-<p>The hidden-vitality synthetic experiment for confounding-robust policy optimization.
-Observed fitness X, unobserved vitality S with P(S=+1|X)=&sigma;(10X); vitality dominates
-outcomes (&plusmn;8) while the true treatment effect is small. The question throughout: do the
-odds-box &cap; Wasserstein (O-W) methods recover the oracle policy where naive and box-only
-methods fail? Built {esc(subprocess.run(['date'], capture_output=True, text=True).stdout.strip())}.</p>
+<h1>OWGAP &mdash; the showcase experiments</h1>
+<p>Hidden-vitality synthetic experiments for confounding-robust policy optimization. Observed
+fitness X, unobserved vitality S with P(S=+1|X)=&sigma;(10X); vitality dominates outcomes
+(&plusmn;8&ndash;9) while the true treatment effect is a few units and therapy carries a fixed
+burden. One discrete and one continuous experiment, plus real-data validation. The question
+throughout: do the odds-box &cap; Wasserstein (O-W) methods recover the oracle policy where
+naive and box-only methods fail? Built {esc(subprocess.run(['date'], capture_output=True, text=True).stdout.strip())}.</p>
 <div class="chips">{''.join(chips)}</div>
 </div>
 <div class="tiles">
-<div class="tile"><div class="v">0.847</div><div class="l">oracle E[Y] (uncapped)</div></div>
-<div class="tile"><div class="v">+{fmt(mr['uncap']['margin'])}</div><div class="l">base O-W margin at &Gamma;=5 (20 seeds)</div></div>
-<div class="tile"><div class="v">{('%+.3f' % v2m['uncap']) if v2m else '&mdash;'}</div><div class="l">v2 uncapped margin at &Gamma;=5</div></div>
-<div class="tile"><div class="v">{('%+.3f' % v2m['cap']) if v2m else '&mdash;'}</div><div class="l">v2 capped(30%) margin at &Gamma;=5</div></div>
+<div class="tile"><div class="v">0.847</div><div class="l">discrete oracle E[Y] (uncapped; capped 0.727)</div></div>
+<div class="tile"><div class="v">{('%+.3f' % v2m['uncap']) if v2m else '&mdash;'}</div><div class="l">discrete uncapped O-W margin at matched &Gamma;=5</div></div>
+<div class="tile"><div class="v">{('%+.3f' % v2m['cap']) if v2m else '&mdash;'}</div><div class="l">discrete capped(30%) O-W margin at &Gamma;=5</div></div>
+<div class="tile"><div class="v">{cbest:.3f}</div><div class="l">continuous best O-W (oracle 0.737, naive 0.390)</div></div>
 </div>""")
 
-# ---- DGP section ----
+# ---- DGP section (v2 = THE DGP; the burden-free base variant appears only in Section 2's rationale) ----
 xg = np.linspace(-1, 1, 241); sig = lambda z: 1 / (1 + np.exp(-z))
 ps1 = sig(10 * xg); ES = 2 * ps1 - 1
-cate = ES + 1.5 * xg
+cate = ES + 3.0 * xg - 1.0
 ep = np.clip(sig(0.8 - 2 * xg), 0.02, 0.98); em = np.clip(sig(-0.8 - 2 * xg), 0.02, 0.98)
 dgp_figs = f"""<div class="figrow">
 {linechart([("P(S=+1|X)", "#334155", list(xg), list(ps1), "")], title="Hidden-vitality coupling", xlab="X (fitness)", ylab="P(S=+1|X)", legend=False)}
-{linechart([("CATE(X)", "#d62728", list(xg), list(cate), "")], title="True CATE: treat iff X>0", xlab="X", ylab="CATE", hlines=[("0", "#888", 0.0, "4 3")], legend=False)}
+{linechart([("CATE(X)", "#d62728", list(xg), list(cate), "")], title="True CATE: treat iff X>0 (CATE(0)=-1)", xlab="X", ylab="CATE", hlines=[("0", "#888", 0.0, "4 3")], legend=False)}
 {linechart([("e(X,S=+1)", "#2ca02c", list(xg), list(ep), ""), ("e(X,S=-1)", "#9467bd", list(xg), list(em), "")], title="Confounded propensity", xlab="X", ylab="e(X,S)")}
 </div>"""
 EQ1 = M(r"P(S{=}{+}1\mid X)=\sigma(10X),\quad e(X,S)=\mathrm{clip}(\sigma(0.8S-2X),0.02,0.98)")
-EQ2 = M(r"\mu_0=8S,\quad \mu_1=9S+1.5X,\quad Y(t)=\mu_t+\mathcal{N}(0,0.6^2)")
-EQ3 = M(r"\mathrm{CATE}(X)=(2\sigma(10X)-1)+1.5X \;\Rightarrow\; \text{oracle treats iff } X>0")
+EQ2 = M(r"\mu_0=8S,\quad \mu_1=9S+3X-1,\quad Y(t)=\mu_t+\mathcal{N}(0,0.6^2)")
+EQ3 = M(r"\mathrm{CATE}(X)=(2\sigma(10X)-1)+3X-1 \;\Rightarrow\; \text{oracle treats iff } X>0,\;\; \mathrm{CATE}(0)=-1")
 T["dgp"].append(f"""
-<h2 id="s-dgp">1. The data-generating process (base owgap)</h2>
-<p>Seven discrete fitness levels X uniform in [-1,1]; unobserved vitality S; aggressive-therapy
-treatment T; outcome Y (higher is better). N=600 per seed unless stated.</p>
+<h2 id="s-dgp">1. The data-generating process</h2>
+<p>Aggressive therapy under hidden vitality, with a fixed therapy burden. Seven discrete fitness
+levels X uniform in [-1,1]; unobserved vitality S; treatment T; outcome Y (higher is better).
+N=600 per seed unless stated. The continuous experiment uses the identical constants with
+X ~ Uniform(-1,1).</p>
 <div class="eq">{EQ1}</div>
 <div class="eq">{EQ2}</div>
 <div class="eq">{EQ3}</div>
-<p>S shifts both arms by &plusmn;8&ndash;9 while the treatment differential is ~1&ndash;2.5: treated
-patients look great because they are vital, not because therapy works. The true selection odds
-ratio is &Lambda;=4.95, so <b>&Gamma;=5 is the matched sensitivity level</b> &mdash; results quoted
-"at matched &Gamma;" involve no tuning. Reference values: never-treat 0, all-treat 0, oracle 0.847.</p>
+<p>S shifts both arms by &plusmn;8&ndash;9 while the treatment differential is a few units:
+treated patients look great because they are vital, not because therapy works. The -1 is a fixed
+treatment burden (toxicity/cost), so over-treatment is visibly bad (all-treat = -1). The true
+selection odds ratio is &Lambda;=e<sup>2&middot;0.8</sup>=4.95, so <b>&Gamma;=5 is the matched
+sensitivity level</b> &mdash; results quoted "at matched &Gamma;" involve no tuning. Reference
+values: never-treat 0, all-treat -1, oracle 0.847 uncapped / 0.727 under the 30% capacity cap
+(the cap is genuinely scarce: 30% &lt; the 43% oracle-treat mass).</p>
 <div class="card"><b>Where the confounding bias lives (a design feature, stated up front).</b>
 Selection on S operates at every X (the 0.8S term in the propensity), but it can only BIAS a
 within-X comparison where X fails to pin down S &mdash; i.e. where Var(S|X) = 4p(1-p) with
@@ -569,94 +576,17 @@ p = &sigma;(&alpha;X) is non-negligible. At the strong coupling &alpha;=10 this 
 +6.5; faint traces &plusmn;0.8 at X=&plusmn;1/3); in the continuous variant, a band
 |X|&lesssim;0.2 that shifts the naive decision threshold. This concentration is the unavoidable
 consequence of ANY monotone X&ndash;S coupling crossing one-half, not a planted artifact; the
-continuous experiment shows the band version of the same effect, and the &alpha; sweep (Discrete
-tab, Section 4) shows what happens as the region widens.</div>
+continuous experiment shows the band version of the same effect, and the coupling sweep (Discrete
+tab, Section 3) shows what happens as the region widens.</div>
 {dgp_figs}""")
 
-# ---- main 20-seed results ----
-gam = R20["1.0"]["gammas"]
-s_un = uncap_series(R20["1.0"], MORDER[:-1], KAL)
-mean_u = R20["1.0"]["regimes"]["uncap"]; mean_c = R20["1.0"]["regimes"]["cap"]
-bands = [("IPW-O-W", MC["IPW-O-W"], gam,
-          [m - s for m, s in zip(mean_u["mean"]["IPW-O-W"], mean_u["sd"]["IPW-O-W"])],
-          [m + s for m, s in zip(mean_u["mean"]["IPW-O-W"], mean_u["sd"]["IPW-O-W"])])]
-s_cap = [(m, MC[m], gam, mean_c["mean"][m], "") for m in MORDER[:-1] if m in mean_c["mean"]]
-bands_c = [("IPW-O-W", MC["IPW-O-W"], gam,
-            [m - s for m, s in zip(mean_c["mean"]["IPW-O-W"], mean_c["sd"]["IPW-O-W"])],
-            [m + s for m, s in zip(mean_c["mean"]["IPW-O-W"], mean_c["sd"]["IPW-O-W"])])]
-rows = []
-for ce in ("1.0", "1.5", "2.0"):
-    if not R20[ce]: continue
-    r = margin_row(R20[ce])
-    rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}, uncapped</td><td>{fmt(r['uncap']['naive'])}</td>"
-                f"<td>{fmt(r['uncap']['ipwow'])} &plusmn; {fmt(r['uncap']['ipwow_sd'],2)}</td>"
-                f"<td>{fmt(r['uncap']['drow'])} &plusmn; {fmt(r['uncap']['drow_sd'],2)}</td>"
-                f"<td class='g'>+{fmt(r['uncap']['margin'])}</td></tr>")
-    if "cap" in r:
-        rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}, capped 50%</td><td>{fmt(r['cap']['naive'])}</td>"
-                    f"<td>{fmt(r['cap']['ipwow'])} &plusmn; {fmt(r['cap']['ipwow_sd'],2)}</td>"
-                    f"<td>{fmt(r['cap']['drow'])} &plusmn; {fmt(r['cap']['drow_sd'],2)}</td>"
-                    f"<td class='g'>+{fmt(r['cap']['margin'])}</td></tr>")
-T["disc"].append(f"""
-<h2 id="s-main">1. Headline: N=600, 20 seeds, all three transport budgets</h2>
-<p>Realized E[Y] versus &Gamma; (uncapped and capped, c<sub>&epsilon;</sub>=1.0; shaded band =
-&plusmn;1 SD for IPW-O-W over 20 seeds). The O-W pair dominates every box-only and naive method
-across the entire &Gamma; range; box-only methods (O-X) never beat naive AIPW at any &Gamma;.</p>
-<div class="figrow">
-{linechart(s_un, title="Uncapped, ce=1.0 (oracle 0.847)", xlab="Gamma", ylab="realized E[Y]", bands=bands, hlines=[("oracle", "#111", R20["1.0"]["oracle"], "5 4"), ("never-treat", "#888", 0.0, "2 3")], xticks=gam)}
-{linechart(s_cap, title="Capped 50%, ce=1.0", xlab="Gamma", ylab="realized E[Y]", bands=bands_c, hlines=[("oracle", "#111", R20["1.0"]["oracle"], "5 4"), ("never-treat", "#888", 0.0, "2 3")], xticks=gam)}
-</div>
-<h3>Values at the matched &Gamma;=5 (no tuning)</h3>
-<div class="tw"><table>
-<tr><th>setting</th><th>best naive</th><th>IPW-O-W</th><th>DR-O-W</th><th>margin</th></tr>
-{''.join(rows)}
-</table></div>
-<div class="card finding"><b>Finding.</b> At the matched &Gamma;=&Lambda;=5 both O-W methods beat the
-best naive method in every regime and at every transport budget; the margin is largest at
-c<sub>&epsilon;</sub>=1.0 (+0.104, ~6 standard errors over 20 seeds) and shrinks as the Wasserstein
-budget loosens &mdash; the expected price of extra hedging room.</div>
-<div class="card caveat"><b>Known weakness (motivates v2 below).</b> The capped margins are roughly
-half the uncapped ones. Cause: the naive methods' one big mistake is treating the X=0 level (see
-Section 7), but true CATE(0)=0 makes that mistake free, and the 50% cap trims their over-treatment
-harmlessly &mdash; a "cap-rescue" that shrinks the O-W advantage exactly where the paper wants it.</div>""")
+# (base-DGP headline, base Kallus, and N=1000 sections removed 2026-07-26: the report is
+#  v2-only; the burden-free variant survives as the design rationale in the DGP tab, and the
+#  base result JSONs remain on disk under assets/exp_owgap/.)
 
-# ---- Kallus ----
-if KAL:
-    kg = KAL["gammas"]; km = KAL["regimes"]["uncap"]["mean"]["Kallus"]
-    T["disc"].append(f"""
-<h2 id="s-kallus">2. External baseline: Kallus &amp; Zhou (box-only, parametric)</h2>
-<p>The confounding-robust softmax policy learner of Kallus &amp; Zhou, run with the marginal
-sensitivity box only (20 seeds, uncapped &mdash; the smooth policy class cannot enforce a hard
-capacity). It peaks at {max(km):.2f} near &Gamma;=1 and collapses to the never-treat value
-&asymp;0 by &Gamma;&asymp;2.5 &mdash; at the matched &Gamma;=5 it does nothing, while IPW-O-W
-holds {fmt(mr['uncap']['ipwow'])}. The same collapse occurs at every coupling strength in the
-&alpha; sweep. The box alone forces total pessimism; only the Wasserstein balance constraint
-lets robustness coexist with a non-trivial policy.</p>
-{linechart([("Kallus", MC["Kallus"], kg, km, ""), ("IPW-O-W", MC["IPW-O-W"], gam, mean_u["mean"]["IPW-O-W"], ""), ("DoublyRobust-X-X (naive)", MC["DoublyRobust-X-X"], gam, mean_u["mean"]["DoublyRobust-X-X"], "")], title="Kallus vs O-W vs naive (uncapped, ce=1.0)", xlab="Gamma", ylab="realized E[Y]", hlines=[("oracle", "#111", 0.8469, "5 4"), ("never-treat", "#888", 0.0, "2 3")], xticks=gam)}""")
-
-# ---- N=1000 ----
-if any(R1000.values()):
-    r1rows = []
-    for ce in ("1.0", "1.5", "2.0"):
-        R = R1000[ce]
-        if not R: continue
-        g1 = R["gammas"]; gi = g1.index(5.0) if 5.0 in g1 else len(g1) - 1
-        mu = R["regimes"]["uncap"]["mean"]
-        naive = max(mu["DoublyRobust-X-X"][0], mu["IPW-X-X"][0], mu["Direct-X-X"][0])
-        r1rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}</td><td>{fmt(naive)}</td>"
-                      f"<td>{fmt(mu['IPW-O-W'][gi])}</td><td>{fmt(mu['DoublyRobust-O-W'][gi])}</td>"
-                      f"<td class='g'>+{fmt(mu['IPW-O-W'][gi]-naive)}</td></tr>")
-    T["disc"].append(f"""
-<h2 id="s-n1000">3. Sample-size check: N=1000 (4 seeds)</h2>
-<p>The same experiment at N=1000 (the Wasserstein LP scales ~O(n&sup3;), so this ran at 4 seeds).
-The story is unchanged &mdash; the O-W margin is not a small-sample artifact.</p>
-<div class="tw"><table>
-<tr><th>uncapped, at &Gamma;=5</th><th>best naive</th><th>IPW-O-W</th><th>DR-O-W</th><th>margin</th></tr>
-{''.join(r1rows)}
-</table></div>""")
-
-# ---- alpha sweep ----
-if all(RA.values()):
+# ---- alpha sweep (appended to the disc tab AFTER the v2 results + policies; see below) ----
+def _alpha_section():
+    if not all(RA.values()): return None
     corr = {}
     if ADIAG and "per" in ADIAG:
         for a in ALPHAS:
@@ -673,11 +603,13 @@ if all(RA.values()):
         cls = "g" if marg > 0 else "b"
         arows.append(f"<tr><td>&alpha;={a}</td><td>{cc}</td><td>{fmt(R['oracle'])}</td><td>{fmt(naive)}</td>"
                      f"<td>{fmt(ow)}</td><td class='{cls}'>{marg:+.3f}</td></tr>")
-    T["disc"].append(f"""
-<h2 id="s-alpha">4. Coupling sweep: when does O-W win?</h2>
+    return f"""
+<h2 id="s-alpha">3. Coupling sweep: when does O-W win?</h2>
 <p>The X&ndash;S coupling &alpha; in P(S=+1|X)=&sigma;(&alpha;X) is swept over {{1,2,4,6,10}}
-(N=600, 8 seeds, c<sub>&epsilon;</sub>=1.0) while the true selection strength is held FIXED at
-&Lambda;=4.95 &mdash; only the usefulness of X as a proxy for S varies.</p>
+(N=600, 8 seeds, c<sub>&epsilon;</sub>=1.0, on the burden-free outcome variant &mdash; the
+coupling and propensity are identical to the showcase DGP, so the boundary transfers) while the
+true selection strength is held FIXED at &Lambda;=4.95: only the usefulness of X as a proxy for
+S varies.</p>
 <div class="tw"><table>
 <tr><th>coupling</th><th>corr(X,S)</th><th>oracle</th><th>best naive</th><th>IPW-O-W at &Gamma;=5</th><th>margin</th></tr>
 {''.join(arows)}
@@ -689,43 +621,14 @@ if all(RA.values()):
 <div class="card caveat"><b>Honest scoping: the margin flips sign.</b> O-W wins for
 &alpha;&ge;6 (corr(X,S)&gtrsim;0.8), roughly ties at &alpha;=4, and LOSES below that &mdash; at
 weak coupling the Wasserstein constraint has nothing to grab (balancing X no longer balances S)
-and matched-&Gamma; robustness over-hedges below never-treat. This is a boundary of applicability,
-not graceful degradation; the real-data Diabetes coupling (corr&asymp;0.20) sits below &alpha;=1,
-which is why that experiment is deferred pending a stronger hidden-confounder definition.
-Diagnostic upside: corr(X, S-proxy) is measurable, so the operating regime is checkable in
-practice.</div>""")
+and matched-&Gamma; robustness over-hedges below never-treat. This is a boundary of
+applicability, not graceful degradation. Diagnostic upside: corr(X, S-proxy) is measurable, so
+the operating regime is checkable in practice &mdash; and the Real-data tab's Experiment B shows
+the diagnostic passing on the actual Diabetes coupling (corr&asymp;0.20, correctly predicted
+out-of-regime).</div>"""
 
-# ---- continuous ----
-if C2D:
-    Gk, Lk = C2D["gammas"], C2D["Lgrid"]
-    surf = C2D["surface"]; bo = C2D["best_overall"]
-    Mv = [[surf["IPW-O-W"][g][l] for l in Lk] for g in Gk]
-    # slices
-    Lnum = [999 if l == "inf" else float(l) for l in Lk]
-    sliceG = bo["gamma"]
-    sL = []
-    for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
-        ys = [surf[m][sliceG][l] for l in Lk]
-        sL.append((m, MC[m], list(range(len(Lk))), ys, ""))
-    btab = "".join(f"<tr><td>{m}</td><td>{C2D['best'][m]['value']:.3f}</td><td>{C2D['best'][m]['gamma']}</td><td>{C2D['best'][m]['L']}</td></tr>" for m in C2D["methods"])
-    T["cont"].append(f"""
-<h2 id="s-cont">1. Continuous X and the Lipschitz constant L</h2>
-<p>Continuous version (X ~ Uniform(-1,1), same DGP; N=400 train, KNN deployment to 2000 test
-units, 3 seeds). With per-unit policies (L=&infin;) every support point is its own parameter:
-the policy overfits, pooled mass vanishes and &Gamma; is inert. Two dials fix it: bin/smooth the
-policy (the Lipschitz class |&pi;(x)-&pi;(x')| &le; L|x-x'|) for the VARIANCE, and &Gamma;
-robustness for the BIAS. The L &times; &Gamma; surface shows both.</p>
-{heatmap(["G=" + g for g in Gk], Lk, Mv, "IPW-O-W: test E[Y] over Gamma x L (oracle %.2f)" % C2D["oracle"], "Gamma", "Lipschitz L (inf = per-unit)", max(C2D["never_treat"], -0.1), C2D["oracle"])}
-<div class="figrow">
-{linechart(sL, title="Slice at Gamma=%s: the effect of L" % sliceG, xlab="L index: 0=inf ... 7=0.5 (tighter smoothing to the right)", ylab="test E[Y]", hlines=[("oracle", "#111", C2D["oracle"], "5 4"), ("never-treat", "#888", C2D["never_treat"], "2 3")], xticks=list(range(len(Lk))))}
-<div class="card"><b>Best per method (any &Gamma;, L).</b><div class="tw"><table>
-<tr><th>method</th><th>best E[Y]</th><th>&Gamma;</th><th>L</th></tr>{btab}</table></div>
-<p class="muted">Best overall: {bo['method']} at &Gamma;={bo['gamma']}, L={bo['L']} &rarr; {bo['value']:.3f}
-(oracle {C2D['oracle']:.3f}, never-treat {C2D['never_treat']:.3f}). O-W methods dominate the surface;
-box-only methods peak at low &Gamma; and far lower value. Moderate smoothing (L&asymp;1.5&ndash;3)
-is the sweet spot: tight enough to restore pooling so &Gamma; bites, loose enough to keep the
-policy's decision boundary sharp.</p></div>
-</div>""")
+# (base continuous section removed 2026-07-26: the report is v2-only; the base L x Gamma
+#  JSON remains under assets/exp_owgap_cont/.)
 
 # ---- v2 ----
 EQ4 = M(r"\mu_1 = 9S + 3X - 1 \;\Rightarrow\; \mathrm{CATE}(X) = (2\sigma(10X)-1) + 3X - 1,\quad \mathrm{CATE}(0)=-1")
@@ -736,16 +639,20 @@ if V2D:
                       title="v2: the ranking inversion at X=0", xlab="X level", ylab="CATE",
                       hlines=[("0", "#888", 0.0, "4 3")])
     T["dgp"].append(f"""
-<h2 id="s-v2">2. The v2 redesign: making the showcase decisive (in flight)</h2>
-<p>Diagnosis from Sections 2&ndash;5: the naive methods' signature error is treating X=0 &mdash;
-the one level where S is genuinely uncertain given X, so within-level selection inflates the
-estimated CATE from ~0 to ~+6.5. In the base DGP that error is costless (true CATE(0)=0), which
-mutes the uncapped margin and lets the cap rescue naive methods. <b>exp_owgap_v2</b> keeps the
-whole structure and makes exactly that error expensive:</p>
+<h2 id="s-v2">2. Design rationale: why the burden and the scarce cap exist</h2>
+<p>The DGP above was reached by an explicit design iteration, worth reporting because it explains
+what the experiment isolates. A first, burden-free variant (&mu;<sub>1</sub> = 9S + 1.5X, i.e.
+THETA=0, so CATE(0)=0, with a loose 50% cap) produced the same estimation failure but a muted
+experiment: the naive methods' signature error is treating X=0 &mdash; the one level where S is
+genuinely uncertain given X, so within-level selection inflates the estimated CATE from -1 (there:
+~0) to ~+5.5 &mdash; but with CATE(0)=0 that error was COSTLESS uncapped, and under the loose cap
+the trimming even rescued the naive methods ("cap-rescue": margins +0.104 uncapped, +0.056
+capped). The final DGP keeps the entire structure and makes exactly that error expensive:</p>
 <div class="eq">{EQ4}</div>
-<p>plus a genuinely scarce budget: cap 30% &lt; the 43% oracle-treat mass. Unchanged: coupling,
-propensity (so &Lambda;=4.95 and matched &Gamma;=5), oracle = treat iff X&gt;0, uncapped oracle
-0.847, never-treat 0. New: all-treat = -1 (over-treatment is now visibly bad).</p>
+<p>plus a genuinely scarce budget: cap 30% &lt; the 43% oracle-treat mass. Unchanged by the
+redesign: coupling, propensity (so &Lambda;=4.95 and matched &Gamma;=5), oracle = treat iff
+X&gt;0, uncapped oracle 0.847, never-treat 0. New: all-treat = -1. (A burden-free variant rerun
+at N=1000 also confirmed the O-W margins are not a small-sample artifact.)</p>
 {v2fig}
 <h3>Analytic + Monte-Carlo validation (no solver needed)</h3>
 <div class="tw"><table>
@@ -762,9 +669,9 @@ worst-case collapses toward never-treat (no balance constraint to anchor mass). 
 same collapse. O-W: the Wasserstein constraint forces the reweighted X-distribution to stay close,
 and since X tracks S (&alpha;=10 regime, where Section 5 says balance works), the worst case cannot
 fabricate vitality gaps &rarr; recovers "treat the fit" at both caps. A continuous twin with the
-same constants is defined in exp_owgap_v2_cont (x* = 0.137, oracle 0.713, naive DR threshold
-shifts to -0.29 &rarr; 0.35 &plusmn; 0.25). Discrete pilot results: see the Discrete tab,
-Section 5; the predictions above were confirmed.</div>""")
+same constants is defined in exp_owgap_v2_cont (x* = 0.137, oracle 0.737, naive DR threshold
+shifts to -0.29). Results: see the Discrete tab, Section 1; every prediction above was
+confirmed.</div>""")
 
 def _v2_exact_value():
     import importlib.util
@@ -842,12 +749,16 @@ if V2R:
                        f'capped: {pc:+.3f} (95% CI &plusmn;{hc:.3f}). '
                        f'{"Both CIs exclude zero." if (pu-hu>0 and pc-hc>0) else "See CI bounds."}</div>')
     T["disc"].append(f"""
-<h2 id="s-v2res">5. v2 showcase results ({n_sd} seeds) &mdash; predictions confirmed</h2>
-<p>The redesigned DGP (see the DGP tab, Section 2) ran at N=600, {n_sd} seeds,
+<h2 id="s-v2res">1. Headline results: N=600, {n_sd} seeds, both regimes</h2>
+<p>The showcase DGP (DGP tab, Sections 1&ndash;2) at N=600, {n_sd} seeds,
 c<sub>&epsilon;</sub>=1.0. At the matched &Gamma;=5 the O-W margin over the best naive method is
-<b>+{owu-nvu:.3f} uncapped</b> (was +0.104 in the base DGP) and <b>+{owc-nvc:.3f} capped</b>
-(was +0.056 &mdash; tripled: the cap-rescue is gone). Kallus again collapses to never-treat by
-&Gamma;&asymp;2.5.</p>
+<b>+{owu-nvu:.3f} uncapped</b> and <b>+{owc-nvc:.3f} capped</b> (the burden-free design variant
+gave +0.104 / +0.056 &mdash; the capped margin tripled once the X=0 mistake carried a real
+cost). The external Kallus &amp; Zhou baseline (box-only, parametric softmax; uncapped only,
+since a smooth policy class cannot enforce a hard capacity) peaks at
+{(max(KV2["regimes"]["uncap"]["mean"]["Kallus"]) if KV2 else 0):.2f} near &Gamma;=1 and
+collapses to never-treat by &Gamma;&asymp;2.5 &mdash; the box alone forces total pessimism; only
+the Wasserstein balance constraint lets robustness coexist with a non-trivial policy.</p>
 <div class="figrow">
 {linechart(s_v2u, title="v2 uncapped (oracle %.3f)" % V2R["oracle"], xlab="Gamma", ylab="realized E[Y]", bands=bands_v2u, hlines=[("oracle", "#111", V2R["oracle"], "5 4"), ("never-treat", "#888", 0.0, "2 3")], xticks=gamv)}
 {linechart(s_v2c, title="v2 capped 30% (capped oracle 0.727)", xlab="Gamma", ylab="realized E[Y]", bands=bands_v2c, hlines=[("capped oracle", "#111", 0.727, "5 4"), ("never-treat", "#888", 0.0, "2 3")], xticks=gamv)}
@@ -930,7 +841,7 @@ if V2R and V2D:
                   "refs": {"oracle_uncap": [0.0 if c <= 0 else 1.0 for c in V2D["cate"]],
                            "oracle_cap": cap_orc}}
     T["disc"].append(f"""
-<h2 id="s-pols">6. Selected policies: &pi;(X) vs X for every method and &Gamma; (v2, mean over {len(V2R['seeds'])} seeds)</h2>
+<h2 id="s-pols">2. Selected policies: &pi;(X) vs X for every method and &Gamma; (mean over {len(V2R['seeds'])} seeds)</h2>
 <p>Tick any set of methods to overlay them, then pick a &Gamma; and the regime; the plot shows
 each selected method's policy as treatment probability &pi;(X) over the 7 levels, <b>averaged
 over all {len(V2R['seeds'])} seeds</b>, with the oracle for that regime as the dashed reference
@@ -946,7 +857,10 @@ each method spends its 30% budget: O-W concentrates it on the top levels, the na
 roughly a third of it on X=0. This &Gamma;-stability of the selected policy &mdash; not just of
 the value &mdash; is the Wasserstein constraint's visible fingerprint.</p>""")
 
-# ---- v2 continuous -> cont tab (auto-fills once job 10579938 lands) ----
+_a = _alpha_section()
+if _a: T["disc"].append(_a)
+
+# ---- v2 continuous -> cont tab ----
 if C2DV2:
     Gk2, Lk2 = C2DV2["gammas"], C2DV2["Lgrid"]; s2 = C2DV2["surface"]; bo2 = C2DV2["best_overall"]
     Mv2 = [[s2["IPW-O-W"][g][l] for l in Lk2] for g in Gk2]
@@ -954,17 +868,20 @@ if C2DV2:
            for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]]
     nd = C2DV2.get("naive_dr"); nds = f"{nd:.3f}" if nd is not None else "--"
     T["cont"].append(f"""
-<h2 id="s-v2cont">2. v2 continuous: L &times; &Gamma; on the showcase DGP</h2>
-<p>The same v2 constants with continuous X (oracle threshold x*=0.137, oracle
-{C2DV2['oracle']:.3f}, never-treat {C2DV2['never_treat']:.3f}, all-treat
-{C2DV2.get('all_treat', float('nan')):.3f}; naive DR baseline {nds}).
-N={C2DV2['N_train']} train, {C2DV2['N_test']} test, {len(C2DV2['seeds'])} seeds;
-off-support deployment: {dep_lab(C2DV2)}.</p>
+<h2 id="s-v2cont">1. The L &times; &Gamma; surface: continuous X and the Lipschitz constant</h2>
+<p>The showcase DGP with continuous X ~ Uniform(-1,1) (identical constants to the discrete
+experiment; oracle threshold x*=0.137, oracle {C2DV2['oracle']:.3f}, never-treat
+{C2DV2['never_treat']:.3f}, all-treat {C2DV2.get('all_treat', float('nan')):.3f}; naive DR
+baseline {nds}). N={C2DV2['N_train']} train, {C2DV2['N_test']} test, {len(C2DV2['seeds'])}
+seeds; off-support deployment: {dep_lab(C2DV2)}. With per-unit policies (L=&infin;) every
+support point is its own parameter: the policy overfits and &Gamma; is inert. Two dials fix it:
+the Lipschitz class |&pi;(x)-&pi;(x')| &le; L|x-x'| for the VARIANCE, and &Gamma; robustness
+for the BIAS. The L &times; &Gamma; surface shows both.</p>
 {heatmap(["G=" + g for g in Gk2], Lk2, Mv2, "v2 IPW-O-W: test E[Y] over Gamma x L (oracle %.2f)" % C2DV2["oracle"], "Gamma", "Lipschitz L (inf = per-unit)", max(C2DV2["never_treat"], -0.6), C2DV2["oracle"])}
 {linechart(sL2, title="v2 slice at Gamma=%s: the effect of L" % bo2["gamma"], xlab="L index: 0=inf ... 7=0.5", ylab="test E[Y]", hlines=[("oracle", "#111", C2DV2["oracle"], "5 4"), ("naive DR", MC["DoublyRobust-X-X"], nd if nd is not None else 0.0, "6 3"), ("never-treat", "#888", C2DV2["never_treat"], "2 3")], xticks=list(range(len(Lk2))))}
 <p class="muted">Best overall: {bo2['method']} at &Gamma;={bo2['gamma']}, L={bo2['L']} &rarr;
 {bo2['value']:.3f}. The full seed-0 policy curve for EVERY (&Gamma;, L) cell of this surface is
-shown in Section 3 below.</p>""")
+shown in Section 2 below.</p>""")
 else:
     T["cont"].append("""
 <h2 id="s-v2cont">2. v2 continuous: L &times; &Gamma; on the showcase DGP (running)</h2>
@@ -1037,10 +954,10 @@ if C2DV2 and "policies_seed0" in C2DV2:
     bo2 = C2DV2["best_overall"]
     PD["cont"] = policy_2d_dataset(C2DV2)
     T["cont"].append(f"""
-<h2 id="s-contpols">3. Policy curves: &pi;(x) vs x for every method, &Gamma;, and L</h2>
+<h2 id="s-contpols">2. Policy curves: &pi;(x) vs x for every method, &Gamma;, and L</h2>
 <p>The complete answer to "what policy did each method actually pick": choose a method, a
 &Gamma;, and a Lipschitz constant L, and the plot shows the seed-0 learned policy
-&pi;(x) over x &isin; [-1, 1] for that cell of the Section-2 surface, deployed off-support via
+&pi;(x) over x &isin; [-1, 1] for that cell of the Section-1 surface, deployed off-support via
 {dep_lab(C2DV2)}. Dashed references: the oracle (treat iff x &gt; 0.137) and the naive DR
 plug-in (threshold shifted left to &asymp;-0.3 by hidden-vitality bias: it over-treats the
 ambiguous band).{" Unlike KNN averaging, this deployment is exact at the support points, so the L=&infin; curves show the per-unit overfitting oscillation directly rather than a smoothed band." if C2DV2.get("deploy") == "shapley" else ""}</p>
@@ -1080,7 +997,7 @@ T["real"].append("""
 rescaled to [-1,1]; hidden confounder S = acuity (prior inpatient/ER visits, diagnoses, facility
 discharge), median-split; treatment T = the real insulin decision (53% treated). The REAL
 X&ndash;S coupling is weak: corr(X,S)=0.196, matched &Gamma;=1.26 &mdash; by the coupling-sweep
-diagnostic (Discrete tab, Section 4) this dataset sits OUTSIDE the O-W operating regime. We
+diagnostic (Discrete tab, Section 3) this dataset sits OUTSIDE the O-W operating regime. We
 therefore run two complementary experiments rather than forcing a win:</p>
 <div class="card"><b>Experiment A &mdash; in-regime semi-synthetic (real covariates, simulated
 confounding).</b> Real bootstrapped X (real covariate geometry); S ~ Bern(&sigma;(12(X-0.07)))
