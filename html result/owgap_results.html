@@ -92,7 +92,7 @@ math{font-size:1.05em;}
 Observed fitness X, unobserved vitality S with P(S=+1|X)=&sigma;(10X); vitality dominates
 outcomes (&plusmn;8) while the true treatment effect is small. The question throughout: do the
 odds-box &cap; Wasserstein (O-W) methods recover the oracle policy where naive and box-only
-methods fail? Built Sun Jul 26 13:36:57 PDT 2026.</p>
+methods fail? Built Sun Jul 26 13:53:16 PDT 2026.</p>
 <div class="chips"><span class="chip ok">20-seed N=600: DONE (3 epsilons)</span><span class="chip ok">Alpha sweep: DONE</span><span class="chip ok">Kallus baseline: DONE</span></div>
 </div>
 <div class="tiles">
@@ -339,6 +339,18 @@ off-support deployment: the Shapley extension (closed-form Lipschitz min-max int
 <p class="muted">Best overall: DoublyRobust-O-W at &Gamma;=8, L=3 &rarr;
 0.548. The full seed-0 policy curve for EVERY (&Gamma;, L) cell of this surface is
 shown in Section 3 below.</p>
+<h3>Transport-budget ablation: c<sub>&epsilon;</sub> &isin; {{1.0, 1.5, 2.0}}</h3>
+<p>The same 8-seed L &times; &Gamma; sweep at all three Wasserstein budgets, mirroring the
+discrete suite's ablation. &epsilon; enters only the O-W methods (the box-only O-X columns are
+&epsilon;-free), and the matched &Gamma;=&Lambda;=4.95 is bracketed by the &Gamma;=4 and
+&Gamma;=6 grid points; cells quoted at the L=3 sweet spot. Oracle 0.737,
+never-treat 0.018 throughout.</p>
+<div class="tw"><table>
+<tr><th>budget</th><th>naive DR</th><th>IPW-O-W @&Gamma;4,L3</th><th>DR-O-W @&Gamma;4,L3</th>
+<th>IPW-O-W @&Gamma;6,L3</th><th>best overall cell</th><th>value</th></tr>
+<tr><td>c<sub>&epsilon;</sub>=1.0</td><td>0.390</td><td>0.548</td><td>0.528</td><td>0.541</td><td>DoublyRobust-O-W at &Gamma;=8, L=3</td><td class='g'>0.548</td></tr>
+</table></div>
+<p class="muted">c<sub>&epsilon;</sub> = 1.5, 2.0 queued (job 10608156); rows fill automatically when the runs land.</p>
 <h2 id="s-contpols">3. Policy curves: &pi;(x) vs x for every method, &Gamma;, and L</h2>
 <p>The complete answer to "what policy did each method actually pick": choose a method, a
 &Gamma;, and a Lipschitz constant L, and the plot shows the seed-0 learned policy
@@ -554,7 +566,9 @@ for (const k of Object.keys(PD)) pwDraw(k);
 </script>
 
 <h2 id="s-status">Compute status at build time</h2>
-<p class="mono" style="white-space:pre-wrap">10607694 ood/jupyter RUNNING</p>
+<p class="mono" style="white-space:pre-wrap">10608158 owgap_rebuild PENDING
+10608156 v2c_shp_ceps RUNNING
+10607694 ood/jupyter RUNNING</p>
 <div class="tw"><table>
 <tr><th>job</th><th>what</th><th>state</th></tr>
 <tr><td>10571980</td><td>alpha sweep (5 DGPs, 8 seeds)</td><td>DONE</td></tr>

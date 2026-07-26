@@ -973,6 +973,38 @@ methods over 6 &Gamma; &times; 8 L on the v2 continuous DGP, with naive-DR / ora
 all-treat references and per-(&Gamma;,L) seed-0 policy curves for the explanation figures.
 This section fills automatically when it lands &mdash; rerun build_results.py.</p>""")
 
+# ---- continuous transport-budget ablation: c_eps in {1.0, 1.5, 2.0} (mirrors the discrete suite) ----
+C2DV2_CE = {"1.0": C2DV2,
+            "1.5": J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d_shapley_ce1.5.json"),
+            "2.0": J("exp_owgap_v2_cont/owgap_v2_lip_gamma_2d_shapley_ce2.0.json")}
+if C2DV2:
+    ce_rows2 = []
+    for ce, R in C2DV2_CE.items():
+        if not R: continue
+        s = R["surface"]; bo = R["best_overall"]
+        ce_rows2.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}</td><td>{R['naive_dr']:.3f}</td>"
+                        f"<td>{s['IPW-O-W']['4']['3']:.3f}</td><td>{s['DoublyRobust-O-W']['4']['3']:.3f}</td>"
+                        f"<td>{s['IPW-O-W']['6']['3']:.3f}</td>"
+                        f"<td>{bo['method']} at &Gamma;={bo['gamma']}, L={bo['L']}</td>"
+                        f"<td class='g'>{bo['value']:.3f}</td></tr>")
+    missing_ce = [ce for ce, R in C2DV2_CE.items() if not R]
+    miss_html = ("" if not missing_ce else
+                 f'<p class="muted">c<sub>&epsilon;</sub> = {", ".join(missing_ce)} queued (job 10608156); '
+                 f'rows fill automatically when the runs land.</p>')
+    T["cont"].append(f"""
+<h3>Transport-budget ablation: c<sub>&epsilon;</sub> &isin; {{{{1.0, 1.5, 2.0}}}}</h3>
+<p>The same 8-seed L &times; &Gamma; sweep at all three Wasserstein budgets, mirroring the
+discrete suite's ablation. &epsilon; enters only the O-W methods (the box-only O-X columns are
+&epsilon;-free), and the matched &Gamma;=&Lambda;=4.95 is bracketed by the &Gamma;=4 and
+&Gamma;=6 grid points; cells quoted at the L=3 sweet spot. Oracle {C2DV2['oracle']:.3f},
+never-treat {C2DV2['never_treat']:.3f} throughout.</p>
+<div class="tw"><table>
+<tr><th>budget</th><th>naive DR</th><th>IPW-O-W @&Gamma;4,L3</th><th>DR-O-W @&Gamma;4,L3</th>
+<th>IPW-O-W @&Gamma;6,L3</th><th>best overall cell</th><th>value</th></tr>
+{''.join(ce_rows2)}
+</table></div>
+{miss_html}""")
+
 # ---- interactive policy viewer datasets for any L x Gamma 2-D result (continuous + diabetes) ----
 def policy_2d_dataset(RJ):
     """PD entry for the pi(X) widget: seed-0 policy curve per method x Gamma x L + refs,
