@@ -135,6 +135,61 @@ def heatmap(rows, cols, Mv, title, rlab, clab, vmin, vmax, W=620, H=300):
     p.append('</svg>')
     return f'<figure class="fig">{"".join(p)}</figure>'
 
+def _vir(t):
+    """viridis-ish 0..1 -> hex (same mix as heatmap's colormap)."""
+    if t != t: return "#bbbbbb"
+    t = max(0.0, min(1.0, t))
+    c0, c1, c2 = (68, 1, 84), (33, 145, 140), (253, 231, 37)
+    a, b = (c0, c1) if t < 0.5 else (c1, c2); u = t * 2 if t < 0.5 else t * 2 - 1
+    return "#%02x%02x%02x" % tuple(int(a[i] + (b[i] - a[i]) * u) for i in range(3))
+
+def stripemap(rowlabs, Mv, xvals, title, xlab="x", W=800, rowh=12, seps=(), xticks=(-1, -0.5, 0, 0.5, 1)):
+    """Policy-stripe figure: one row per (label, policy curve), cell color = pi in [0,1].
+    Adjacent equal-color cells are run-length merged (policies are mostly plateaus)."""
+    n, m = len(rowlabs), len(xvals)
+    padL, padR, padT, padB = 118, 56, 30, 40
+    H = int(padT + padB + rowh * n)
+    cw = (W - padL - padR) / m
+    p = [f'<svg viewBox="0 0 {W} {H}" class="chart" role="img" aria-label="{esc(title)}">']
+    p.append(f'<text x="{padL}" y="16" class="ct">{esc(title)}</text>')
+    for i, (rl, row) in enumerate(zip(rowlabs, Mv)):
+        y = padT + rowh * i
+        p.append(f'<text x="{padL-5}" y="{y+rowh*0.5+3:.1f}" class="sk" text-anchor="end">{esc(str(rl))}</text>')
+        j = 0
+        while j < m:
+            vj = round(float(row[j]), 1); k = j
+            while k + 1 < m and round(float(row[k+1]), 1) == vj: k += 1
+            p.append(f'<rect x="{padL+cw*j:.1f}" y="{y:.1f}" width="{cw*(k-j+1)+0.3:.1f}" height="{rowh+0.3:.1f}" fill="{_vir(vj)}"/>')
+            j = k + 1
+    for si in seps:
+        y = padT + rowh * si
+        p.append(f'<line x1="{padL}" y1="{y:.1f}" x2="{W-padR}" y2="{y:.1f}" stroke="#ffffff" stroke-width="2.4"/>')
+    yb = padT + rowh * n
+    x0, x1 = xvals[0], xvals[-1]
+    for t in xticks:
+        if t < x0 - 1e-9 or t > x1 + 1e-9: continue
+        xx = padL + ((t - x0) / (x1 - x0 + 1e-12) * (m - 1) + 0.5) * cw
+        p.append(f'<line x1="{xx:.1f}" y1="{yb}" x2="{xx:.1f}" y2="{yb+4}" class="ax"/>')
+        p.append(f'<text x="{xx:.1f}" y="{yb+16}" class="tk" text-anchor="middle">{t:g}</text>')
+    p.append(f'<text x="{(padL+W-padR)/2:.0f}" y="{H-8}" class="al" text-anchor="middle">{esc(xlab)}</text>')
+    cbx, cbw, ch = W - padR + 16, 12, rowh * n
+    for k in range(40):
+        tt = 1 - k / 39; y = padT + ch * k / 40
+        p.append(f'<rect x="{cbx}" y="{y:.1f}" width="{cbw}" height="{ch/40+0.6:.2f}" fill="{_vir(tt)}"/>')
+    p.append(f'<text x="{cbx+cbw+3}" y="{padT+9}" class="tk">1</text>')
+    p.append(f'<text x="{cbx+cbw+3}" y="{padT+ch}" class="tk">0</text>')
+    p.append('</svg>')
+    return f'<figure class="fig">{"".join(p)}</figure>'
+
+def mean_policy_matrix(R, reg, m):
+    """Mean pi(level) across seeds, one row per Gamma. Returns (gamma_keys, matrix)."""
+    pbs = R["regimes"][reg]["policy_by_seed"][m]
+    seeds = [k for k in pbs if k.isdigit()]
+    gks = list(pbs[seeds[0]].keys())
+    nl = len(pbs[seeds[0]][gks[0]])
+    Mv = [[float(np.mean([pbs[s][gk][j] for s in seeds])) for j in range(nl)] for gk in gks]
+    return gks, Mv
+
 # ---------------- data digests ----------------
 def uncap_series(R, methods, kal=None):
     gam = R["gammas"]; mean = R["regimes"]["uncap"]["mean"]
@@ -223,6 +278,7 @@ svg.chart{width:100%;height:auto;display:block;}
 .ct{font-size:12.5px;font-weight:700;fill:var(--fg);} .tk{font-size:10px;fill:var(--muted);}
 .al{font-size:11px;fill:var(--muted);font-weight:600;} .grid{stroke:var(--border);stroke-width:1;}
 .ax{stroke:var(--muted);stroke-width:1.2;} .hm{font-size:8.6px;font-weight:600;}
+.sk{font-size:8.4px;fill:var(--muted);}
 .leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
 .li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
@@ -680,6 +736,53 @@ selection-inflated X=0 level; O-W does not.</p>
 <p class="muted">Budgets 40% and 50% are queued (job 10581756) to show the capped margin is not
 an artifact of the 30% choice; this table fills automatically when they land.</p>""")
 
+# ---- discrete selected policies: every method x Gamma ----
+if V2R and V2D:
+    lvl_labs = [f"{x:.2g}" for x in V2R["grid"]]
+    # capped(30%) oracle: greedy fill of the budget by true CATE (levels have mass 1/7 each)
+    cap_orc = [0.0] * len(V2D["cate"]); rem = 0.3
+    for j in sorted(range(len(V2D["cate"])), key=lambda i: -V2D["cate"][i]):
+        if V2D["cate"][j] <= 0 or rem <= 1e-9: break
+        take = min(1.0, rem * len(V2D["cate"])); cap_orc[j] = take; rem -= take / len(V2D["cate"])
+    orc_u_s = "(" + ", ".join("0" if x <= 0 else "1" for x in V2D["cate"]) + ")"
+    orc_c_s = "(" + ", ".join(f"{v:g}" for v in cap_orc) + ")"
+    POL_METHODS = ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X",
+                   "IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"]
+    pol_figs = {}
+    for reg in ("uncap", "cap"):
+        figs = []
+        for m in POL_METHODS:
+            if m not in V2R["regimes"][reg].get("policy_by_seed", {}): continue
+            gks, Mv = mean_policy_matrix(V2R, reg, m)
+            figs.append(heatmap(["G=" + g for g in gks], lvl_labs, Mv,
+                                f"{m} ({'uncapped' if reg == 'uncap' else 'capped 30%'})",
+                                "Gamma", "X level", 0.0, 1.0, W=470, H=300))
+        pol_figs[reg] = figs
+    kal_fig = ""
+    if KV2:
+        gksK, MvK = mean_policy_matrix(KV2, "uncap", "Kallus")
+        kal_fig = heatmap(["G=" + g for g in gksK], lvl_labs, MvK,
+                          "Kallus (uncapped; parametric softmax)", "Gamma", "X level", 0.0, 1.0, W=470, H=300)
+    T["disc"].append(f"""
+<h2 id="s-pols">6. Selected policies: every method at every &Gamma; (v2, mean over {len(V2R['seeds'])} seeds)</h2>
+<p>Each panel is one method; each row is the policy that method selects at that &Gamma;, averaged
+over all {len(V2R['seeds'])} seeds. Cell value and color = treatment probability &pi;(X) at that
+level (yellow = treat, purple = do not treat). References: <b>uncapped oracle {orc_u_s}</b>,
+<b>capped(30%) oracle {orc_c_s}</b> on the levels (-1, ..., +1).</p>
+<p>How to read the panels: the naive X-X rows are constant in &Gamma; (plug-ins ignore it) and
+always treat the selection-inflated X=0 level; the box-only O-X rows drain toward never-treat
+(all-purple) as &Gamma; grows &mdash; worst-case pessimism with nothing to anchor it; the O-W rows
+stay anchored near the oracle across the whole &Gamma; range, hedging only the ambiguous X=0
+level; Kallus drains like O-X. This &Gamma;-stability of the selected policy &mdash; not just of
+the value &mdash; is the Wasserstein constraint's visible fingerprint.</p>
+<h3>Uncapped</h3>
+<div class="figrow">{''.join(pol_figs['uncap'])}{kal_fig}</div>
+<h3>Capped 30%</h3>
+<p class="muted">Under the cap the question becomes WHERE each method spends its 30% budget:
+O-W concentrates it on the top levels; the naive methods burn roughly a third of it on X=0
+(true CATE = -1).</p>
+<div class="figrow">{''.join(pol_figs['cap'])}</div>""")
+
 # ---- v2 continuous -> cont tab (auto-fills once job 10579938 lands) ----
 if C2DV2:
     Gk2, Lk2 = C2DV2["gammas"], C2DV2["Lgrid"]; s2 = C2DV2["surface"]; bo2 = C2DV2["best_overall"]
@@ -696,8 +799,8 @@ KNN deployment, 3 seeds.</p>
 {heatmap(["G=" + g for g in Gk2], Lk2, Mv2, "v2 IPW-O-W: test E[Y] over Gamma x L (oracle %.2f)" % C2DV2["oracle"], "Gamma", "Lipschitz L (inf = per-unit)", max(C2DV2["never_treat"], -0.6), C2DV2["oracle"])}
 {linechart(sL2, title="v2 slice at Gamma=%s: the effect of L" % bo2["gamma"], xlab="L index: 0=inf ... 7=0.5", ylab="test E[Y]", hlines=[("oracle", "#111", C2DV2["oracle"], "5 4"), ("naive DR", MC["DoublyRobust-X-X"], nd if nd is not None else 0.0, "6 3"), ("never-treat", "#888", C2DV2["never_treat"], "2 3")], xticks=list(range(len(Lk2))))}
 <p class="muted">Best overall: {bo2['method']} at &Gamma;={bo2['gamma']}, L={bo2['L']} &rarr;
-{bo2['value']:.3f}. Seed-0 policy curves per (&Gamma;, L) are stored in the JSON
-(policies_seed0) for the policy-explanation figures.</p>""")
+{bo2['value']:.3f}. The full seed-0 policy curve for EVERY (&Gamma;, L) cell of this surface is
+shown in Section 3 below.</p>""")
 else:
     T["cont"].append("""
 <h2 id="s-v2cont">2. v2 continuous: L &times; &Gamma; on the showcase DGP (running)</h2>
@@ -705,6 +808,62 @@ else:
 methods over 6 &Gamma; &times; 8 L on the v2 continuous DGP, with naive-DR / oracle / never /
 all-treat references and per-(&Gamma;,L) seed-0 policy curves for the explanation figures.
 This section fills automatically when it lands &mdash; rerun build_results.py.</p>""")
+
+# ---- policy stripes for any L x Gamma 2-D result (continuous + diabetes) ----
+def policy_2d_figs(RJ):
+    """One stripe figure per method: rows = oracle/naive refs + every Gamma x L cell (seed 0)."""
+    ps = RJ["policies_seed0"]; Gk, Lk = RJ["gammas"], RJ["Lgrid"]
+    pg, refs = RJ["policy_grid"], ps["_refs"]
+    figs = []
+    for m in RJ["methods"]:
+        labs = ["oracle", "naive DR"]; Mv = [refs["oracle"], refs["naive_dr"]]; seps = [2]
+        for gi, g in enumerate(Gk):
+            for l in Lk:
+                labs.append(f"G={g}  L={l}"); Mv.append(ps[m][g][l])
+            if gi < len(Gk) - 1: seps.append(2 + (gi + 1) * len(Lk))
+        figs.append(stripemap(labs, Mv, pg, f"{m}: selected policy pi(x) at every Gamma x L (seed 0)",
+                              xlab="x   (color = treatment probability: yellow = treat, purple = do not treat)",
+                              seps=seps))
+    return figs
+
+def policy_2d_bestchart(RJ, title):
+    ps = RJ["policies_seed0"]; pg, refs = RJ["policy_grid"], ps["_refs"]
+    series = [("oracle policy", "#111111", pg, refs["oracle"], "5 4"),
+              ("naive DR policy", MC["DoublyRobust-X-X"], pg, refs["naive_dr"], "6 3")]
+    for m in ("IPW-O-W", "DoublyRobust-O-W"):
+        b = RJ["best"].get(m) if "best" in RJ else None
+        if b: series.append((f"{m} at G={b['gamma']}, L={b['L']}", MC[m], pg, ps[m][b["gamma"]][b["L"]], ""))
+    return linechart(series, title=title, xlab="x", ylab="pi(x)", W=760, H=320)
+
+if C2DV2 and "policies_seed0" in C2DV2:
+    bo2 = C2DV2["best_overall"]
+    T["cont"].append(f"""
+<h2 id="s-contpols">3. Policy curves: every method at every &Gamma; &times; L</h2>
+<p>The complete answer to "what policy did each method actually pick": for each method, every
+(&Gamma;, L) cell of the Section-2 surface as one horizontal stripe &mdash; the seed-0 learned
+policy &pi;(x) over x &isin; [-1, 1], KNN-deployed. The two reference stripes on top are the
+oracle (treat iff x &gt; 0.137) and the naive DR plug-in (threshold shifted left to &asymp;-0.3
+by hidden-vitality bias: it over-treats the ambiguous band).</p>
+<p>What the stripes show, mechanically: <b>L = &infin; rows are speckled</b> &mdash; per-unit
+policies overfit each support point, and &Gamma; barely changes them (the inert-&Gamma; column of
+the surface). <b>Moderate L (1.5&ndash;3) rows are clean two-block stripes</b> whose boundary sits
+near the oracle's. As &Gamma; grows, <b>box-only O-X stripes darken to all-purple</b>
+(worst-case collapse to never-treat), while the <b>O-W stripes keep a stable yellow treat-region</b>
+&mdash; the Wasserstein anchor at work; the boundary drifts only slightly right (more
+conservative) with &Gamma;. Best overall cell: {bo2['method']} at &Gamma;={bo2['gamma']},
+L={bo2['L']}.</p>
+{policy_2d_bestchart(C2DV2, "Best-cell policies vs oracle and naive (seed 0)")}
+{''.join(policy_2d_figs(C2DV2))}""")
+    if J("exp_owgap_v2_cont/kallus_v2_cont.json"):
+        KVC = J("exp_owgap_v2_cont/kallus_v2_cont.json")
+        gksK, MvK = mean_policy_matrix(KVC, "uncap", "Kallus")
+        T["cont"].append(f"""
+<h3>Kallus baseline policies (parametric; evaluated on the 7-point level grid)</h3>
+<p class="muted">The softmax policy class is a function of x, shown here on the coarse level grid
+(mean over {len(KVC['seeds'])} seeds). Same collapse as in the discrete case: by
+&Gamma;&asymp;2.5 the policy is all-purple (never-treat).</p>
+{heatmap(["G=" + g for g in gksK], [f"{x:.2g}" for x in KVC["grid"]], MvK,
+         "Kallus: mean policy pi(x) per Gamma", "Gamma", "x (level grid)", 0.0, 1.0, W=470, H=300)}""")
 
 # ---- real-data (Diabetes 130) -> real tab ----
 T["real"].append("""
@@ -778,6 +937,28 @@ value (1.258 &rarr; 1.201 at L=3) &mdash; the over-hedging the coupling diagnost
 out-of-regime. Together with the &alpha; sweep this closes the loop: the measurable coupling
 diagnostic tells practitioners when the O-W machinery pays off, and real data behaves exactly as
 it forecasts.</div>""")
+
+# selected policies for both diabetes experiments: every method x Gamma x L
+if DIA and "policies_seed0" in DIA:
+    T["real"].append(f"""
+<h3>Experiment A: selected policies, every method at every &Gamma; &times; L</h3>
+<p>Same stripe format as the Continuous tab (seed 0; yellow = give insulin, purple = do not).
+The oracle treats the frailest patients (x above &asymp; the 79th percentile of frailty); the
+naive DR stripe is almost all-purple &mdash; the under-treatment failure ("insulin looks
+harmful"). Watch the O-W stripes recover a stable frail-side treat region as &Gamma; reaches the
+matched value 5, while at L=&infin; nothing works and box-only methods overshoot toward all-purple
+at large &Gamma;.</p>
+{policy_2d_bestchart(DIA, "Experiment A: best-cell policies vs oracle and naive (seed 0)")}
+{''.join(policy_2d_figs(DIA))}""")
+if DIB and "policies_seed0" in DIB:
+    T["real"].append(f"""
+<h3>Experiment B: selected policies, every method at every &Gamma; &times; L</h3>
+<p>The fully-real coupling (matched &Gamma; = 1.26). Here the correct behavior is to CHANGE
+LITTLE: naive is already near-oracle, so the best robust stripes are the low-&Gamma; ones that
+track the naive/oracle boundary, and raising &Gamma; visibly erodes the treat region &mdash; the
+over-hedging the diagnostic predicts out-of-regime.</p>
+{policy_2d_bestchart(DIB, "Experiment B: best-cell policies vs oracle and naive (seed 0)")}
+{''.join(policy_2d_figs(DIB))}""")
 
 # ---- status ----
 sq_html = esc(sq) if sq else "(queue empty at build time)"
