@@ -326,6 +326,49 @@ def pol_widget_html(wid, d, defaults=None):
     c.append(f'</div><div id="pw-{wid}-plot" class="fig"></div></div>')
     return "".join(c)
 
+
+SV_JS = """
+function svSvg(xs, series, hls){
+  const W=760,H=340,pL=56,pR=14,pT=24,pB=42;
+  let ys=[]; for(const s of series) ys=ys.concat(s.ys.filter(v=>v===v));
+  for(const h of hls) ys.push(h[1]);
+  let ylo=Math.min(...ys), yhi=Math.max(...ys);
+  const pad=0.08*(yhi-ylo+1e-9); ylo-=pad; yhi+=pad;
+  const x0=xs[0], x1=xs[xs.length-1];
+  const X=v=>pL+(v-x0)/(x1-x0+1e-12)*(W-pL-pR);
+  const Y=v=>H-pB-(v-ylo)/(yhi-ylo+1e-12)*(H-pT-pB);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
+  for(let i=0;i<=5;i++){const t=ylo+pad+i*(yhi-ylo-2*pad)/5;
+    s+='<line x1="'+pL+'" y1="'+Y(t).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(t).toFixed(1)+'" class="grid"/>'
+      +'<text x="'+(pL-6)+'" y="'+(Y(t)+3.5).toFixed(1)+'" class="tk" text-anchor="end">'+t.toFixed(2)+'</text>';}
+  for(const g of xs) s+='<text x="'+X(g).toFixed(1)+'" y="'+(H-pB+16)+'" class="tk" text-anchor="middle">'+g+'</text>';
+  const hcol={'oracle':'var(--fg)','naive DR':MCJS['DoublyRobust-X-X'],'never-treat':'#888888'};
+  const hdash={'oracle':'5 4','naive DR':'2 3','never-treat':'2 3'};
+  for(const [lab,v] of hls){
+    s+='<line x1="'+pL+'" y1="'+Y(v).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(v).toFixed(1)+'" style="stroke:'+hcol[lab]+'" stroke-width="1.4" stroke-dasharray="'+hdash[lab]+'"/>'
+      +'<text x="'+(W-pR-2)+'" y="'+(Y(v)-4).toFixed(1)+'" class="tk" text-anchor="end" style="fill:'+hcol[lab]+'">'+lab+'</text>';}
+  for(const se of series){
+    const pts=xs.map((x,i)=>X(x).toFixed(1)+','+Y(se.ys[i]).toFixed(1)).join(' ');
+    s+='<polyline points="'+pts+'" fill="none" style="stroke:'+se.col+'" stroke-width="2.2"'+(se.dash?' stroke-dasharray="'+se.dash+'"':'')+'/>';
+    for(let i=0;i<xs.length;i++) s+=pwMark(X(xs[i]),Y(se.ys[i]),se.col,se.mk||'c',3.0);
+  }
+  s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/><line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">Gamma</text>';
+  s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+((pT+H-pB)/2)+')">test E[Y]</text>';
+  return s+'</svg>';
+}
+function svDraw(){
+  const d=SURFD; const e=document.getElementById('sv-cont-l'); if(!e||!d) return;
+  const l=e.value; const xs=d.gammas.map(Number);
+  const series=d.methods.map(m=>({lab:m+'  (L='+l+')', col:MCJS[m]||'#7f7f7f',
+    ys:d.gammas.map(g=>d.surface[m][g][l]), dash:DASHJS[m]||'', mk:MARKJS[m]||'c'}));
+  const leg='<div class="leg">'+series.map(se=>'<span class="li"><span class="sw" style="background:'+se.col+'"></span>'+se.lab+'</span>').join('')+'</div>';
+  document.getElementById('sv-cont-plot').innerHTML=svSvg(xs,series,[['oracle',d.oracle],['naive DR',d.naive],['never-treat',d.never]])+leg;
+}
+document.addEventListener('change',e=>{ if(e.target && e.target.id==='sv-cont-l') svDraw(); });
+svDraw();
+"""
+
 PW_JS = """
 const MCJS = %(MC)s;
 const DASHJS = %(DASH)s;
@@ -1133,6 +1176,11 @@ support point is its own parameter: the policy overfits and &Gamma; is inert. Tw
 the Lipschitz class |&pi;(x)-&pi;(x')| &le; L|x-x'| for the VARIANCE, and &Gamma; robustness
 for the BIAS. The L &times; &Gamma; surface shows both.</p>
 {heatmap(["G=" + g for g in Gk2], Lk2, Mv2, "v2 IPW-O-W: test E[Y] over Gamma x L (oracle %.2f)" % C2DV2["oracle"], "Gamma", "Lipschitz L (inf = per-unit)", max(C2DV2["never_treat"], -0.6), C2DV2["oracle"])}
+<h3>E[Y] vs &Gamma;, with L selectable</h3>
+<div class="svw"><div class="ctl"><label>Lipschitz L
+<select id="sv-cont-l">{''.join('<option value="%s"%s>%s</option>' % (l, ' selected' if l == '3' else '', l) for l in Lk2)}</select></label>
+<span class="ctt">all five robust methods at the chosen L; naive / oracle / never-treat as dashed references</span></div>
+<div id="sv-cont-plot" class="fig"></div></div>
 {linechart(sL2, title="v2 slice at Gamma=%s: the effect of L" % bo2["gamma"], xlab="L index: 0=inf ... 7=0.5", ylab="test E[Y]", hlines=[("oracle", "#111", C2DV2["oracle"], "5 4"), ("naive DR", MC["DoublyRobust-X-X"], nd if nd is not None else 0.0, "6 3"), ("never-treat", "#888", C2DV2["never_treat"], "2 3")], xticks=list(range(len(Lk2))))}
 <p class="muted">Best overall: {bo2['method']} at &Gamma;={bo2['gamma']}, L={bo2['L']} &rarr;
 {bo2['value']:.3f}. The full seed-0 policy curve for EVERY (&Gamma;, L) cell of this surface is
@@ -1531,10 +1579,17 @@ def _r3(o):
     if isinstance(o, dict): return {k: _r3(v) for k, v in o.items()}
     if isinstance(o, float): return round(o, 3)
     return o
+SURF = None
+if C2DV2:
+    SURF = {"gammas": C2DV2["gammas"], "Ls": C2DV2["Lgrid"], "methods": C2DV2["methods"],
+            "surface": C2DV2["surface"], "oracle": C2DV2["oracle"],
+            "naive": C2DV2["naive_dr"], "never": C2DV2["never_treat"]}
 html.append("<script>\nconst PD = " + json.dumps(_r3(PD), separators=(",", ":")) + ";\n"
+            + "const SURFD = " + json.dumps(_r3(SURF), separators=(",", ":")) + ";\n"
             + (PW_JS % {"MC": json.dumps(MC),
                         "DASH": json.dumps({m: mdash(m) for m in MORDER}),
-                        "MARK": json.dumps({m: mmark(m) for m in MORDER})}) + "\n</script>")
+                        "MARK": json.dumps({m: mmark(m) for m in MORDER})})
+            + SV_JS + "\n</script>")
 
 html.append(f"""
 <h2 id="s-status">Compute status at build time</h2>
