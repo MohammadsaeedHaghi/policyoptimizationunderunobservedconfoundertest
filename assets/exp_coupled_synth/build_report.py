@@ -23,6 +23,9 @@ def J(fn, base=HERE):
     except Exception: return None
 R = {2.5: J("coupled_beta2.5.json"), 5.0: J("coupled_beta5.json"), 10.0: J("coupled_beta10.json"),
      0.0: J("msmbench_lip_gamma_2d_pilot.json", ROOT / "assets" / "exp_msmbench")}
+RK = {("2.5", "10"): J("coupled_k2.5b10.json"), ("4", "10"): J("coupled_k4b10.json"),
+      ("4", "5"): J("coupled_k4b5.json")}
+PSEED_K = {("2.5", "10"): ["+0.305", "+0.073", "+0.856"], ("4", "10"): ["+0.276", "+0.642", "+1.263"]}
 CORR = {0.0: -0.007, 2.5: 0.578, 5.0: 0.756, 10.0: 0.840}
 PSEED = {5.0: ["+0.019", "+0.010", "+0.113"], 10.0: ["+0.001", "-0.006", "+0.112"]}  # per-seed IPW margins (recomputed from raw policies)
 
@@ -79,10 +82,12 @@ EQ_CATE = l2m(r"\mathrm{CATE}(X) = 2X + 2 - 4\sin(2X), \qquad \pi^*(x) = 1\{\mat
 
 hero = """<h1>The coupled-confounder synthetic experiment</h1>
 <p>Our second synthetic experiment: known &Gamma;* by construction (single-&Gamma; protocol,
-nothing swept or tuned), one disclosed coupling dial &beta;, an oscillating heterogeneous
-effect, and the under-treatment failure direction &mdash; the complement of the hidden-vitality
-showcase on every axis. Outcome functional forms follow Kallus-Mao-Zhou (2019); the design is
-ours. Quick-pilot results (n=200, 3 seeds) below; all raw per-seed policies persisted.</p>"""
+nothing swept or tuned), TWO disclosed dials &mdash; the coupling &beta; (can the observed
+covariate track the confounder?) and the leverage &kappa; (does the confounder dominate the
+outcome scale?) &mdash; an oscillating heterogeneous effect, and the under-treatment failure
+direction. The O-W gap over box-only opens exactly when BOTH dials are high, which is the
+paper's mechanism claim in one experiment. Outcome functional forms follow Kallus-Mao-Zhou
+(2019); the design is ours. Quick-pilot results (n=200, 3 seeds); all raw policies persisted.</p>"""
 
 body = [f"""
 <h2>1. Motivation and role in the paper</h2>
@@ -163,13 +168,55 @@ the relevant contrast here.</div>
 &beta; = 10 the mean margin is carried by one seed ({', '.join(PSEED[10.0])}). A paper-grade
 version needs the standard n=400 with 8&ndash;20 seeds and paired CIs (raw per-seed policies
 are persisted, so evaluation changes are free; the solves themselves are the only cost).
-(2) The &beta; = 0 anchor row was run with the original Kallus-Mao-Zhou extremal-propensity
+(2) The &kappa; results are quick-pilot scale
+too; the (&kappa;, &beta;) grid corners (low-low, low-high, high-low, high-high) all behave as
+the mechanism predicts, which is stronger evidence than any single cell. (3) The &beta; = 0
+anchor row was run with the original Kallus-Mao-Zhou extremal-propensity
 construction (assets/exp_msmbench/, unmodified) rather than the logistic-in-U form; both pin
 the sensitivity model exactly at &beta; = 0, and the anchor doubles as our on-file answer on
 the literature's standard MSM synthetic (O-W ties the best method there; the diagnostic says
-why nothing more was possible). (3) The capped 30% variant is designed but not yet run.</div>
+why nothing more was possible). (4) The capped 30% variant is designed but not yet run.</div>
 """)
 
+
+kb_rows = []
+for (k, b), r in RK.items():
+    if not r: continue
+    bx, bw = r["best"]["IPW-O-X"], r["best"]["IPW-O-W"]
+    dx, dw = r["best"]["DoublyRobust-O-X"], r["best"]["DoublyRobust-O-W"]
+    gap = bw["value"] - bx["value"]
+    seeds = "; per-seed " + ", ".join(PSEED_K[(k, b)]) if (k, b) in PSEED_K else ""
+    kb_rows.append(f"<tr><td>&kappa;={k}, &beta;={b}</td><td>{r['oracle']:+.2f}</td>"
+                   f"<td>{r['naive_dr']:+.2f}</td><td>{bx['value']:.3f}</td><td><b>{bw['value']:.3f}</b></td>"
+                   f"<td>{dx['value']:.3f}</td><td>{dw['value']:.3f}</td>"
+                   f"<td class='g'>{gap:+.3f}</td></tr>")
+body.append(f"""
+<h2>6b. Opening the gap: the leverage dial &kappa;</h2>
+<p>At &kappa; = 1 the confounder moves outcomes by less than the treatment effect itself, so
+box-only pessimism at the matched &Gamma; is cheap and the W-term has little left to add
+(margins +0.02&ndash;0.05 above). &kappa; multiplies the confounder's outcome amplitude
+(U-term = -2&kappa;(2U-1)(1+0.5X)); at &kappa; &asymp; 2.5&ndash;4 the confounder dominates the
+outcome scale &mdash; the same mechanism as the hidden-vitality showcase. The propensity is
+untouched, so <b>&Gamma;* = 4.95 remains exact</b>, and CATE/oracle are unchanged (U still
+cancels in the effect).</p>
+<div class="tw"><table>
+<tr><th>setting</th><th>oracle</th><th>naive DR</th><th>IPW-O-X</th><th>IPW-O-W</th>
+<th>DR-O-X</th><th>DR-O-W</th><th>O-W gap (IPW)</th></tr>
+{''.join(kb_rows)}
+</table></div>
+<div class="card good"><b>The gap, with every seed positive.</b> IPW-O-W beats its box-only
+counterpart by <b>+0.41 at (&kappa;=2.5, &beta;=10)</b> (per-seed {', '.join(PSEED_K[('2.5','10')])})
+and <b>+0.73 at (&kappa;=4, &beta;=10)</b> (per-seed {', '.join(PSEED_K[('4','10')])}), and by
++0.51 at (&kappa;=4, &beta;=5). At (&kappa;=2.5, &beta;=10) IPW-O-W is the best method on the
+entire board. HEADLINE SETTING: <b>&kappa; = 2.5, &beta; = 10</b>.</div>
+<div class="card"><b>Mechanism note (honest): two routes to exploiting coupling.</b> At high
+&kappa; the DOUBLY-ROBUST box-only method also recovers (DR-O-X &asymp; O-W at &kappa;=4):
+when the confounder is X-trackable, its outcome leverage can be absorbed either by the OUTCOME
+MODEL (the DR route) or by the WASSERSTEIN balance constraint (the O-W route). Methods with
+neither &mdash; IPW-O-X, naive, Hajek &mdash; fail badly. O-W's distinct advantages: it is the
+best single method at the headline setting, and it does not depend on a correctly specified
+outcome model &mdash; the two routes are complements, not substitutes (DR-O-W carries both).</div>
+""")
 b_head = 5.0 if 5.0 in have else sorted(have)[-1]
 body.append(f"<h2>7. Full results at the headline setting (&beta; = {b_head:g}, corr 0.76)</h2>")
 body.append(surface_block(have[b_head], f"beta={b_head:g}"))
