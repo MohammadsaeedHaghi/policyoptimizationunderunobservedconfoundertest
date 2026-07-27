@@ -9,7 +9,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
-from report_common import page, surface_block, linechart, ser, MC
+from report_common import page, surface_block, linechart, ser, MC, bars
 from latex2mathml.converter import convert as l2m
 import importlib.util
 
@@ -179,6 +179,16 @@ why nothing more was possible). (4) The capped 30% variant is designed but not y
 """)
 
 
+RK_GAP_I = {1.0: R[10.0]["best"]["IPW-O-W"]["value"] - R[10.0]["best"]["IPW-O-X"]["value"]}
+RK_GAP_D = {1.0: R[10.0]["best"]["DoublyRobust-O-W"]["value"] - R[10.0]["best"]["DoublyRobust-O-X"]["value"]}
+for (k, b), r in RK.items():
+    if r and b == "10":
+        RK_GAP_I[float(k)] = r["best"]["IPW-O-W"]["value"] - r["best"]["IPW-O-X"]["value"]
+        RK_GAP_D[float(k)] = r["best"]["DoublyRobust-O-W"]["value"] - r["best"]["DoublyRobust-O-X"]["value"]
+_rh = RK[("2.5", "10")]
+HEAD_VALS = [_rh["naive_dr"], _rh["best"]["Hajek-O-X"]["value"], _rh["best"]["IPW-O-X"]["value"],
+             _rh["best"]["DoublyRobust-O-X"]["value"], _rh["best"]["DoublyRobust-O-W"]["value"],
+             _rh["best"]["IPW-O-W"]["value"]]
 kb_rows = []
 for (k, b), r in RK.items():
     if not r: continue
@@ -204,6 +214,22 @@ cancels in the effect).</p>
 <th>DR-O-X</th><th>DR-O-W</th><th>O-W gap (IPW)</th></tr>
 {''.join(kb_rows)}
 </table></div>
+{figcap(linechart([ser("IPW-O-W", [1.0, 2.5, 4.0], [RK_GAP_I[k] for k in (1.0, 2.5, 4.0)], lab="IPW: O-W minus O-X"),
+                   ser("DoublyRobust-O-W", [1.0, 2.5, 4.0], [RK_GAP_D[k] for k in (1.0, 2.5, 4.0)], lab="DR: O-W minus O-X")],
+                  title="The gap opens with the leverage dial (beta = 10)", xlab="kappa (confounder outcome leverage)",
+                  ylab="O-W minus O-X", hlines=[("0", "#888", 0.0, "4 3")], W=680, xticks=[1, 2.5, 4]),
+        "Best-cell margin of each W-constrained method over its box-only counterpart at beta = 10, "
+        "as kappa scales the confounder's outcome amplitude. kappa = 1 is the KMZ form (tie); by "
+        "kappa = 4 the IPW gap is +0.73.")}
+{figcap(bars(["naive DR", "Hajek-O-X", "IPW-O-X", "DR-O-X", "DR-O-W", "IPW-O-W"],
+             HEAD_VALS, [MC["DoublyRobust-X-X"], MC["Hajek-O-X"], MC["IPW-O-X"],
+                         MC["DoublyRobust-O-X"], MC["DoublyRobust-O-W"], MC["IPW-O-W"]],
+             "Every method at the headline setting (kappa = 2.5, beta = 10)", "test E[Y]",
+             hlines=[("oracle", "#111", RK[("2.5", "10")]["oracle"], "5 4"),
+                     ("never-treat", "#888", RK[("2.5", "10")]["never_treat"], "2 3")]),
+        "Best value per method, single Gamma = Gamma*. IPW-O-W tops the board; the O-W pair and "
+        "DR-O-X (the outcome-model route) form the upper tier; methods with neither device -- "
+        "naive, Hajek, box-only IPW -- trail by 0.4-1.3.")}
 <div class="card good"><b>The gap, with every seed positive.</b> IPW-O-W beats its box-only
 counterpart by <b>+0.41 at (&kappa;=2.5, &beta;=10)</b> (per-seed {', '.join(PSEED_K[('2.5','10')])})
 and <b>+0.73 at (&kappa;=4, &beta;=10)</b> (per-seed {', '.join(PSEED_K[('4','10')])}), and by
@@ -217,19 +243,19 @@ neither &mdash; IPW-O-X, naive, Hajek &mdash; fail badly. O-W's distinct advanta
 best single method at the headline setting, and it does not depend on a correctly specified
 outcome model &mdash; the two routes are complements, not substitutes (DR-O-W carries both).</div>
 """)
-b_head = 5.0 if 5.0 in have else sorted(have)[-1]
-body.append(f"<h2>7. Full results at the headline setting (&beta; = {b_head:g}, corr 0.76)</h2>")
-body.append(surface_block(have[b_head], f"beta={b_head:g}"))
-ps = have[b_head].get("policies_seed0")
+HEAD = RK[("2.5", "10")]
+body.append("<h2>7. Full results at the headline setting (&kappa; = 2.5, &beta; = 10)</h2>")
+body.append(surface_block(HEAD, "kappa=2.5, beta=10"))
+ps = HEAD.get("policies_seed0")
 if ps:
-    pg = have[b_head]["policy_grid"]
+    pg = HEAD["policy_grid"]
     series = [("oracle policy", "#111111", pg, ps["_refs"]["oracle"], "5 4"),
               ("naive DR policy", MC["DoublyRobust-X-X"], pg, ps["_refs"]["naive_dr"], "2 3")]
     for m in ("IPW-O-W", "IPW-O-X"):
-        b_ = have[b_head]["best"][m]
+        b_ = HEAD["best"][m]
         series.append(ser(m, pg, ps[m][b_["gamma"]][b_["L"]], lab=f"{m} @ L={b_['L']}"))
     body.append(figcap(
-        linechart(series, title=f"Best-cell policies vs oracle and naive (seed 0, beta={b_head:g})",
+        linechart(series, title="Best-cell policies vs oracle and naive (seed 0, kappa=2.5, beta=10)",
                   xlab="x", ylab="pi(x)", W=760),
         "pi(x) = treatment probability. Naive under-treats the oscillating positive regions; "
         "the O-W policy tracks the oracle's interior structure more closely than box-only."))

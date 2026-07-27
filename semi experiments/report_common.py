@@ -142,14 +142,20 @@ def surface_block(J, title_prefix, vmin=None):
                            f"{title_prefix}: {m} test E[Y] (oracle {J['oracle']:.2f})",
                            "Gamma", "Lipschitz L", vmin, J["oracle"], W=560, H=280))
     out.append("</div>")
-    sl = [ser(m, list(range(len(Lk))), [s[m][g]["3"] if "3" in s[m][g] else float("nan") for g in Gk])
-          for m in J["methods"]]
-    gl = [float(g) for g in Gk]
-    sl = [ser(m, gl, [s[m][g]["3"] for g in Gk]) for m in J["methods"]]
-    out.append(linechart(sl, title=f"{title_prefix}: E[Y] vs Gamma at L=3", xlab="Gamma", ylab="test E[Y]",
-                         hlines=[("oracle", "#111", J["oracle"], "5 4"),
-                                 ("naive DR", MC["DoublyRobust-X-X"], J["naive_dr"], "2 3"),
-                                 ("never-treat", "#888", J["never_treat"], "2 3")], xticks=gl))
+    hl = [("oracle", "#111", J["oracle"], "5 4"),
+          ("naive DR", MC["DoublyRobust-X-X"], J["naive_dr"], "2 3"),
+          ("never-treat", "#888", J["never_treat"], "2 3")]
+    if len(Gk) > 1:
+        gl = [float(g) for g in Gk]
+        sl = [ser(m, gl, [s[m][g]["3"] for g in Gk]) for m in J["methods"]]
+        out.append(linechart(sl, title=f"{title_prefix}: E[Y] vs Gamma at L=3", xlab="Gamma",
+                             ylab="test E[Y]", hlines=hl, xticks=gl))
+    else:
+        g0 = Gk[0]; li = list(range(len(Lk)))
+        sl = [ser(m, li, [s[m][g0][l] for l in Lk]) for m in J["methods"]]
+        out.append(linechart(sl, title=f"{title_prefix}: E[Y] vs L at Gamma={g0}",
+                             xlab="L index: " + " ".join(f"{i}={l}" for i, l in enumerate(Lk)),
+                             ylab="test E[Y]", hlines=hl, xticks=li))
     bt = "".join(f"<tr><td>{m}</td><td>{J['best'][m]['value']:.3f}</td><td>{J['best'][m]['gamma']}</td>"
                  f"<td>{J['best'][m]['L']}</td></tr>" for m in J["methods"])
     out.append(f'<div class="tw"><table><tr><th>method</th><th>best E[Y]</th><th>&Gamma;</th><th>L</th></tr>{bt}</table></div>'
@@ -164,3 +170,33 @@ def page(title, hero_grad, hero_html, body_html):
          f'<title>{esc(title)}</title><style>{CSS}</style></head><body>'
          f'<div class="hero" style="background:{hero_grad}">{hero_html}</div>{body_html}</body></html>')
     return h.encode("ascii", "xmlcharrefreplace").decode("ascii")
+
+
+def bars(cats, vals, cols, title, ylab, W=680, H=340, hlines=None):
+    """Single-series vertical bars with per-bar colors, value labels, optional hlines."""
+    padL, padR, padT, padB = 56, 14, 30, 56
+    ys_all = list(vals) + [0.0] + [h[2] for h in (hlines or [])]
+    ylo, yhi = min(ys_all), max(ys_all)
+    ypad = 0.10 * (yhi - ylo + 1e-9); ylo -= ypad; yhi += ypad
+    Y = lambda v: H - padB - (v - ylo) / (yhi - ylo + 1e-12) * (H - padT - padB)
+    n = len(cats); slot = (W - padL - padR) / n; bw = slot * 0.62
+    p = [f'<svg viewBox="0 0 {W} {H}" class="chart">', f'<text x="{padL}" y="16" class="ct">{esc(title)}</text>']
+    for t in _ticks(ylo + ypad, yhi - ypad):
+        if ylo <= t <= yhi:
+            p.append(f'<line x1="{padL}" y1="{Y(t):.1f}" x2="{W-padR}" y2="{Y(t):.1f}" class="grid"/>')
+            p.append(f'<text x="{padL-6}" y="{Y(t)+3.5:.1f}" class="tk" text-anchor="end">{t:g}</text>')
+    for lab, col, yv, dash in (hlines or []):
+        p.append(f'<line x1="{padL}" y1="{Y(yv):.1f}" x2="{W-padR}" y2="{Y(yv):.1f}" stroke="{col}" stroke-width="1.4" stroke-dasharray="{dash}"/>')
+        p.append(f'<text x="{W-padR-2}" y="{Y(yv)-4:.1f}" class="tk" text-anchor="end" fill="{col}">{esc(lab)}</text>')
+    y0 = Y(0.0)
+    for i, (c, v, col) in enumerate(zip(cats, vals, cols)):
+        x = padL + slot * i + (slot - bw) / 2
+        yt = Y(max(v, 0.0)); hgt = abs(y0 - Y(v))
+        p.append(f'<rect x="{x:.1f}" y="{yt:.1f}" width="{bw:.1f}" height="{max(hgt,0.6):.1f}" fill="{col}" opacity="0.92"/>')
+        p.append(f'<text x="{x+bw/2:.1f}" y="{yt-5:.1f}" class="tk" text-anchor="middle">{v:+.2f}</text>')
+        p.append(f'<text x="{padL+slot*(i+0.5):.1f}" y="{H-padB+14}" class="tk" text-anchor="middle">{esc(str(c))}</text>')
+    p.append(f'<line x1="{padL}" y1="{y0:.1f}" x2="{W-padR}" y2="{y0:.1f}" class="ax"/>')
+    p.append(f'<line x1="{padL}" y1="{padT}" x2="{padL}" y2="{H-padB}" class="ax"/>')
+    p.append(f'<text x="16" y="{(padT+H-padB)/2:.0f}" class="al" text-anchor="middle" transform="rotate(-90 16 {(padT+H-padB)/2:.0f})">{esc(ylab)}</text>')
+    p.append('</svg>')
+    return f'<figure class="fig">{"".join(p)}</figure>'

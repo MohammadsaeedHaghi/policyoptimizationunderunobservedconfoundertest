@@ -1421,6 +1421,28 @@ if any(CB.values()) or any(v for v in CK.values()):
                      f"<td>{r['oracle']:+.2f}</td><td>{r['naive_dr']:+.2f}</td>"
                      f"<td>{bx_['value']:.3f}</td><td>{bw_['value']:.3f}</td>"
                      f"<td class='g'>{bw_['value']-bx_['value']:+.3f}</td></tr>")
+    kI = {1.0: CB[10.0]["best"]["IPW-O-W"]["value"] - CB[10.0]["best"]["IPW-O-X"]["value"]}
+    kD = {1.0: CB[10.0]["best"]["DoublyRobust-O-W"]["value"] - CB[10.0]["best"]["DoublyRobust-O-X"]["value"]}
+    for (kk, bb), r in CK.items():
+        if r and bb == "10":
+            kI[float(kk)] = r["best"]["IPW-O-W"]["value"] - r["best"]["IPW-O-X"]["value"]
+            kD[float(kk)] = r["best"]["DoublyRobust-O-W"]["value"] - r["best"]["DoublyRobust-O-X"]["value"]
+    kgap_fig = linechart([ser("IPW-O-W", sorted(kI), [kI[k] for k in sorted(kI)], lab="IPW: O-W minus O-X"),
+                          ser("DoublyRobust-O-W", sorted(kD), [kD[k] for k in sorted(kD)], lab="DR: O-W minus O-X")],
+                         title="The gap opens with the leverage dial (beta = 10)",
+                         xlab="kappa (confounder outcome leverage)", ylab="O-W minus O-X",
+                         hlines=[("0", "#888", 0.0, "4 3")], W=620, xticks=[1, 2.5, 4])
+    _rh = CK[("2.5", "10")]
+    khead_fig = barchart([""],
+                         [(m, MC[m], [v]) for m, v in
+                          [("DoublyRobust-X-X", _rh["naive_dr"]),
+                           ("Hajek-O-X", _rh["best"]["Hajek-O-X"]["value"]),
+                           ("IPW-O-X", _rh["best"]["IPW-O-X"]["value"]),
+                           ("DoublyRobust-O-X", _rh["best"]["DoublyRobust-O-X"]["value"]),
+                           ("DoublyRobust-O-W", _rh["best"]["DoublyRobust-O-W"]["value"]),
+                           ("IPW-O-W", _rh["best"]["IPW-O-W"]["value"])]],
+                         "Every method at the headline setting (kappa=2.5, beta=10); oracle %.2f" % _rh["oracle"],
+                         "test E[Y]", W=620, catlab="") if CK.get(("2.5", "10")) else ""
     gap_fig = linechart([ser("IPW-O-W", cbx, cbI, lab="IPW: O-W minus O-X (kappa=1)"),
                          ser("DoublyRobust-O-W", cbx, cbD, lab="DR: O-W minus O-X (kappa=1)")],
                         title="W-term contribution vs measured coupling (kappa = 1)",
@@ -1454,6 +1476,8 @@ showcase's coupling sweep identified, measured on an unrelated DGP family. At &b
 <th>best IPW-O-W</th><th>O-W gap</th></tr>
 {"".join(krows)}
 </table></div>
+{kgap_fig}
+{khead_fig}
 <div class="card finding"><b>Headline (quick pilots, n=200, 3 seeds, &Gamma; = &Gamma;*
 throughout).</b> At &kappa; = 2.5, &beta; = 10 IPW-O-W is the best method on the board
 (-1.292; box-only IPW -1.704, naive -2.59, Hajek -2.62), with the like-for-like gap
