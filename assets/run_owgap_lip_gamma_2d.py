@@ -25,7 +25,9 @@ _W = {}
 def _load(rel, fn):
     s = importlib.util.spec_from_file_location(fn, str(ROOT / rel)); m = importlib.util.module_from_spec(s); sys.modules[fn] = m; s.loader.exec_module(m); return getattr(m, fn)
 
-def _init(dgp_path):
+def _init(dgp_path, gammas=None):
+    global GAMMAS
+    if gammas is not None: GAMMAS = list(gammas)
     import common; _W["common"] = common
     from knn import extend_with_knn; _W["knn"] = extend_with_knn
     from shapley import extend_with_shapley, extract_support
@@ -118,16 +120,21 @@ def main():
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--k", type=int, default=50)
     ap.add_argument("--ceps", type=float, default=1.0); ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--dgp", default=DGP_PATH, help="path to a DGP module (default: exp_owgap_cont)")
+    ap.add_argument("--gammas", default=None,
+                    help="comma-separated Gamma grid override (e.g. '4.95' when the true "
+                         "Gamma* is known by construction and no sweep is needed)")
     ap.add_argument("--deploy", default="knn", choices=["knn", "shapley"],
                     help="off-support deployment: knn (k-NN average, smooths) or shapley "
                          "(closed-form Lipschitz min-max interpolant, exact at support points)")
     a = ap.parse_args()
+    global GAMMAS
+    if a.gammas: GAMMAS = [float(v) for v in a.gammas.split(",")]
     seeds = list(range(a.seeds)); Path("gurobi.env").write_text("Threads 1\n")
     Gk = ["%g" % g for g in GAMMAS]; Lkeys = ["inf" if L is None else ("%g" % L) for L in LGRID]
     jobs = [(sd, a.n, a.ntest, a.k, a.ceps, a.deploy) for sd in seeds]
     print("L×Γ 2-D (%d methods): N=%d Nte=%d seeds=%d gammas=%s Ls=%s workers=%d deploy=%s dgp=%s" % (len(METHODS), a.n, a.ntest, a.seeds, Gk, Lkeys, a.workers, a.deploy, a.dgp), flush=True)
     t0 = time.time()
-    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(str(Path(a.dgp).resolve()),)) as pool:
+    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(str(Path(a.dgp).resolve()), GAMMAS)) as pool:
         res = pool.map(solve_job, jobs)
     surface = {m: {gk: {lk: round(float(np.nanmean([o[m][gk][lk] for _, o, _, _, _ in res])), 4) for lk in Lkeys} for gk in Gk} for m in METHODS}
     oracle = round(float(np.mean([r["oracle"] for _, _, r, _, _ in res])), 4)

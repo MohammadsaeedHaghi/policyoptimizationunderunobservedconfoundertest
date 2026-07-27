@@ -73,7 +73,12 @@ u-to-u odds ratio is &Gamma;*&sup2; &asymp; 24.5, fitted 26.7 on a draw). Refere
 (4,000 test draws): oracle +1.41, all-treat +0.98, never-treat -0.97.</p>
 <div class="figrow">{cate_fig}{prop_fig}</div>
 <div class="figrow">{inv_fig}</div>
-<h2>2. Declared predictions (written before the run)</h2>
+<h2>2. Protocol note: no Gamma sweep</h2>
+<p>Because the DGP specifies &Gamma;* = 4.95 by construction, the methods are run at the single
+matched value &Gamma; = &Gamma;* &mdash; there is nothing to tune and nothing to
+misspecify; only the Lipschitz dial L is swept. (In the field experiments &Gamma;* is unknown
+and the full &Gamma;-curves quantify misspecification; here that axis is moot.)</p>
+<h2>3. Declared predictions (written before the run)</h2>
 <div class="card"><ol>
 <li><b>Naive under-treats</b>, increasingly with x, and loses substantial value.</li>
 <li><b>Box-only O-X at matched &Gamma; = 5 performs WELL</b> &mdash; this DGP is its exactly
@@ -87,19 +92,19 @@ benchmark (box suffices, W idle).</li>
 """]
 
 if J:
-    body.append("<h2>3. Quick-pilot results (n=200 train, 3 seeds)</h2>")
+    body.append("<h2>4. Quick-pilot results (n=200 train, 3 seeds, Gamma = Gamma* = 4.95)</h2>")
     body.append(surface_block(J, "MSM-bench"))
-    ow = J["surface"]["IPW-O-W"]; ox = J["surface"]["IPW-O-X"]
-    dif = [ow[g]["3"] - ox[g]["3"] for g in J["gammas"]]
+    g0 = J["gammas"][0]
+    difL = {l: (J["surface"]["IPW-O-W"][g0][l] - J["surface"]["IPW-O-X"][g0][l]) for l in J["Lgrid"]}
     body.append(f"""
 <div class="card good"><b>Verdict vs predictions.</b> VERDICT_PLACEHOLDER
-(IPW-O-W minus IPW-O-X at L=3, by &Gamma;: {", ".join(f"{v:+.3f}" for v in dif)}.)</div>""")
+(IPW-O-W minus IPW-O-X at &Gamma;* by L: {", ".join(f"L={l}: {v:+.3f}" for l, v in difL.items())}.)</div>""")
 else:
-    body.append('<h2>3. Quick-pilot results</h2><p class="muted">Job 10621782 running (n=200 for '
+    body.append('<h2>4. Quick-pilot results</h2><p class="muted">Job 10621782 running (n=200 for '
                 'fast turnaround); rerun this builder when it lands.</p>')
 
 body.append("""
-<h2>4. Files</h2>
+<h2>5. Files</h2>
 <p class="muted mono">assets/exp_msmbench/: dgp.py, msmbench_lip_gamma_2d_pilot.json,
 build_report.py (this page) | scripts/sbatch_msmbench_pilot.sh | source DGP: Kallus-Mao-Zhou
 2019, arXiv 1810.02894; used by Hess/Frauen et al., ICLR 2026, arXiv 2502.13022</p>""")
