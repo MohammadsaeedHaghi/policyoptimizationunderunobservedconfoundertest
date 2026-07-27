@@ -94,7 +94,7 @@ fitness X, unobserved vitality S with P(S=+1|X)=&sigma;(10X); vitality dominates
 (&plusmn;8&ndash;9) while the true treatment effect is a few units and therapy carries a fixed
 burden. One discrete and one continuous experiment, plus real-data validation. The question
 throughout: do the odds-box &cap; Wasserstein (O-W) methods recover the oracle policy where
-naive and box-only methods fail? Built Sun Jul 26 19:01:07 PDT 2026.</p>
+naive and box-only methods fail? Built Sun Jul 26 20:05:00 PDT 2026.</p>
 <div class="chips"><span class="chip ok">Discrete: 20 seeds x 3 budgets DONE</span><span class="chip ok">Continuous L x Gamma (Shapley): DONE</span><span class="chip ok">Coupling sweep: DONE</span><span class="chip ok">Diabetes A/B: DONE</span></div>
 </div>
 <div class="tiles">
@@ -206,6 +206,23 @@ known potential outcomes, deploying support policies off-support via the Shapley
 over seeds, plus paired per-seed 95% CIs for the headline margins. <b>Ablations.</b> Coupling
 strength &alpha; (when does balance help), transport budget c<sub>&varepsilon;</sub>, capacity
 budget (30/40/50%), and the Lipschitz constant L (continuous).</p>
+<p><b>Propensity clipping (disclosure).</b> The DGP clips P(T=1|X,S) to [0.02, 0.98]; the clip
+binds at extreme |X|, where the realized selection odds ratio falls BELOW
+&Lambda; = e<sup>2&middot;0.8</sup> = 4.95. The matched &Gamma;=5 therefore upper-bounds the
+realized confounding at every X &mdash; the protocol errs conservative, never favorable.</p>
+<h3>Reproducibility settings (complete)</h3>
+<div class="tw"><table>
+<tr><th>item</th><th>discrete experiment</th><th>continuous experiment</th></tr>
+<tr><td>sample</td><td>N=600 per seed; seeds 0&ndash;19</td><td>N=400 train, 4000 test (fresh draws, seed+1000); seeds 0&ndash;7</td></tr>
+<tr><td>&Gamma; grid</td><td>{1, 1.5, 2, 2.5, 3, 4, 5, 6, 8}</td><td>{1, 2, 3, 4, 6, 8} (matched 4.95 bracketed by 4, 6)</td></tr>
+<tr><td>policy class</td><td>per-unit &pi; &isin; [0,1], tied within level</td><td>per-unit &pi;; Lipschitz L &isin; {&infin;, 10, 5, 3, 2, 1.5, 1, 0.5} via consecutive-sorted-pair constraints</td></tr>
+<tr><td>capacity</td><td>uncapped + capped 30% (ablation: 40%, 50%)</td><td>uncapped</td></tr>
+<tr><td>Wasserstein budget</td><td colspan="2">per-arm &epsilon; = tightest feasible &times; c<sub>&epsilon;</sub>, c<sub>&epsilon;</sub> &isin; {1.0, 1.5, 2.0} (all reported)</td></tr>
+<tr><td>outcome model</td><td colspan="2">&mu;&#770;<sub>t</sub> cross-fitted (2 folds) for DR / Direct methods</td></tr>
+<tr><td>evaluation</td><td>exact (noise-free) policy value on the level grid</td><td>realized mean of &pi;Y(1)+(1-&pi;)Y(0) on test draws; off-support deployment via the closed-form Shapley operator (exact at support)</td></tr>
+<tr><td>solver</td><td colspan="2">Gurobi (WLS) dual LPs; 2 workers &times; 1 thread; ~2.1 h per continuous 6&times;8&times;5-method sweep (8 seeds), discrete 20-seed &times; 3-budget suite overnight on the same license</td></tr>
+<tr><td>baseline (Kallus &amp; Zhou)</td><td colspan="2">parametric softmax, odds-box only, Dinkelbach inner solve (no LP); 20 seeds</td></tr>
+</table></div>
 <h2 id="s-v2res">1. Headline results: N=600, 20 seeds, both regimes</h2>
 <p>The showcase DGP (DGP tab, Sections 1&ndash;2) at N=600, 20 seeds,
 c<sub>&epsilon;</sub>=1.0. At the matched &Gamma;=5 the O-W margin over the best naive method is
@@ -370,6 +387,15 @@ POLICY: per-unit residual wiggles still flip decisions, deployment mixes them, a
 DR at L=&infin; is still below never-treat. Division of labor:
 &mu;&#770;/DR pools information, L pools the policy, &Gamma;&cap;W fixes the bias; only cells
 with all three reach &asymp;0.55.</div>
+<h3>Uncertainty: per-seed values and paired margins (continuous)</h3>
+<p>Per-seed test values recomputed from the persisted raw support policies (same Shapley
+deployment, deterministic test draws; recomputed means reproduce the stored surface cells).
+Paired margin = per-seed difference IPW-O-W@&Gamma;4,L3 minus naive DR; 95% t-interval,
+n=8 seeds.</p>
+<div class="tw"><table>
+<tr><th>budget</th><th>naive DR (mean &plusmn; SD)</th><th>IPW-O-W @&Gamma;4,L3</th><th>paired margin &plusmn; 95% CI</th></tr>
+<tr><td>c<sub>&epsilon;</sub>=1.0</td><td>0.390 &plusmn; 0.24</td><td>0.548 &plusmn; 0.15</td><td class='g'>+0.158 &plusmn; 0.221</td></tr><tr><td>c<sub>&epsilon;</sub>=1.5</td><td>0.390 &plusmn; 0.24</td><td>0.523 &plusmn; 0.19</td><td class='g'>+0.133 &plusmn; 0.229</td></tr><tr><td>c<sub>&epsilon;</sub>=2.0</td><td>0.390 &plusmn; 0.24</td><td>0.516 &plusmn; 0.20</td><td class='g'>+0.126 &plusmn; 0.234</td></tr>
+</table></div>
 <h3>Transport-budget ablation: c<sub>&epsilon;</sub> &isin; {{1.0, 1.5, 2.0}}</h3>
 <p>The same 8-seed L &times; &Gamma; sweep at all three Wasserstein budgets, mirroring the
 discrete suite's ablation. &epsilon; enters only the O-W methods (the box-only O-X columns are

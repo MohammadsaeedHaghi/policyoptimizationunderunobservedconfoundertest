@@ -602,7 +602,24 @@ known potential outcomes, deploying support policies off-support via {dep_lab(C2
 <b>Uncertainty.</b> Mean &plusmn; SD
 over seeds, plus paired per-seed 95% CIs for the headline margins. <b>Ablations.</b> Coupling
 strength &alpha; (when does balance help), transport budget c<sub>&varepsilon;</sub>, capacity
-budget (30/40/50%), and the Lipschitz constant L (continuous).</p>""")
+budget (30/40/50%), and the Lipschitz constant L (continuous).</p>
+<p><b>Propensity clipping (disclosure).</b> The DGP clips P(T=1|X,S) to [0.02, 0.98]; the clip
+binds at extreme |X|, where the realized selection odds ratio falls BELOW
+&Lambda; = e<sup>2&middot;0.8</sup> = 4.95. The matched &Gamma;=5 therefore upper-bounds the
+realized confounding at every X &mdash; the protocol errs conservative, never favorable.</p>
+<h3>Reproducibility settings (complete)</h3>
+<div class="tw"><table>
+<tr><th>item</th><th>discrete experiment</th><th>continuous experiment</th></tr>
+<tr><td>sample</td><td>N=600 per seed; seeds 0&ndash;19</td><td>N=400 train, 4000 test (fresh draws, seed+1000); seeds 0&ndash;7</td></tr>
+<tr><td>&Gamma; grid</td><td>{{1, 1.5, 2, 2.5, 3, 4, 5, 6, 8}}</td><td>{{1, 2, 3, 4, 6, 8}} (matched 4.95 bracketed by 4, 6)</td></tr>
+<tr><td>policy class</td><td>per-unit &pi; &isin; [0,1], tied within level</td><td>per-unit &pi;; Lipschitz L &isin; {{&infin;, 10, 5, 3, 2, 1.5, 1, 0.5}} via consecutive-sorted-pair constraints</td></tr>
+<tr><td>capacity</td><td>uncapped + capped 30% (ablation: 40%, 50%)</td><td>uncapped</td></tr>
+<tr><td>Wasserstein budget</td><td colspan="2">per-arm &epsilon; = tightest feasible &times; c<sub>&epsilon;</sub>, c<sub>&epsilon;</sub> &isin; {{1.0, 1.5, 2.0}} (all reported)</td></tr>
+<tr><td>outcome model</td><td colspan="2">&mu;&#770;<sub>t</sub> cross-fitted (2 folds) for DR / Direct methods</td></tr>
+<tr><td>evaluation</td><td>exact (noise-free) policy value on the level grid</td><td>realized mean of &pi;Y(1)+(1-&pi;)Y(0) on test draws; off-support deployment via the closed-form Shapley operator (exact at support)</td></tr>
+<tr><td>solver</td><td colspan="2">Gurobi (WLS) dual LPs; 2 workers &times; 1 thread; ~2.1 h per continuous 6&times;8&times;5-method sweep (8 seeds), discrete 20-seed &times; 3-budget suite overnight on the same license</td></tr>
+<tr><td>baseline (Kallus &amp; Zhou)</td><td colspan="2">parametric softmax, odds-box only, Dinkelbach inner solve (no LP); 20 seeds</td></tr>
+</table></div>""")
 
 # ---- hero + tiles ----
 mr = margin_row(R20["1.0"])
@@ -1164,6 +1181,29 @@ if C2DV2:
                         f"<td>{s['IPW-O-W']['6']['3']:.3f}</td>"
                         f"<td>{bo['method']} at &Gamma;={bo['gamma']}, L={bo['L']}</td>"
                         f"<td class='g'>{bo['value']:.3f}</td></tr>")
+    CU = J("exp_owgap_v2_cont/cont_uncertainty.json")
+    if CU:
+        cu_rows = []
+        for ce in ("1.0", "1.5", "2.0"):
+            r = CU.get(ce)
+            if not r: continue
+            c = r["cells"]
+            k = "IPW-O-W@G4,L3"
+            cu_rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}</td>"
+                           f"<td>{c['naive']['mean']:.3f} &plusmn; {c['naive']['sd']:.2f}</td>"
+                           f"<td>{c[k]['mean']:.3f} &plusmn; {c[k]['sd']:.2f}</td>"
+                           f"<td class='g'>{c[k]['margin_mean']:+.3f} &plusmn; {c[k]['margin_ci95']:.3f}</td></tr>")
+        n8 = CU.get("1.0", {}).get("n_seeds", 8)
+        T["cont"].append(f"""
+<h3>Uncertainty: per-seed values and paired margins (continuous)</h3>
+<p>Per-seed test values recomputed from the persisted raw support policies (same Shapley
+deployment, deterministic test draws; recomputed means reproduce the stored surface cells).
+Paired margin = per-seed difference IPW-O-W@&Gamma;4,L3 minus naive DR; 95% t-interval,
+n={n8} seeds.</p>
+<div class="tw"><table>
+<tr><th>budget</th><th>naive DR (mean &plusmn; SD)</th><th>IPW-O-W @&Gamma;4,L3</th><th>paired margin &plusmn; 95% CI</th></tr>
+{''.join(cu_rows)}
+</table></div>""")
     missing_ce = [ce for ce, R in C2DV2_CE.items() if not R]
     miss_html = ("" if not missing_ce else
                  f'<p class="muted">c<sub>&epsilon;</sub> = {", ".join(missing_ce)} queued (job 10608156); '
