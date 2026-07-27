@@ -141,10 +141,21 @@ already exist; each dataset needs one dgp.py adapter (prepare script + generate(
 MSM-&Gamma; sensitivity analysis, and budget-constrained (resource-allocation) policy learning:</p>
 <div class="tw"><table>
 <tr><th>paper / line</th><th>dataset</th><th>construction</th><th>public?</th><th>relevance to us</th></tr>
-<tr><td>Kallus &amp; Zhou (NeurIPS'18; Mgmt Sci'21) &mdash; OUR DIRECT BASELINE</td>
-<td><b>IST</b> (Intl. Stroke Trial; 19,435 stroke patients, aspirin/heparin)</td>
-<td>RCT + confounding INJECTED by biased subsampling (recipe D)</td><td>yes (free CSV)</td>
-<td class="g">head-to-head comparability; reviewers of this literature EXPECT IST</td></tr>
+<tr><td>Kallus &amp; Zhou (NeurIPS'18; Mgmt Sci'21) &mdash; OUR DIRECT BASELINE
+<br><span class="muted">(CORRECTED 2026-07-27: earlier draft wrongly said IST; verified
+against the papers' full text)</span></td>
+<td><b>WHI</b> (Women's Health Initiative: hormone-replacement trial + parallel observational
+study)</td>
+<td>real observational cohort evaluated against its matching RCT</td>
+<td class="b">restricted (BioLINCC application)</td>
+<td>their construction needs a paired obs+RCT cohort; data access makes replication impractical
+for us</td></tr>
+<tr><td>Sharp/efficient OPE under confounding (Frauen et al. 2025, arXiv 2502.13022)</td>
+<td><b>IST</b> (19,435 stroke patients; outcome time-to-death)</td>
+<td>RCT + confounding injected by biased subsampling with diastolic blood pressure hidden
+(recipe D)</td><td>yes (free CSV)</td>
+<td class="g">direct precedent for our IST recipe-D construction (we hide consciousness and
+calibrate to matched &Lambda;)</td></tr>
 <tr><td>MSM-&Gamma; sensitivity line (Tan'06; Zhao-Small-Bhattacharya'19; Dorn-Guo'22; Dorn-Guo-Kallus DVDS)</td>
 <td><b>RHC</b> (SUPPORT study; 5,735 ICU patients, right-heart catheterization)</td>
 <td>fully observational; &Gamma;-sensitivity reported</td><td>yes (Vanderbilt)</td>
@@ -184,10 +195,12 @@ together they cover baseline comparability, clinical realism, and a real-couplin
 
 <div class="card good"><h3>Experiment R1 &mdash; IST (Intl. Stroke Trial), recipe D: fully real
 outcomes, injected confounding</h3>
-<p><b>Why this one:</b> it is the dataset of our direct baseline (Kallus &amp; Zhou run their
-method on IST), outcomes need NO synthesis (both arms are real RCT arms), and a capacity cap has
-a natural reading (scarce anticoagulation/monitoring capacity). Reviewers of this literature
-expect IST; delivering it plus a head-to-head removes the easiest rejection.</p>
+<p><b>Why this one:</b> the RCT-plus-injected-confounding construction on IST has direct
+precedent in the confounded-OPE literature (Frauen et al. 2025 hide diastolic blood pressure the
+same way), outcomes need NO synthesis (both arms are real RCT arms), and a capacity cap has a
+natural reading (scarce anticoagulation/monitoring capacity). NOTE (corrected): Kallus &amp;
+Zhou's own case study is WHI, whose restricted access makes it impractical here; IST is the
+literature's accessible recipe-D dataset.</p>
 <p><b>Construction.</b> T = aspirin (vs none), Y = 6-month survival/independence (real).
 Hidden S = baseline consciousness (RCONSC: alert vs drowsy/comatose) &mdash; strongly prognostic,
 clinically plausible as "unrecorded". Simulate the observational study by subsampling the RCT
