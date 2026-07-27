@@ -556,7 +556,7 @@ math{font-size:1.05em;}
 <body>""")
 
 # section HTML is collected per tab, assembled at the end
-T = {"dgp": [], "disc": [], "cont": [], "real": []}
+T = {"dgp": [], "disc": [], "cont": [], "real": [], "coup": []}
 
 # diabetes real-data results (auto-fill as jobs land; prefer the Shapley-deployment reruns)
 DIA = J("exp_diabetes/diab_inregime_lip_gamma_2d_shapley.json") or J("exp_diabetes/diab_inregime_lip_gamma_2d.json")
@@ -1387,6 +1387,87 @@ over-hedging the diagnostic predicts out-of-regime.</p>
 {pol_widget_html("diabB", PD["diabB"], defaults={"m": "IPW-O-W", "g": "1", "l": "3"})}
 {policy_2d_bestchart(DIB, "Experiment B: best-cell policies vs oracle and naive (seed 0)")}""")
 
+# ---- coupled synthetic -> coup tab ----
+def _cj(p):
+    try: return json.load(open(os.path.join(A, p)))
+    except Exception: return None
+CB = {0.0: _cj("exp_msmbench/msmbench_lip_gamma_2d_pilot.json"),
+      2.5: _cj("exp_coupled_synth/coupled_beta2.5.json"),
+      5.0: _cj("exp_coupled_synth/coupled_beta5.json"),
+      10.0: _cj("exp_coupled_synth/coupled_beta10.json")}
+CK = {("2.5", "10"): _cj("exp_coupled_synth/coupled_k2.5b10.json"),
+      ("4", "10"): _cj("exp_coupled_synth/coupled_k4b10.json"),
+      ("4", "5"): _cj("exp_coupled_synth/coupled_k4b5.json")}
+_CCORR = {0.0: -0.007, 2.5: 0.578, 5.0: 0.756, 10.0: 0.840}
+if any(CB.values()) or any(v for v in CK.values()):
+    EQC = M(r"Y(a) = (2a{-}1)X + (2a{-}1) - 2\sin(2(2a{-}1)X) - 2\kappa(2U{-}1)(1+0.5X) + \mathcal{N}(0,1),\;\; X \sim \mathrm{Unif}[-2,2],\; U \mid x \sim \mathrm{Bern}(\sigma(\beta x))")
+    EQP = M(r"P(T{=}1 \mid x, U) = \sigma(0.5 + 1.5x + 0.8(2U{-}1)) \Rightarrow \Gamma^{*} = e^{1.6} = 4.95 \text{ exactly, } \forall x, \beta, \kappa")
+    cbx, cbI, cbD = [], [], []
+    brows = []
+    for b in sorted(k for k, v in CB.items() if v):
+        r = CB[b]; bx_, bw_ = r["best"]["IPW-O-X"], r["best"]["IPW-O-W"]
+        cbx.append(_CCORR[b]); cbI.append(bw_["value"] - bx_["value"])
+        cbD.append(r["best"]["DoublyRobust-O-W"]["value"] - r["best"]["DoublyRobust-O-X"]["value"])
+        brows.append(f"<tr><td>&beta;={b:g}, &kappa;=1</td><td>{_CCORR[b]:.2f}</td>"
+                     f"<td>{r['oracle']:+.2f}</td><td>{r['naive_dr']:+.2f}</td>"
+                     f"<td>{bx_['value']:.3f}</td><td>{bw_['value']:.3f}</td>"
+                     f"<td>{bw_['value']-bx_['value']:+.3f}</td></tr>")
+    krows = []
+    for (kk, bb), r in CK.items():
+        if not r: continue
+        bx_, bw_ = r["best"]["IPW-O-X"], r["best"]["IPW-O-W"]
+        hl = " style='font-weight:700'" if (kk, bb) == ("2.5", "10") else ""
+        krows.append(f"<tr{hl}><td>&kappa;={kk}, &beta;={bb}</td><td>0.84</td>"
+                     f"<td>{r['oracle']:+.2f}</td><td>{r['naive_dr']:+.2f}</td>"
+                     f"<td>{bx_['value']:.3f}</td><td>{bw_['value']:.3f}</td>"
+                     f"<td class='g'>{bw_['value']-bx_['value']:+.3f}</td></tr>")
+    gap_fig = linechart([ser("IPW-O-W", cbx, cbI, lab="IPW: O-W minus O-X (kappa=1)"),
+                         ser("DoublyRobust-O-W", cbx, cbD, lab="DR: O-W minus O-X (kappa=1)")],
+                        title="W-term contribution vs measured coupling (kappa = 1)",
+                        xlab="corr(x, U)", ylab="O-W minus O-X",
+                        hlines=[("0", "#888", 0.0, "4 3")], W=680)
+    T["coup"].append(f"""
+<h2 id="s-coup">The coupled-confounder synthetic (second synthetic experiment)</h2>
+<p>Complements the showcase on every axis: UNDER-treatment failure direction, an oscillating
+heterogeneous CATE, and two designed properties. <b>(1) &Gamma;* is known by construction</b>
+&mdash; the propensity pins the hidden-confounder odds ratio algebraically, so every method
+runs at the single matched &Gamma; = &Gamma;* = 4.95 with nothing swept or tuned; only the
+Lipschitz dial L varies. <b>(2) Two disclosed dials</b>: coupling &beta; (can X track the
+confounder?) and leverage &kappa; (does the confounder dominate the outcome scale?). Outcome
+functional forms follow Kallus-Mao-Zhou (2019).</p>
+<div class="eq">{EQC}</div>
+<div class="eq">{EQP}</div>
+<h3>The coupling dial at &kappa; = 1: the W-term switches on at the predicted boundary</h3>
+<div class="tw"><table>
+<tr><th>setting</th><th>corr(x,U)</th><th>oracle</th><th>naive DR</th><th>best IPW-O-X</th>
+<th>best IPW-O-W</th><th>O-W gap</th></tr>
+{"".join(brows)}
+</table></div>
+{gap_fig}
+<p>The flip from ~0 to positive lands between corr 0.58 and 0.76 &mdash; the same boundary the
+showcase's coupling sweep identified, measured on an unrelated DGP family. At &beta; = 0
+(U &perp; X) no X-balance device can constrain the confounder; O-W ties box-only within noise
+&mdash; do no harm, as required.</p>
+<h3>The leverage dial: the gap opens when the confounder dominates outcomes</h3>
+<div class="tw"><table>
+<tr><th>setting</th><th>corr(x,U)</th><th>oracle</th><th>naive DR</th><th>best IPW-O-X</th>
+<th>best IPW-O-W</th><th>O-W gap</th></tr>
+{"".join(krows)}
+</table></div>
+<div class="card finding"><b>Headline (quick pilots, n=200, 3 seeds, &Gamma; = &Gamma;*
+throughout).</b> At &kappa; = 2.5, &beta; = 10 IPW-O-W is the best method on the board
+(-1.292; box-only IPW -1.704, naive -2.59, Hajek -2.62), with the like-for-like gap
+<b>+0.411</b> (per-seed +0.305 / +0.073 / +0.856, all positive) and +0.727 at &kappa; = 4.
+Mechanism in one sentence: the W-term pays exactly when the confounder is both
+outcome-dominant (&kappa;) and X-trackable (&beta;) &mdash; and the low-dial ties are shown on
+the same page. Honest note: at high &kappa; the DR box-only variant also recovers (the outcome
+model is the other route to exploiting coupling); O-W is best overall and model-free.</div>
+<p class="muted">Full experiment report with all construction figures, the known-&Gamma;*
+algebra, and per-seed analyses: assets/exp_coupled_synth/coupled_report.html
+(<a href="https://claude.ai/code/artifact/c61ab76f-d4cc-4624-bc21-3b96f25a2da8">published
+copy</a>). Paper-grade next steps: n=400 at 8-20 seeds, capped variant, Kallus/sharp
+baselines.</p>""")
+
 # ---- status ----
 sq_html = esc(sq) if sq else "(queue empty at build time)"
 st_v2 = "DONE" if V2R else "RUNNING"
@@ -1400,14 +1481,16 @@ html.append(f"""
 <button id="tb-disc" onclick="showTab('disc')">Discrete results</button>
 <button id="tb-cont" onclick="showTab('cont')">Continuous results</button>
 <button id="tb-real" onclick="showTab('real')">Real data (Diabetes)</button>
+<button id="tb-coup" onclick="showTab('coup')">Coupled synthetic</button>
 </div>
 <div id="tab-dgp" class="tabpane on">{''.join(T['dgp'])}</div>
 <div id="tab-disc" class="tabpane">{''.join(T['disc'])}</div>
 <div id="tab-cont" class="tabpane">{''.join(T['cont'])}</div>
 <div id="tab-real" class="tabpane">{''.join(T['real'])}</div>
+<div id="tab-coup" class="tabpane">{''.join(T['coup'])}</div>
 <script>
 function showTab(id){{
-  for (const t of ['dgp','disc','cont','real']){{
+  for (const t of ['dgp','disc','cont','real','coup']){{
     document.getElementById('tab-'+t).classList.toggle('on', t===id);
     document.getElementById('tb-'+t).classList.toggle('on', t===id);
   }}
@@ -1415,7 +1498,7 @@ function showTab(id){{
   window.scrollTo(0,0);
 }}
 (function(){{const h=location.hash.replace('#','');
-  if(['dgp','disc','cont','real'].includes(h)) showTab(h);}})();
+  if(['dgp','disc','cont','real','coup'].includes(h)) showTab(h);}})();
 </script>""")
 
 # ---- policy-viewer data + plotter (must come after the widget divs) ----
