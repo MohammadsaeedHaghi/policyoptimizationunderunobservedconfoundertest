@@ -29,15 +29,23 @@ _base = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_base)
 
 e_nom = _base.e_nom
 mu0, mu1, cate, oracle_policy = _base.mu0, _base.mu1, _base.cate, _base.oracle_policy
+_C = np.log(GSTAR)                                       # u-to-u log-odds: Lambda = GSTAR exactly
 
 
 def _sig(z): return 1.0 / (1.0 + np.exp(-np.clip(np.asarray(z, float), -40, 40)))
 
 def p_s1(x):
-    # coupling knob: X = 2x, U ~ Bern(sigma(BETA * x)) in pipeline units
+    # coupling knob: U ~ Bern(sigma(BETA * x)) in pipeline units (marginal 1/2 by symmetry)
     return _sig(BETA * np.asarray(x, float))
 
-def propensity(x, S): return _base.propensity(x, S)     # unchanged MSM extremal
+def propensity(x, S):
+    # KNOWN-GAMMA* PROPERTY (kept by design, in OUR box convention): logistic-in-u propensity
+    # with the u-to-u odds ratio pinned to Lambda = GSTAR. The fitted marginal e-hat(x) lies
+    # between the two u-extremals, so every unit's true weight is within the Gamma = GSTAR
+    # odds-box around e-hat at EVERY x and EVERY BETA -- matched Gamma = 4.95, no sweep, exact.
+    # (The base dgp.py keeps KMZ's original extremal construction for the beta=0 anchor.)
+    l = np.log(e_nom(x)) - np.log1p(-e_nom(x))
+    return np.clip(_sig(l + 0.5 * _C * np.asarray(S, float)), 0.02, 0.98)
 
 
 def generate(n, seed=0):
