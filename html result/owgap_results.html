@@ -94,8 +94,8 @@ fitness X, unobserved vitality S with P(S=+1|X)=&sigma;(10X); vitality dominates
 (&plusmn;8&ndash;9) while the true treatment effect is a few units and therapy carries a fixed
 burden. One discrete and one continuous experiment, plus real-data validation. The question
 throughout: do the odds-box &cap; Wasserstein (O-W) methods recover the oracle policy where
-naive and box-only methods fail? Built Sun Jul 26 16:46:28 PDT 2026.</p>
-<div class="chips"><span class="chip ok">Discrete: 20 seeds x 3 budgets DONE</span><span class="chip ok">Continuous L x Gamma (Shapley): DONE</span><span class="chip ok">Coupling sweep: DONE</span><span class="chip ok">Diabetes A/B: DONE</span><span class="chip run">continuous c-eps 1.5/2.0: RUNNING</span></div>
+naive and box-only methods fail? Built Sun Jul 26 18:03:30 PDT 2026.</p>
+<div class="chips"><span class="chip ok">Discrete: 20 seeds x 3 budgets DONE</span><span class="chip ok">Continuous L x Gamma (Shapley): DONE</span><span class="chip ok">Coupling sweep: DONE</span><span class="chip ok">Diabetes A/B: DONE</span></div>
 </div>
 <div class="tiles">
 <div class="tile"><div class="v">0.847</div><div class="l">discrete oracle E[Y] (uncapped; capped 0.727)</div></div>
@@ -357,9 +357,9 @@ never-treat 0.018 throughout.</p>
 <div class="tw"><table>
 <tr><th>budget</th><th>naive DR</th><th>IPW-O-W @&Gamma;4,L3</th><th>DR-O-W @&Gamma;4,L3</th>
 <th>IPW-O-W @&Gamma;6,L3</th><th>best overall cell</th><th>value</th></tr>
-<tr><td>c<sub>&epsilon;</sub>=1.0</td><td>0.390</td><td>0.548</td><td>0.528</td><td>0.541</td><td>DoublyRobust-O-W at &Gamma;=8, L=3</td><td class='g'>0.548</td></tr><tr><td>c<sub>&epsilon;</sub>=1.5</td><td>0.390</td><td>0.523</td><td>0.478</td><td>0.530</td><td>IPW-O-W at &Gamma;=8, L=2</td><td class='g'>0.545</td></tr>
+<tr><td>c<sub>&epsilon;</sub>=1.0</td><td>0.390</td><td>0.548</td><td>0.528</td><td>0.541</td><td>DoublyRobust-O-W at &Gamma;=8, L=3</td><td class='g'>0.548</td></tr><tr><td>c<sub>&epsilon;</sub>=1.5</td><td>0.390</td><td>0.523</td><td>0.478</td><td>0.530</td><td>IPW-O-W at &Gamma;=8, L=2</td><td class='g'>0.545</td></tr><tr><td>c<sub>&epsilon;</sub>=2.0</td><td>0.390</td><td>0.516</td><td>0.423</td><td>0.517</td><td>IPW-O-W at &Gamma;=6, L=3</td><td class='g'>0.517</td></tr>
 </table></div>
-<p class="muted">c<sub>&epsilon;</sub> = 2.0 queued (job 10608156); rows fill automatically when the runs land.</p>
+
 <h2 id="s-contpols">2. Policy curves: &pi;(x) vs x for every method, &Gamma;, and L</h2>
 <p>The complete answer to "what policy did each method actually pick": choose a method, a
 &Gamma;, and a Lipschitz constant L, and the plot shows the seed-0 learned policy
@@ -575,8 +575,7 @@ for (const k of Object.keys(PD)) pwDraw(k);
 </script>
 
 <h2 id="s-status">Compute status at build time</h2>
-<p class="mono" style="white-space:pre-wrap">10608158 owgap_rebuild PENDING
-10608156 v2c_shp_ceps RUNNING
+<p class="mono" style="white-space:pre-wrap">10608158 owgap_rebuild RUNNING
 10607694 ood/jupyter RUNNING</p>
 <div class="tw"><table>
 <tr><th>job</th><th>what</th><th>state</th></tr>
