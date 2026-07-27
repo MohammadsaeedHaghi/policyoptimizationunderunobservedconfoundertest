@@ -1,4 +1,16 @@
 {
+ "ist": {
+  "n": 19285,
+  "design": "D (RCT + injected confounding; fully real Y)",
+  "T_real": "randomized aspirin (P=0.50); logging bias to be injected",
+  "P_T": 0.4998185117967332,
+  "S_def": "fully alert at baseline (RCONSC, hidden)",
+  "P_S": 0.7679025149079596,
+  "corr_XS": 0.5672685953952906,
+  "auc_XS": 0.86118274361695,
+  "s_to_y": 0.3356921143827773,
+  "status": "ok"
+ },
  "adult": {
   "n": 47876,
   "design": "A (real X, synthetic S/T/Y)",

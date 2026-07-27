@@ -167,7 +167,28 @@ def heart():
             "corr_XS": c, "auc_XS": auc,
             "s_to_y": float(df.loc[S == 1, "dis"].mean() - df.loc[S == 0, "dis"].mean())}
 
-for nm, fn in [("adult", adult), ("bank_marketing", bank), ("mushroom", mushroom),
+def ist():
+    """International Stroke Trial (NOT UCI; Edinburgh DataShare, open licence).
+    Download: https://datashare.ed.ac.uk/bitstream/handle/10283/124/IST_corrected.csv"""
+    df = pd.read_csv(CACHE / "IST_corrected.csv", low_memory=False, encoding="latin-1")
+    occ = pd.to_numeric(df["OCCODE"], errors="coerce")
+    ok = df["RCONSC"].notna() & occ.isin([1, 2, 3, 4])
+    d = df[ok]; occ = occ[ok]
+    Y = (occ >= 3).astype(int)                              # favorable 6-month outcome (real!)
+    S = (d["RCONSC"].astype(str).str.upper().str.startswith("F")).astype(int)   # fully alert (hidden)
+    T = (d["RXASP"].astype(str).str.upper() == "Y").astype(int)                 # randomized aspirin
+    Xobs = d[["AGE", "SEX", "RSBP", "STYPE", "RDEF1", "RDEF2", "RDEF3", "RDEF4",
+              "RDEF5", "RDEF6", "RDEF7", "RDEF8"]]
+    c, auc = coupling(Xobs, S.values)
+    # NOTE: S=TACS alternative measured corr 0.987 (near-deterministic in X) -> rejected:
+    # ~zero Var(S|X) leaves nothing hidden to be robust to. RCONSC is the principled choice.
+    return {"n": int(len(d)), "design": "D (RCT + injected confounding; fully real Y)",
+            "T_real": "randomized aspirin (P=%.2f); logging bias to be injected" % T.mean(),
+            "P_T": float(T.mean()), "S_def": "fully alert at baseline (RCONSC, hidden)",
+            "P_S": float(S.mean()), "corr_XS": c, "auc_XS": auc,
+            "s_to_y": float(Y[S.values == 1].mean() - Y[S.values == 0].mean())}
+
+for nm, fn in [("ist", ist), ("adult", adult), ("bank_marketing", bank), ("mushroom", mushroom),
                ("student", student), ("credit_default", credit_default),
                ("support2", support2), ("heart", heart)]:
     run(nm, fn)
