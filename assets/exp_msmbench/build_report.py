@@ -97,7 +97,18 @@ if J:
     g0 = J["gammas"][0]
     difL = {l: (J["surface"]["IPW-O-W"][g0][l] - J["surface"]["IPW-O-X"][g0][l]) for l in J["Lgrid"]}
     body.append(f"""
-<div class="card good"><b>Verdict vs predictions.</b> VERDICT_PLACEHOLDER
+<div class="card good"><b>Verdict vs predictions.</b> ALL THREE DECLARED PREDICTIONS CONFIRMED. (1) Naive
+under-treatment is catastrophic: naive DR -0.254 vs oracle +1.439 (it forfeits the entire
+treatment benefit; all-treat alone earns +1.040). (2) Box-only methods excel on their
+correctly-specified home turf: IPW-O-X reaches 1.078 at L=5 -- 75% of oracle, above all-treat
+-- with NO collapse at the matched Gamma*. (3) O-W tracks O-X within noise everywhere
+(best-cell differences -0.012 and -0.001): at corr(X, S) = 0 the Wasserstein constraint is
+idle, exactly as the coupling diagnostic predicts -- and it does NO HARM. Together with the
+showcase (box fails, W decisive at corr 0.75+) the diagnostic map now explains both our
+results and the literature's benchmark with one measured quantity. Hajek is the exception
+(0.39 and degrading with smoothing) -- its regret-floor pathology persists even here.
+PROMISING: yes -- adopt as the corr = 0 anchor experiment; for the paper, rerun at n=400,
+add the capped 30% variant (novel vs the literature) and the Kallus + sharp-bound baselines.
 (IPW-O-W minus IPW-O-X at &Gamma;* by L: {", ".join(f"L={l}: {v:+.3f}" for l, v in difL.items())}.)</div>""")
 else:
     body.append('<h2>4. Quick-pilot results</h2><p class="muted">Job 10621782 running (n=200 for '
