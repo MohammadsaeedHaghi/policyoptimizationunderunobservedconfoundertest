@@ -44,10 +44,24 @@ def dep_lab(RJ, short=False):
             "the Shapley extension (closed-form Lipschitz min-max interpolant, exact at the support points)"
     return "KNN" if short else "KNN averaging over the k=50 nearest support points"
 
-MC = {"Oracle": "#111111", "IPW-O-W": "#d62728", "DoublyRobust-O-W": "#a01f1f",
-      "IPW-O-X": "#9467bd", "DoublyRobust-O-X": "#6d4a7d", "Hajek-O-X": "#ff7f0e",
-      "IPW-X-X": "#2ca02c", "DoublyRobust-X-X": "#8c564b", "Direct-X-X": "#17becf",
-      "Kallus": "#7f7f7f"}
+# COLOR CODE (user rule): estimator family = COLOR; uncertainty set = LINE STYLE + MARKER.
+#   IPW = red, DoublyRobust = blue, Hajek = orange, Direct = teal, Kallus = gray.
+#   O-W = solid + circle, O-X = dashed + square, X-X = dotted + triangle, Kallus = dash-dot + diamond.
+MC = {"Oracle": "#111111",
+      "IPW-O-W": "#d62728", "IPW-O-X": "#d62728", "IPW-X-X": "#d62728",
+      "DoublyRobust-O-W": "#1f77b4", "DoublyRobust-O-X": "#1f77b4", "DoublyRobust-X-X": "#1f77b4",
+      "Hajek-O-X": "#ff7f0e", "Direct-X-X": "#17becf", "Kallus": "#7f7f7f"}
+MDASH = {"O-W": "", "O-X": "7 3", "X-X": "2 3"}
+MMARK = {"O-W": "c", "O-X": "s", "X-X": "t"}
+def mdash(m):
+    if m == "Kallus": return "10 3 2 3"
+    return MDASH.get(m[-3:], "")
+def mmark(m):
+    if m == "Kallus": return "d"
+    return MMARK.get(m[-3:], "c")
+def ser(m, xs, ys, lab=None):
+    """Series tuple with the family color code applied."""
+    return (lab or m, MC.get(m, "#7f7f7f"), xs, ys, mdash(m), mmark(m))
 MORDER = ["IPW-O-W", "DoublyRobust-O-W", "DoublyRobust-X-X", "DoublyRobust-O-X",
           "IPW-X-X", "IPW-O-X", "Hajek-O-X", "Direct-X-X", "Kallus"]
 
@@ -67,8 +81,8 @@ def linechart(series, W=560, H=330, xlab="", ylab="", title="", bands=None, hlin
               legend=True, xticks=None):
     """series: list of (label, color, xs, ys, dash). bands: (label,color,xs,lo,hi). hlines: (label,color,y,dash)."""
     padL, padR, padT, padB = 52, 14, 30, 42
-    xs_all = [x for _, _, xs, _, _ in series for x in xs]
-    ys_all = [y for _, _, _, ys, _ in series for y in ys if y == y]
+    xs_all = [x for item in series for x in item[2]]
+    ys_all = [y for item in series for y in item[3] if y == y]
     for hl in (hlines or []): ys_all.append(hl[2])
     for b in (bands or []): ys_all += list(b[3]) + list(b[4])
     x0, x1 = min(xs_all), max(xs_all); ylo, yhi = min(ys_all), max(ys_all)
@@ -91,12 +105,23 @@ def linechart(series, W=560, H=330, xlab="", ylab="", title="", bands=None, hlin
         up = " ".join(f"{X(x):.1f},{Y(v):.1f}" for x, v in zip(xs, hi))
         dn = " ".join(f"{X(x):.1f},{Y(v):.1f}" for x, v in zip(reversed(xs), reversed(lo)))
         p.append(f'<polygon points="{up} {dn}" fill="{col}" opacity="0.13"/>')
-    for lab, col, xs, ys, dash in series:
+    for item in series:
+        lab, col, xs, ys, dash = item[:5]
+        mk = item[5] if len(item) > 5 else "c"
         pts = " ".join(f"{X(x):.1f},{Y(y):.1f}" for x, y in zip(xs, ys) if y == y)
         d = f' stroke-dasharray="{dash}"' if dash else ""
         p.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="2"{d}/>')
         for x, y in zip(xs, ys):
-            if y == y: p.append(f'<circle cx="{X(x):.1f}" cy="{Y(y):.1f}" r="2.3" fill="{col}"/>')
+            if y != y: continue
+            cx, cy = X(x), Y(y)
+            if mk == "s":
+                p.append(f'<rect x="{cx-2.3:.1f}" y="{cy-2.3:.1f}" width="4.6" height="4.6" fill="{col}"/>')
+            elif mk == "t":
+                p.append(f'<polygon points="{cx:.1f},{cy-2.9:.1f} {cx-2.7:.1f},{cy+2.3:.1f} {cx+2.7:.1f},{cy+2.3:.1f}" fill="{col}"/>')
+            elif mk == "d":
+                p.append(f'<polygon points="{cx:.1f},{cy-3.1:.1f} {cx-3.1:.1f},{cy:.1f} {cx:.1f},{cy+3.1:.1f} {cx+3.1:.1f},{cy:.1f}" fill="{col}"/>')
+            else:
+                p.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="2.3" fill="{col}"/>')
     p.append(f'<line x1="{padL}" y1="{H-padB}" x2="{W-padR}" y2="{H-padB}" class="ax"/>')
     p.append(f'<line x1="{padL}" y1="{padT}" x2="{padL}" y2="{H-padB}" class="ax"/>')
     p.append(f'<text x="{(padL+W-padR)/2:.0f}" y="{H-8}" class="al" text-anchor="middle">{esc(xlab)}</text>')
@@ -105,7 +130,7 @@ def linechart(series, W=560, H=330, xlab="", ylab="", title="", bands=None, hlin
     leg = ""
     if legend:
         items = "".join(f'<span class="li"><span class="sw" style="background:{col}"></span>{esc(lab)}</span>'
-                        for lab, col, _, _, _ in series)
+                        for lab, col, *_ in series)
         leg = f'<div class="leg">{items}</div>'
     return f'<figure class="fig">{"".join(p)}{leg}</figure>'
 
@@ -303,6 +328,14 @@ def pol_widget_html(wid, d, defaults=None):
 
 PW_JS = """
 const MCJS = %(MC)s;
+const DASHJS = %(DASH)s;
+const MARKJS = %(MARK)s;
+function pwMark(cx, cy, col, mk, r){
+  if (mk==='s') return '<rect x="'+(cx-r).toFixed(1)+'" y="'+(cy-r).toFixed(1)+'" width="'+(2*r)+'" height="'+(2*r)+'" style="fill:'+col+'"/>';
+  if (mk==='t') return '<polygon points="'+cx.toFixed(1)+','+(cy-1.3*r).toFixed(1)+' '+(cx-1.2*r).toFixed(1)+','+(cy+r).toFixed(1)+' '+(cx+1.2*r).toFixed(1)+','+(cy+r).toFixed(1)+'" style="fill:'+col+'"/>';
+  if (mk==='d') return '<polygon points="'+cx.toFixed(1)+','+(cy-1.4*r).toFixed(1)+' '+(cx-1.4*r).toFixed(1)+','+cy.toFixed(1)+' '+cx.toFixed(1)+','+(cy+1.4*r).toFixed(1)+' '+(cx+1.4*r).toFixed(1)+','+cy.toFixed(1)+'" style="fill:'+col+'"/>';
+  return '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+r+'" style="fill:'+col+'"/>';
+}
 function pwSvg(xs, series){
   const W=760,H=340,pL=52,pR=14,pT=24,pB=42;
   const x0=xs[0],x1=xs[xs.length-1],ylo=-0.06,yhi=1.06;
@@ -323,7 +356,7 @@ function pwSvg(xs, series){
        (se.dash?' stroke-dasharray="'+se.dash+'"':'')+'/>';
     if (xs.length<=9){
       for (let i=0;i<xs.length;i++)
-        s+='<circle cx="'+X(xs[i]).toFixed(1)+'" cy="'+Y(se.ys[i]).toFixed(1)+'" r="3.4" style="fill:'+se.col+'"/>';
+        s+=pwMark(X(xs[i]), Y(se.ys[i]), se.col, se.mk||'c', 3.2);
     }
   }
   s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
@@ -351,10 +384,10 @@ function pwScat(xs, series, naive){
   }
   if (naive)
     for (let i=0;i<xs.length;i++)
-      s+='<circle cx="'+X(xs[i]).toFixed(1)+'" cy="'+Y(naive[i]/100).toFixed(1)+'" r="1.5" style="fill:#8c564b" opacity="0.28"/>';
+      s+='<g opacity="0.25">'+pwMark(X(xs[i]), Y(naive[i]/100), MCJS['DoublyRobust-X-X']||'#1f77b4', 't', 1.7)+'</g>';
   for (const se of series)
     for (let i=0;i<xs.length;i++)
-      s+='<circle cx="'+X(xs[i]).toFixed(1)+'" cy="'+Y(se.ys[i]/100).toFixed(1)+'" r="1.9" style="fill:'+se.col+'" opacity="0.8"/>';
+      s+='<g opacity="0.8">'+pwMark(X(xs[i]), Y(se.ys[i]/100), se.col, se.mk||'c', 1.9)+'</g>';
   s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
   s+='<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>';
   s+='<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">X_i (training support)</text>';
@@ -370,15 +403,15 @@ function pwDraw(wid){
   let series=[], note='';
   if (d.kind==='2d'){
     series.push({lab:'oracle', col:'var(--fg)', ys:d.refs.oracle, dash:'6 4'});
-    series.push({lab:'naive DR plug-in', col:'#8c564b', ys:d.refs.naive, dash:'6 3'});
+    series.push({lab:'naive DR plug-in', col:MCJS['DoublyRobust-X-X']||'#1f77b4', ys:d.refs.naive, dash:'2 3'});
     for (const mm of ms)
-      series.push({lab:mm+'  (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:''});
+      series.push({lab:mm+'  (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:DASHJS[mm]||'', mk:MARKJS[mm]||'c'});
   } else {
     series.push({lab:reg==='uncap'?'oracle':'capped oracle', col:'var(--fg)',
                  ys:reg==='uncap'?d.refs.oracle_uncap:d.refs.oracle_cap, dash:'6 4'});
     for (const mm of ms){
       const c=d.pol[reg][mm]&&d.pol[reg][mm][g];
-      if (c) series.push({lab:mm+'  (G='+g+', '+reg+')', col:MCJS[mm]||'#7f7f7f', ys:c, dash:''});
+      if (c) series.push({lab:mm+'  (G='+g+', '+reg+')', col:MCJS[mm]||'#7f7f7f', ys:c, dash:DASHJS[mm]||'', mk:MARKJS[mm]||'c'});
       else note='<p class="muted" style="padding:0 8px 8px">'+mm+' has no '+reg+' variant (uncapped-only method).</p>';
     }
   }
@@ -394,7 +427,7 @@ function pwDraw(wid){
   if (d.kind==='2d' && d.sup){
     const ss=[];
     for (const mm of ms)
-      if (d.sup[mm] && d.sup[mm][g] && d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l]});
+      if (d.sup[mm] && d.sup[mm][g] && d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l], mk:MARKJS[mm]||'c'});
     head=pwScat(d.supX, ss, d.supNaive||null);
   }
   document.getElementById('pw-'+wid+'-plot').innerHTML=head+pwSvg(d.grid,series)+leg+vals+note;
@@ -737,7 +770,7 @@ S varies.</p>
 {''.join(arows)}
 </table></div>
 <div class="figrow">
-{linechart([("oracle", "#111", ALPHAS, o_v, "5 4"), ("IPW-O-W at G=5", MC["IPW-O-W"], ALPHAS, w_v, ""), ("best naive", MC["DoublyRobust-X-X"], ALPHAS, n_v, "")], title="Value vs coupling strength", xlab="alpha", ylab="realized E[Y]", xticks=ALPHAS)}
+{linechart([("oracle", "#111", ALPHAS, o_v, "5 4"), ser("IPW-O-W", ALPHAS, w_v, lab="IPW-O-W at G=5"), ser("DoublyRobust-X-X", ALPHAS, n_v, lab="best naive")], title="Value vs coupling strength", xlab="alpha", ylab="realized E[Y]", xticks=ALPHAS)}
 {linechart([("O-W margin at G=5", MC["IPW-O-W"], ALPHAS, mvals, "")], title="O-W margin over best naive", xlab="alpha", ylab="margin", hlines=[("break-even", "#888", 0.0, "4 3")], xticks=ALPHAS, legend=False)}
 </div>
 <div class="card caveat"><b>Honest scoping: the margin flips sign.</b> O-W wins for
@@ -769,14 +802,14 @@ if V2D:
     _ch20 = np.asarray(_ch20)
     _chm, _chs = _ch20.mean(0), _ch20.std(0)
     v2fig = '<div class="figrow">' + figcap(
-        linechart([("true CATE", "#111", lv, ct, ""), ("naive CATE-hat (infinite data)", MC["DoublyRobust-X-X"], lv, ch, "")],
+        linechart([("true CATE", "#111", lv, ct, ""), ("naive CATE-hat (infinite data)", MC["DoublyRobust-X-X"], lv, ch, "2 3", "t")],
                   title="The ranking inversion at X=0", xlab="X level", ylab="CATE",
                   hlines=[("0", "#888", 0.0, "4 3")]),
-        "Black: CATE(X). Brown: the infinite-data naive limit "
+        "Black: CATE(X). Blue: the infinite-data naive limit "
         "E[Y | T=1, X] - E[Y | T=0, X]; the difference is confounding bias, "
         "non-negligible only at X=0 (-1 &rarr; +5.5).") + figcap(
         linechart([("true CATE", "#111", lv, ct, ""),
-                   ("naive CATE-hat, mean of 20 seeds", MC["DoublyRobust-X-X"], list(_LVv), [float(v) for v in _chm], "")],
+                   ("naive CATE-hat, mean of 20 seeds", MC["DoublyRobust-X-X"], list(_LVv), [float(v) for v in _chm], "2 3", "t")],
                   title="Finite sample: bias dwarfs noise (20 seeds, N=600)", xlab="X level", ylab="CATE",
                   hlines=[("0", "#888", 0.0, "4 3")],
                   bands=[("+-1 SD", MC["DoublyRobust-X-X"], list(_LVv),
@@ -845,10 +878,10 @@ def paired_margin_ci(V2R, reg, g="5", comparator="DoublyRobust-X-X"):
 if V2R:
     gamv = V2R["gammas"]; giv = gamv.index(5.0)
     vm_u = V2R["regimes"]["uncap"]; vm_c = V2R["regimes"]["cap"]
-    s_v2u = [(m, MC[m], gamv, vm_u["mean"][m], "") for m in MORDER[:-1] if m in vm_u["mean"]]
-    s_v2c = [(m, MC[m], gamv, vm_c["mean"][m], "") for m in MORDER[:-1] if m in vm_c["mean"]]
+    s_v2u = [ser(m, gamv, vm_u["mean"][m]) for m in MORDER[:-1] if m in vm_u["mean"]]
+    s_v2c = [ser(m, gamv, vm_c["mean"][m]) for m in MORDER[:-1] if m in vm_c["mean"]]
     if KV2:
-        s_v2u.append(("Kallus", MC["Kallus"], KV2["gammas"], KV2["regimes"]["uncap"]["mean"]["Kallus"], ""))
+        s_v2u.append(ser("Kallus", KV2["gammas"], KV2["regimes"]["uncap"]["mean"]["Kallus"]))
     bands_v2u = [("IPW-O-W", MC["IPW-O-W"], gamv,
                   [m - s for m, s in zip(vm_u["mean"]["IPW-O-W"], vm_u["sd"]["IPW-O-W"])],
                   [m + s for m, s in zip(vm_u["mean"]["IPW-O-W"], vm_u["sd"]["IPW-O-W"])])]
@@ -1069,7 +1102,7 @@ if _a: T["disc"].append(_a)
 if C2DV2:
     Gk2, Lk2 = C2DV2["gammas"], C2DV2["Lgrid"]; s2 = C2DV2["surface"]; bo2 = C2DV2["best_overall"]
     Mv2 = [[s2["IPW-O-W"][g][l] for l in Lk2] for g in Gk2]
-    sL2 = [(m, MC[m], list(range(len(Lk2))), [s2[m][bo2["gamma"]][l] for l in Lk2], "")
+    sL2 = [ser(m, list(range(len(Lk2))), [s2[m][bo2["gamma"]][l] for l in Lk2])
            for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]]
     nd = C2DV2.get("naive_dr"); nds = f"{nd:.3f}" if nd is not None else "--"
     T["cont"].append(f"""
@@ -1171,10 +1204,10 @@ def policy_2d_dataset(RJ):
 def policy_2d_bestchart(RJ, title):
     ps = RJ["policies_seed0"]; pg, refs = RJ["policy_grid"], ps["_refs"]
     series = [("oracle policy", "#111111", pg, refs["oracle"], "5 4"),
-              ("naive DR policy", MC["DoublyRobust-X-X"], pg, refs["naive_dr"], "6 3")]
+              ("naive DR policy", MC["DoublyRobust-X-X"], pg, refs["naive_dr"], "2 3")]
     for m in ("IPW-O-W", "DoublyRobust-O-W"):
         b = RJ["best"].get(m) if "best" in RJ else None
-        if b: series.append((f"{m} at G={b['gamma']}, L={b['L']}", MC[m], pg, ps[m][b["gamma"]][b["L"]], ""))
+        if b: series.append(ser(m, pg, ps[m][b["gamma"]][b["L"]], lab=f"{m} at G={b['gamma']}, L={b['L']}"))
     return linechart(series, title=title, xlab="x", ylab="pi(x)", W=760, H=320)
 
 if C2DV2 and "policies_seed0" in C2DV2:
@@ -1352,7 +1385,9 @@ def _r3(o):
     if isinstance(o, float): return round(o, 3)
     return o
 html.append("<script>\nconst PD = " + json.dumps(_r3(PD), separators=(",", ":")) + ";\n"
-            + (PW_JS % {"MC": json.dumps(MC)}) + "\n</script>")
+            + (PW_JS % {"MC": json.dumps(MC),
+                        "DASH": json.dumps({m: mdash(m) for m in MORDER}),
+                        "MARK": json.dumps({m: mmark(m) for m in MORDER})}) + "\n</script>")
 
 html.append(f"""
 <h2 id="s-status">Compute status at build time</h2>
