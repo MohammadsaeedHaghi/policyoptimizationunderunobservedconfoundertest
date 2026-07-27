@@ -1,0 +1,100 @@
+{
+ "adult": {
+  "n": 47876,
+  "design": "A (real X, synthetic S/T/Y)",
+  "T_real": null,
+  "S_def": "capital-gain>0 or hours>50 (hidden drive)",
+  "P_S": 0.18190742752109618,
+  "corr_XS": 0.27204190528480254,
+  "auc_XS": 0.6982299837683896,
+  "s_to_y": 0.29018614812149424,
+  "status": "ok"
+ },
+ "bank_marketing": {
+  "n": 45211,
+  "design": "B (real X,S,T; synthetic Y)",
+  "T_real": "campaign>1",
+  "P_T": 0.6119528433345867,
+  "S_def": "balance > median (hidden wealth)",
+  "P_S": 0.4999447037225454,
+  "corr_XS": 0.13900187679702197,
+  "auc_XS": 0.5789168540529367,
+  "lambda": 1.1060220324088401,
+  "beta_S": -0.050384911852689646,
+  "s_to_y": 0.05271216910030074,
+  "status": "ok"
+ },
+ "mushroom": {
+  "n": 8124,
+  "design": "C (classification->policy; hidden feature = S)",
+  "T_real": "synthetic forager",
+  "S_def": "odor not in {none,almond,anise} (hidden)",
+  "P_S": 0.4672575086164451,
+  "corr_XS": 0.7081031627757671,
+  "auc_XS": 0.8998035070479872,
+  "s_to_y": 0.9722735674676525,
+  "status": "ok"
+ },
+ "student": {
+  "n": 649,
+  "design": "B (real X,S,T; synthetic Y)",
+  "T_real": "paid classes",
+  "P_T": 0.060092449922958396,
+  "S_def": "parent edu >= secondary (hidden)",
+  "P_S": 0.5500770416024653,
+  "corr_XS": 0.2168049315972535,
+  "auc_XS": 0.6243620735965619,
+  "lambda": 2.187940491786091,
+  "beta_S": 0.3914803433257627,
+  "s_to_y": 1.3170925904608417,
+  "status": "ok"
+ },
+ "credit_default": {
+  "n": 30000,
+  "design": "B (real X,S,T; synthetic Y)",
+  "T_real": "high credit limit",
+  "P_T": 0.49033333333333334,
+  "S_def": "any past delinquency (hidden risk file)",
+  "P_S": 0.33563333333333334,
+  "corr_XS": 0.03274371748069968,
+  "auc_XS": 0.5268300026789714,
+  "lambda": 2.449649752695196,
+  "beta_S": -0.4479725281267806,
+  "s_to_y": 0.3101479526354203,
+  "status": "ok"
+ },
+ "support2": {
+  "n": 9075,
+  "design": "B (real X,S,T; synthetic Y) or A",
+  "T_real": "DNR order",
+  "P_T": 0.35206611570247937,
+  "S_def": "APS physiology score > median (hidden)",
+  "P_S": 0.4991735537190083,
+  "corr_XS": 0.4656409143548407,
+  "auc_XS": 0.7647262717441723,
+  "lambda": 2.591844479379622,
+  "beta_S": 0.47618488822529925,
+  "s_to_y": -0.10913892713774687,
+  "status": "ok"
+ },
+ "heart": {
+  "n": 303,
+  "design": "A (tiny; likely too small)",
+  "T_real": null,
+  "S_def": "thallium defect (hidden)",
+  "P_S": 0.44554455445544555,
+  "corr_XS": 0.4695719100227632,
+  "auc_XS": 0.773148148148148,
+  "s_to_y": 0.521957671957672,
+  "status": "ok"
+ },
+ "diabetes130_reference": {
+  "status": "ok",
+  "n": 69990,
+  "design": "A done + B done",
+  "T_real": "insulin",
+  "corr_XS": 0.196,
+  "lambda": 1.26,
+  "note": "incumbent: A (in-regime synthetic S/T) + B (fully real, diagnostic)"
+ }
+}
