@@ -16,9 +16,9 @@
 echo "SBATCH START $(date) on $(hostname)  job=$SLURM_JOB_ID"
 cd "/home1/haghim/code 1.1"
 for B in 2.5 5 coupled; do
-  DGP="assets/exp_msmbench/dgp_beta$B.py"
-  OUT="assets/exp_msmbench/msmbench_beta$B.json"
-  if [ "$B" = "coupled" ]; then DGP="assets/exp_msmbench/dgp_coupled.py"; OUT="assets/exp_msmbench/msmbench_beta10.json"; fi
+  DGP="assets/exp_coupled_synth/dgp_beta$B.py"
+  OUT="assets/exp_coupled_synth/coupled_beta$B.json"
+  if [ "$B" = "coupled" ]; then DGP="assets/exp_coupled_synth/dgp.py"; OUT="assets/exp_coupled_synth/coupled_beta10.json"; fi
   python3 assets/run_owgap_lip_gamma_2d.py \
     --dgp "$DGP" --out "$OUT" \
     --n 200 --n-test 4000 --seeds 3 --ceps 1.0 --workers 2 --deploy shapley --gammas 4.95 \
