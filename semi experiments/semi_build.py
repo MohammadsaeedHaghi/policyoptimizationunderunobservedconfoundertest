@@ -270,7 +270,78 @@ experiment (baseline comparability + fully-real outcomes + capacity cap = scarce
 supply is a natural story), keep Mushroom (C) and SUPPORT2 (B/A) as planned, Credit-Default as
 the falsification point; JTPA-D is the capped/resource-allocation variant if a second recipe-D
 slot is wanted.</div>
-<h2>7. Risks and honesty notes</h2>
+<h2>7. FINAL RECOMMENDATION: the three experiments, fully specified</h2>
+<p>Combining the smoke tests (Section 3&ndash;4) with the literature conventions (Section 6):
+three datasets, three different recipes, three different points of the diagnostic map &mdash;
+together they cover baseline comparability, clinical realism, and a real-coupling win.</p>
+
+<div class="card good"><h3>Experiment R1 &mdash; IST (Intl. Stroke Trial), recipe D: fully real
+outcomes, injected confounding</h3>
+<p><b>Why this one:</b> it is the dataset of our direct baseline (Kallus &amp; Zhou run their
+method on IST), outcomes need NO synthesis (both arms are real RCT arms), and a capacity cap has
+a natural reading (scarce anticoagulation/monitoring capacity). Reviewers of this literature
+expect IST; delivering it plus a head-to-head removes the easiest rejection.</p>
+<p><b>Construction.</b> T = aspirin (vs none), Y = 6-month survival/independence (real).
+Hidden S = baseline consciousness (RCONSC: alert vs drowsy/comatose) &mdash; strongly prognostic,
+clinically plausible as "unrecorded". Simulate the observational study by subsampling the RCT
+with P(keep | T, S) calibrated so that (i) the implied selection odds ratio is &Lambda; = 4.95
+(matched-&Gamma; = 5 protocol identical to owgap) and (ii) P(T) &asymp; 0.5. X_obs = age, sex,
+blood pressure, stroke subtype, deficit indicators (consciousness excluded); 1-D pipeline runs
+on a fitted prognostic composite of X_obs, multivariate variant optional.</p>
+<p><b>Evaluation:</b> learned policies scored on a held-out untouched RCT split by arm-matching
+&mdash; fully real ground truth. Regimes: uncapped + capped 30%. <b>Smoke test to run before
+committing:</b> corr(X_obs, S) on IST (expected moderate; wherever it lands, it goes on the
+diagnostic map honestly).</p>
+<p><b>Cost:</b> prepare script + dgp adapter (~1 day), one chained L&times;&Gamma; sweep +
+Kallus &asymp; 2&ndash;3 h.</p></div>
+
+<div class="card good"><h3>Experiment R2 &mdash; SUPPORT2 (UCI 880), recipe B + A: the medical
+headline with real selection</h3>
+<p><b>Why this one:</b> the strongest REAL selection we measured (&Lambda; = 2.59, T = DNR
+order, P(T) = 0.35, n = 9,075), the same SUPPORT cohort family as RHC &mdash; the canonical
+dataset of the MSM-&Gamma; sensitivity literature &mdash; and a story that mirrors owgap's
+mechanism in a real ICU: sicker patients (hidden APS physiology) receive DNR orders and die
+more, so the naive analysis concludes the order itself is lethal.</p>
+<p><b>Construction (two sub-experiments, mirroring the Diabetes pair but stronger).</b>
+<b>R2-B (fully real X, S, T):</b> X_obs = age, sex, disease group, comorbidities, education,
+income; S = APS &gt; median (hidden); T = real DNR order; only Y(0)/Y(1) synthesized, S-dominant
+and calibrated to the real death rates by (S,T) cell. Measured coupling 0.47 puts this in the
+PREDICTED-BOUNDARY band: the honest forecast is a small, &Gamma;-stable O-W edge at matched
+&Gamma; = 2.6 &mdash; a risky, therefore credible, test of the diagnostic.
+<b>R2-A (amplified, in-regime):</b> same real covariate bootstrap; synthetic
+S ~ Bern(&sigma;(B&middot;(x - x0))) calibrated to the real severity rate with strong coupling,
+synthetic T at &Lambda; = 4.95 &mdash; the matched-&Gamma; = 5 showcase on real clinical
+geometry.</p>
+<p><b>Cost:</b> prepare + adapter reuse the Diabetes pattern almost verbatim (~1 day), two
+sweeps &asymp; 4&ndash;5 h chained.</p></div>
+
+<div class="card good"><h3>Experiment R3 &mdash; Mushroom (UCI 73), recipe C: the real-coupling
+near-in-regime point</h3>
+<p><b>Why this one:</b> the highest REAL coupling of any candidate (corr(X_obs, S) = 0.71,
+AUC 0.90) with an almost deterministic S&rarr;Y link (+0.97): odor nearly decides edibility.
+The classification&rarr;policy conversion is standard practice (Dudik et al.; POEM), so the
+construction itself is pre-approved by the literature.</p>
+<p><b>Construction.</b> A forager decided eat/pass by SMELL; the dataset we learn from records
+20 morphological features but not odor. S = foul-class odor (hidden), T = ate,
+Y(eat) = +1 if edible / -5 if poisonous (asymmetric harm; all-eat clearly bad), Y(pass) = 0.
+Logging policy P(eat | X, S) uses S with strength calibrated to &Lambda; = 4.95 given X_obs
+(same calibration recipe as Diabetes-A) &mdash; matched-&Gamma; = 5 protocol intact. 1-D
+pipeline on the fitted edibility composite of X_obs; capped regime = basket budget 30%.
+Real coupling 0.71 sits just below the 0.75 in-regime line: quoted as the near-boundary
+real-coupling point (predicted: clear but not maximal O-W margin); the X-augmented variant
+(+spore-print raises coupling) is the disclosed fallback.</p>
+<p><b>Cost:</b> lightest of the three &mdash; categorical X, n = 8,124, no outcome calibration
+subtleties; adapter + one sweep &asymp; half a day + 2 h.</p></div>
+
+<div class="card"><b>What the trio buys, jointly.</b> Recipe coverage D + B/A + C (no
+construction criticism applies to all three); diagnostic-map coverage at real couplings 0.47
+and 0.71 plus designed &Gamma;=5 points, with Diabetes (0.20) and optionally Credit-Default
+(0.03) anchoring the out-of-regime end; literature coverage &mdash; the baseline's own dataset
+(IST), the sensitivity literature's cohort (SUPPORT), and the bandit-conversion tradition
+(Mushroom). Total new compute &asymp; 9&ndash;12 h of chained 2-worker solver time = one
+overnight run; total build effort &asymp; 2&ndash;3 days.</div>
+
+<h2>8. Risks and honesty notes</h2>
 <div class="card warn"><ul>
 <li><b>Mushroom coupling sits at 0.71</b>, just under the 0.75 in-regime line &mdash; margins may
 be modest; that is scientifically fine (it is the boundary point) but it is not a guaranteed
