@@ -50,7 +50,21 @@ if J:
     body.append("<h2>2. Pilot results (3 seeds)</h2>")
     body.append(surface_block(J, "IST-D"))
     body.append("""
-<div class="card good" id="verdict"><b>Verdict.</b> VERDICT_PLACEHOLDER</div>""")
+<div class="card warn" id="verdict"><b>Verdict.</b> The confounding MECHANISM works exactly as designed (naive effect
+estimate +0.114 vs RCT truth +0.0125), but the pilot returns an honest negative for the
+uncapped VALUE story: total stakes (oracle - never-treat) are 0.016 on this evaluation, and
+every method -- O-W, box-only, and naive alike -- lands within ~0.01 of the oracle
+(DR-O-W 0.377, naive 0.369, never 0.367), differences at or below the Horvitz-Thompson noise
+floor at 3 seeds. Aspirin's real effect is simply too small and too homogeneous for policy
+VALUES to separate methods, no matter the construction. Two genuinely useful findings survive:
+(1) with real bounded 0/1 outcomes the box-only methods do NOT collapse to never-treat --
+worst-case pessimism is bounded when outcomes are non-negative, a methodological observation
+worth one paper sentence; (2) the estimation-level story (robust bounds at matched Gamma cover
+the truth ~0.01 while naive asserts +0.114) is intact and tellable. RECOMMENDATION: demote IST
+from the headline portfolio to an optional comparability/diagnostic experiment; the capped
+variant might create ranking stakes but the binned RCT CATE (max 0.059, noisy) caps the upside.
+If a recipe-D slot is wanted, JTPA (real heterogeneous training effects + the budgeted-EWM
+tradition) is the better host. SUPPORT2 and Mushroom carry the real-data section.</div>""")
 else:
     body.append('<h2>2. Pilot results</h2><p class="muted">Job 10620820 running; rerun this '
                 'builder when it lands.</p>')
