@@ -29,6 +29,10 @@ import numpy as np
 
 GSTAR = 4.95
 BETA = 10.0
+KAPPA = 1.0        # confounder OUTCOME leverage: U-term = -2*KAPPA*(2U-1)*(1+0.5X).
+                   # KAPPA = 1 is the KMZ form (existing coupled_beta*.json results);
+                   # KAPPA ~ 4 makes the confounder dominate the outcome scale (owgap-style),
+                   # which is where the W-term's edge over box-only should open up.
 LEVELS = np.round(np.linspace(-1.0, 1.0, 7), 6)   # vestigial (grid contract only)
 K = 2
 CAP = (1.0, 0.3)
@@ -48,7 +52,7 @@ def propensity(x, S):
 
 def _mu(x, a, S):
     X = 2.0 * np.asarray(x, float); s = 2.0 * a - 1.0
-    return s * X + s - 2.0 * np.sin(2.0 * s * X) - 2.0 * np.asarray(S, float) * (1.0 + 0.5 * X)
+    return s * X + s - 2.0 * np.sin(2.0 * s * X) - 2.0 * KAPPA * np.asarray(S, float) * (1.0 + 0.5 * X)
 
 def mu0(x, S): return _mu(x, 0, S)
 def mu1(x, S): return _mu(x, 1, S)
