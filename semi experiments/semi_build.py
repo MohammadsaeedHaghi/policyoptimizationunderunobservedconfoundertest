@@ -229,7 +229,48 @@ point of its range, not a collection of wins.</p>
 Total &asymp; 4 chained jobs &asymp; one overnight run. All runners and the report pipeline
 already exist; each dataset needs one dgp.py adapter (prepare script + generate() contract),
 &asymp; a day of work each including calibration.</b></div>
-<h2>6. Risks and honesty notes</h2>
+<h2>6. What the related literature uses (verified 2026-07-27)</h2>
+<p>Dataset conventions in the closest lines of work &mdash; confounding-robust policy learning,
+MSM-&Gamma; sensitivity analysis, and budget-constrained (resource-allocation) policy learning:</p>
+<div class="tw"><table>
+<tr><th>paper / line</th><th>dataset</th><th>construction</th><th>public?</th><th>relevance to us</th></tr>
+<tr><td>Kallus &amp; Zhou (NeurIPS'18; Mgmt Sci'21) &mdash; OUR DIRECT BASELINE</td>
+<td><b>IST</b> (Intl. Stroke Trial; 19,435 stroke patients, aspirin/heparin)</td>
+<td>RCT + confounding INJECTED by biased subsampling (recipe D)</td><td>yes (free CSV)</td>
+<td class="g">head-to-head comparability; reviewers of this literature EXPECT IST</td></tr>
+<tr><td>MSM-&Gamma; sensitivity line (Tan'06; Zhao-Small-Bhattacharya'19; Dorn-Guo'22; Dorn-Guo-Kallus DVDS)</td>
+<td><b>RHC</b> (SUPPORT study; 5,735 ICU patients, right-heart catheterization)</td>
+<td>fully observational; &Gamma;-sensitivity reported</td><td>yes (Vanderbilt)</td>
+<td class="g">our SUPPORT2 pick (UCI 880) is the SAME SUPPORT cohort, n=9,075 &mdash; direct lineage</td></tr>
+<tr><td>Budgeted policy learning / EWM (Kitagawa-Tetenov Econometrica'18 &mdash; explicit capacity constraints)</td>
+<td><b>JTPA</b> (job-training RCT)</td>
+<td>RCT; budget/capacity-constrained assignment rules</td><td>yes (Upjohn, registration)</td>
+<td>THE resource-allocation dataset in econometrics; natural home for our capped regime</td></tr>
+<tr><td>DR policy learning (Si-Zhang-Zhou-Blanchet ICML'20; Zhou-Athey-Wager)</td>
+<td><b>GOTV voting</b> (Gerber-Green-Larimer, Michigan 2006; ~180k, 5 mail arms)</td>
+<td>RCT; multi-action policy learning</td><td>yes (Yale ISPS)</td>
+<td>optional multi-arm extension platform</td></tr>
+<tr><td>Sensitivity analysis (Zhao-Small-Bhattacharya)</td><td><b>NHANES</b> (fish consumption &rarr; blood mercury)</td>
+<td>observational + &Gamma;-sensitivity</td><td>yes</td><td>secondary precedent only</td></tr>
+<tr><td>Homeless-services allocation (Kube-Das-Fowler; Rahmattalabi et al.)</td><td>HMIS administrative data</td>
+<td>observational allocation</td><td class="b">NO (restricted)</td><td>motivating citation only</td></tr>
+<tr><td>Classification&rarr;bandit conversions (Dudik et al.; POEM)</td><td>UCI multiclass (covtype, letter, ...)</td>
+<td>supervised&rarr;bandit with designed logging</td><td>yes</td>
+<td>the established precedent for our Mushroom recipe C</td></tr>
+</table></div>
+<div class="card good"><b>Recipe D (gap found by this survey): RCT + designed confounded logging.</b>
+Take a public RCT (IST, JTPA, GOTV); simulate an observational study by SUBSAMPLING it with a
+logging rule that depends on a variable we then hide. Both potential-outcome arms exist in the
+data, so ground truth is FULLY REAL &mdash; no synthetic outcomes at all, the strongest possible
+answer to "you simulated the outcomes." The hidden variable and selection strength are design
+knobs, so the matched-&Gamma; protocol and the coupling diagnostic apply exactly. This is what
+Kallus &amp; Zhou themselves do with IST.
+<br><b>Updated portfolio recommendation:</b> add <b>IST via recipe D</b> as the top new
+experiment (baseline comparability + fully-real outcomes + capacity cap = scarce thrombolysis
+supply is a natural story), keep Mushroom (C) and SUPPORT2 (B/A) as planned, Credit-Default as
+the falsification point; JTPA-D is the capped/resource-allocation variant if a second recipe-D
+slot is wanted.</div>
+<h2>7. Risks and honesty notes</h2>
 <div class="card warn"><ul>
 <li><b>Mushroom coupling sits at 0.71</b>, just under the 0.75 in-regime line &mdash; margins may
 be modest; that is scientifically fine (it is the boundary point) but it is not a guaranteed
