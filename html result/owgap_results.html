@@ -94,7 +94,7 @@ fitness X, unobserved vitality S with P(S=+1|X)=&sigma;(10X); vitality dominates
 (&plusmn;8&ndash;9) while the true treatment effect is a few units and therapy carries a fixed
 burden. One discrete and one continuous experiment, plus real-data validation. The question
 throughout: do the odds-box &cap; Wasserstein (O-W) methods recover the oracle policy where
-naive and box-only methods fail? Built Sun Jul 26 18:03:30 PDT 2026.</p>
+naive and box-only methods fail? Built Sun Jul 26 18:53:18 PDT 2026.</p>
 <div class="chips"><span class="chip ok">Discrete: 20 seeds x 3 budgets DONE</span><span class="chip ok">Continuous L x Gamma (Shapley): DONE</span><span class="chip ok">Coupling sweep: DONE</span><span class="chip ok">Diabetes A/B: DONE</span></div>
 </div>
 <div class="tiles">
@@ -348,6 +348,28 @@ for the BIAS. The L &times; &Gamma; surface shows both.</p>
 <p class="muted">Best overall: DoublyRobust-O-W at &Gamma;=8, L=3 &rarr;
 0.548. The full seed-0 policy curve for EVERY (&Gamma;, L) cell of this surface is
 shown in Section 2 below.</p>
+<div class="card"><b>Why DR is less damaged than IPW at L=&infin; (and why neither survives).</b>
+With per-unit &pi; and no Lipschitz coupling, the IPW score for unit i is that unit's own
+inverse-weighted outcome &mdash; one draw of Y whose scale is dominated by the hidden S
+(&plusmn;8&ndash;9), so the per-unit policy tracks the unit's vitality draw, not CATE(x). Two
+symptoms confirm it: the L=&infin; IPW value is
+-0.47 IDENTICALLY across &Gamma;=1&ndash;8 and across
+IPW-O-X / Hajek-O-X / IPW-O-W &mdash; box, self-normalization, and even the W constraint change
+nothing, because with one observation per variable there is no pooled mass for the uncertainty
+machinery to act on &mdash; and it sits below never-treat
+(+0.02): deployment turns the 0/1 speckle into a mid-band mixture that
+partially treats the frail region. The AIPW score instead anchors each unit on
+&mu;&#770;<sub>1</sub>(X<sub>i</sub>) - &mu;&#770;<sub>0</sub>(X<sub>i</sub>), a cross-fit
+regression pooled over all N points, and the adversarial weight multiplies only the residual
+Y<sub>i</sub> - &mu;&#770;(X<sub>i</sub>) rather than the raw outcome &mdash; less noise and
+less adversarial leverage per decision &mdash; hence
+-0.07 instead of
+-0.47. But pooling the SCORE is not pooling the
+POLICY: per-unit residual wiggles still flip decisions, deployment mixes them, and
+&mu;&#770;'s pooled signal carries the naive bias exactly in the confounded band &mdash; so
+DR at L=&infin; is still below never-treat. Division of labor:
+&mu;&#770;/DR pools information, L pools the policy, &Gamma;&cap;W fixes the bias; only cells
+with all three reach &asymp;0.55.</div>
 <h3>Transport-budget ablation: c<sub>&epsilon;</sub> &isin; {{1.0, 1.5, 2.0}}</h3>
 <p>The same 8-seed L &times; &Gamma; sweep at all three Wasserstein budgets, mirroring the
 discrete suite's ablation. &epsilon; enters only the O-W methods (the box-only O-X columns are
@@ -575,8 +597,7 @@ for (const k of Object.keys(PD)) pwDraw(k);
 </script>
 
 <h2 id="s-status">Compute status at build time</h2>
-<p class="mono" style="white-space:pre-wrap">10608158 owgap_rebuild RUNNING
-10607694 ood/jupyter RUNNING</p>
+<p class="mono" style="white-space:pre-wrap">10607694 ood/jupyter RUNNING</p>
 <div class="tw"><table>
 <tr><th>job</th><th>what</th><th>state</th></tr>
 <tr><td>10571980</td><td>alpha sweep (5 DGPs, 8 seeds)</td><td>DONE</td></tr>

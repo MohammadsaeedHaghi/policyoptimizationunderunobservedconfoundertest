@@ -1086,7 +1086,29 @@ for the BIAS. The L &times; &Gamma; surface shows both.</p>
 {linechart(sL2, title="v2 slice at Gamma=%s: the effect of L" % bo2["gamma"], xlab="L index: 0=inf ... 7=0.5", ylab="test E[Y]", hlines=[("oracle", "#111", C2DV2["oracle"], "5 4"), ("naive DR", MC["DoublyRobust-X-X"], nd if nd is not None else 0.0, "6 3"), ("never-treat", "#888", C2DV2["never_treat"], "2 3")], xticks=list(range(len(Lk2))))}
 <p class="muted">Best overall: {bo2['method']} at &Gamma;={bo2['gamma']}, L={bo2['L']} &rarr;
 {bo2['value']:.3f}. The full seed-0 policy curve for EVERY (&Gamma;, L) cell of this surface is
-shown in Section 2 below.</p>""")
+shown in Section 2 below.</p>
+<div class="card"><b>Why DR is less damaged than IPW at L=&infin; (and why neither survives).</b>
+With per-unit &pi; and no Lipschitz coupling, the IPW score for unit i is that unit's own
+inverse-weighted outcome &mdash; one draw of Y whose scale is dominated by the hidden S
+(&plusmn;8&ndash;9), so the per-unit policy tracks the unit's vitality draw, not CATE(x). Two
+symptoms confirm it: the L=&infin; IPW value is
+{C2DV2['surface']['IPW-O-W']['4']['inf']:+.2f} IDENTICALLY across &Gamma;=1&ndash;8 and across
+IPW-O-X / Hajek-O-X / IPW-O-W &mdash; box, self-normalization, and even the W constraint change
+nothing, because with one observation per variable there is no pooled mass for the uncertainty
+machinery to act on &mdash; and it sits below never-treat
+({C2DV2['never_treat']:+.2f}): deployment turns the 0/1 speckle into a mid-band mixture that
+partially treats the frail region. The AIPW score instead anchors each unit on
+&mu;&#770;<sub>1</sub>(X<sub>i</sub>) - &mu;&#770;<sub>0</sub>(X<sub>i</sub>), a cross-fit
+regression pooled over all N points, and the adversarial weight multiplies only the residual
+Y<sub>i</sub> - &mu;&#770;(X<sub>i</sub>) rather than the raw outcome &mdash; less noise and
+less adversarial leverage per decision &mdash; hence
+{C2DV2['surface']['DoublyRobust-O-W']['8']['inf']:+.2f} instead of
+{C2DV2['surface']['IPW-O-W']['4']['inf']:+.2f}. But pooling the SCORE is not pooling the
+POLICY: per-unit residual wiggles still flip decisions, deployment mixes them, and
+&mu;&#770;'s pooled signal carries the naive bias exactly in the confounded band &mdash; so
+DR at L=&infin; is still below never-treat. Division of labor:
+&mu;&#770;/DR pools information, L pools the policy, &Gamma;&cap;W fixes the bias; only cells
+with all three reach &asymp;0.55.</div>""")
 else:
     T["cont"].append("""
 <h2 id="s-v2cont">2. v2 continuous: L &times; &Gamma; on the showcase DGP (running)</h2>
