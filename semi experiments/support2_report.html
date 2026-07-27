@@ -1,0 +1,68 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SUPPORT2 pilot (recipes B + A)</title><style>
+:root{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+@media (prefers-color-scheme: dark){:root{--bg:#0e1420;--surface:#161d2b;--fg:#e6eaf2;--muted:#93a0b4;
+ --border:#263043;--accent:#9fb2c9;--accent-soft:#1d2636;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--sh:0 6px 18px rgba(0,0,0,.35);}}
+:root[data-theme="dark"]{--bg:#0e1420;--surface:#161d2b;--fg:#e6eaf2;--muted:#93a0b4;--border:#263043;
+ --accent:#9fb2c9;--accent-soft:#1d2636;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--sh:0 6px 18px rgba(0,0,0,.35);}
+:root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);
+ color:var(--fg);margin:0 auto;max-width:980px;padding:0 22px 80px;line-height:1.6;}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;}
+.hero{color:#fff;border-radius:20px;padding:26px 30px;margin:18px 0 20px;box-shadow:var(--sh);}
+.hero h1{margin:0;font-weight:800;letter-spacing:-.03em;font-size:1.6rem;}
+.hero p{margin:.5rem 0 0;color:#e3e8f0;max-width:840px;}
+h2{font-size:1.28rem;font-weight:750;margin:34px 0 6px;} h3{font-size:1.0rem;font-weight:700;margin:18px 0 4px;}
+p{margin:.5rem 0;} .muted{color:var(--muted);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 18px;margin:12px 0;box-shadow:var(--sh);}
+.good{border-left:4px solid var(--good);} .warn{border-left:4px solid var(--warn);} .bad{border-left:4px solid var(--bad);}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-variant-numeric:tabular-nums;font-size:.88rem;}
+.tw{overflow-x:auto;}
+th{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 9px;border-bottom:2px solid var(--border);}
+th:first-child,td:first-child{text-align:left;} td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right;}
+td.g{color:var(--good);font-weight:700;} td.b{color:var(--bad);font-weight:700;}
+.fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 4px;}
+.figrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;}
+svg.chart{width:100%;height:auto;display:block;}
+.ct{font-size:12.5px;font-weight:700;fill:var(--fg);} .tk{font-size:10px;fill:var(--muted);}
+.al{font-size:11px;fill:var(--muted);font-weight:600;} .hm{font-size:8.6px;font-weight:600;}
+.grid{stroke:var(--border);stroke-width:1;} .ax{stroke:var(--muted);stroke-width:1.2;}
+.figcap{font-size:.8rem;line-height:1.5;margin:4px 4px 14px;}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
+.li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
+</style></head><body><div class="hero" style="background:radial-gradient(130% 150% at 0% 0%,#2d4a5e 0%,#1f3a55 46%,#0c1a30 100%)"><h1>SUPPORT2 pilot &mdash; hidden severity in a real ICU cohort</h1>
+<p>Experiment R2. SUPPORT2 (UCI 880; the SUPPORT study cohort family, like the RHC dataset of
+the MSM-&Gamma; sensitivity literature): 9,075 seriously ill hospitalized adults. Hidden
+confounder S = APS physiology score &gt; median; T = the REAL DNR order (P = 0.352); x = the
+observable "apparent severity" composite (CV S-proxy score, rank-uniform; corr(x, S) = 0.459).
+Two sub-experiments: B keeps the real (x, S, T) at the measured matched &Lambda; = 2.20 &mdash;
+the PREDICTED-BOUNDARY test of the coupling diagnostic; A amplifies to &Lambda; = 4.95 with
+synthetic S/T on the same real covariates &mdash; the in-regime showcase. Outcomes synthetic in
+both (severity-dominant, K/G/D/TH = 3/1.5/1/0.3), calibrated story: sicker patients receive DNR
+orders and die more, so the naive analysis concludes the order itself is lethal.</p></div>
+<h2>1. Construction facts (all measured)</h2>
+<div class="tw"><table>
+<tr><th>quantity</th><th>value</th><th>meaning</th></tr>
+<tr><td>corr(x, S) on the 1-D composite</td><td>0.459</td><td>predicted-boundary coupling (alpha-sweep band 0.55-0.75 is above, 0.47 just below)</td></tr>
+<tr><td>matched &Lambda; (B, real DNR)</td><td>2.20</td><td>the honest matched-&Gamma; for experiment B</td></tr>
+<tr><td>real death rates by (S, T)</td><td>0.55/0.88 (S=0), 0.56/0.94 (S=1)</td><td>DNR patients die far more &mdash; the naive story</td></tr>
+<tr><td>B reference values</td><td>oracle 0.407 | naive-binned 0.327 | never 0.008 | all -0.306</td><td>boundary-sized stakes, as the diagnostic predicts</td></tr>
+<tr><td>A reference values</td><td>oracle 0.801 | never 0.053 | all -0.280</td><td>in-regime stakes at &Lambda;=4.95</td></tr>
+</table></div>
+<div class="card warn"><b>Disclosed design choices.</b> (1) The 1-D composite is the S-proxy
+direction (a clinician's observable severity impression); a death-risk composite measured
+corr(x, S) = -0.07 &mdash; sociodemographic mortality risk is orthogonal to APS &mdash; and was
+rejected because it silently turns R2 into a deep out-of-regime experiment. (2) Real
+within-treatment S &rarr; death is weak (+0.01/+0.07); the synthetic outcomes make severity
+dominant BY DESIGN &mdash; the realism claims of B are the treatment decision, the coupling,
+and the covariate geometry, not the outcome scale. (3) Expectation declared before the run:
+B should show a SMALL, &Gamma;-stable O-W edge at matched &Gamma; &asymp; 2 (boundary regime);
+a large win would actually be suspicious.</div>
+<h2>2. Experiment B results: fully real (x, S, T), matched &Gamma; = 2.2</h2><p class="muted">Job 10620864 (chained after the IST pilot); rerun this builder when it lands.</p><h2>3. Experiment A results: amplified &Lambda; = 4.95 on real covariates</h2><p class="muted">Second half of job 10620864; rerun this builder when it lands.</p>
+<h2>4. Files</h2>
+<p class="muted mono">assets/exp_support2/: prepare_support2.py, support2_prepared.npz, dgp_b.py,
+dgp_a.py, s2b/s2a_lip_gamma_2d_pilot.json | scripts/sbatch_support2_pilot.sh | raw data cached in
+/scratch1/haghim/uci_cache/support2_*.pkl</p></body></html>

@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>IST pilot (recipe D)</title><style>
+:root{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+@media (prefers-color-scheme: dark){:root{--bg:#0e1420;--surface:#161d2b;--fg:#e6eaf2;--muted:#93a0b4;
+ --border:#263043;--accent:#9fb2c9;--accent-soft:#1d2636;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--sh:0 6px 18px rgba(0,0,0,.35);}}
+:root[data-theme="dark"]{--bg:#0e1420;--surface:#161d2b;--fg:#e6eaf2;--muted:#93a0b4;--border:#263043;
+ --accent:#9fb2c9;--accent-soft:#1d2636;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--sh:0 6px 18px rgba(0,0,0,.35);}
+:root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);
+ color:var(--fg);margin:0 auto;max-width:980px;padding:0 22px 80px;line-height:1.6;}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;}
+.hero{color:#fff;border-radius:20px;padding:26px 30px;margin:18px 0 20px;box-shadow:var(--sh);}
+.hero h1{margin:0;font-weight:800;letter-spacing:-.03em;font-size:1.6rem;}
+.hero p{margin:.5rem 0 0;color:#e3e8f0;max-width:840px;}
+h2{font-size:1.28rem;font-weight:750;margin:34px 0 6px;} h3{font-size:1.0rem;font-weight:700;margin:18px 0 4px;}
+p{margin:.5rem 0;} .muted{color:var(--muted);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 18px;margin:12px 0;box-shadow:var(--sh);}
+.good{border-left:4px solid var(--good);} .warn{border-left:4px solid var(--warn);} .bad{border-left:4px solid var(--bad);}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-variant-numeric:tabular-nums;font-size:.88rem;}
+.tw{overflow-x:auto;}
+th{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 9px;border-bottom:2px solid var(--border);}
+th:first-child,td:first-child{text-align:left;} td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right;}
+td.g{color:var(--good);font-weight:700;} td.b{color:var(--bad);font-weight:700;}
+.fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 4px;}
+.figrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;}
+svg.chart{width:100%;height:auto;display:block;}
+.ct{font-size:12.5px;font-weight:700;fill:var(--fg);} .tk{font-size:10px;fill:var(--muted);}
+.al{font-size:11px;fill:var(--muted);font-weight:600;} .hm{font-size:8.6px;font-weight:600;}
+.grid{stroke:var(--border);stroke-width:1;} .ax{stroke:var(--muted);stroke-width:1.2;}
+.figcap{font-size:.8rem;line-height:1.5;margin:4px 4px 14px;}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
+.li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
+</style></head><body><div class="hero" style="background:radial-gradient(130% 150% at 0% 0%,#5b3a5e 0%,#462d55 46%,#1d1030 100%)"><h1>IST pilot &mdash; recipe D: real RCT outcomes, injected confounding</h1>
+<p>Experiment R1. International Stroke Trial (Edinburgh DataShare, open licence): 19,285 usable
+patients, T = randomized aspirin (P = 0.500 exactly), Y = REAL favorable 6-month outcome
+(OCCODE &ge; 3) &mdash; no outcome synthesis anywhere. Hidden confounder S = fully alert at
+baseline (RCONSC); confounding injected by biased subsampling of the RCT at
+&Lambda; = 4.95 (fitted check: 5.30) &mdash; the same matched-&Gamma; = 5 protocol as the
+synthetic showcase. Evaluation: Horvitz-Thompson pseudo-outcomes on an untouched 7,568-patient
+RCT test split (unbiased since P(T) = 1/2).</p></div>
+<h2>1. Construction facts (all measured)</h2>
+<div class="tw"><table>
+<tr><th>quantity</th><th>value</th><th>meaning</th></tr>
+<tr><td>real aspirin effect (full RCT)</td><td>+0.0125</td><td>the true average effect is TINY</td></tr>
+<tr><td>naive apparent effect (confounded pool)</td><td>+0.114</td><td>9x inflation from the injected selection</td></tr>
+<tr><td>corr(X_obs, S) / AUC</td><td>0.567 / 0.861</td><td>upper-boundary coupling (between SUPPORT2 0.47 and Mushroom 0.71)</td></tr>
+<tr><td>S &rarr; Y shift</td><td>+0.336</td><td>consciousness is strongly prognostic</td></tr>
+<tr><td>fitted &Lambda; in kept pool</td><td>5.30 (target 4.95)</td><td>matched &Gamma; = 5 protocol verified</td></tr>
+<tr><td>reference values (HT, test split)</td><td>never 0.354 | all 0.386 | oracle 0.387</td>
+<td>aspirin mildly good for ~everyone &rarr; uncapped stakes = robustness WITHOUT paralysis</td></tr>
+</table></div>
+<div class="card"><b>What "promising" means here (declared before the run).</b> Because the real
+effect is small and homogeneous, naive's inflated enthusiasm is DIRECTIONALLY right uncapped, so
+no method can beat the oracle by much. The pilot's questions: (1) do the O-W methods HOLD near
+the all-treat/oracle value (&asymp;0.386) at the matched &Gamma;=5 while box-only / Hajek
+collapse toward never-treat (0.354)? &mdash; a ~+0.03 "robustness without paralysis" margin on
+fully real outcomes; (2) is the L &times; &Gamma; surface sane on real data? The follow-up with
+real value stakes is the CAPPED variant (allocating scarce aspirin by a distorted ranking),
+not run in this pilot.</div>
+<h2>2. Pilot results</h2><p class="muted">Job 10620820 running; rerun this builder when it lands.</p>
+<h2>3. Files</h2>
+<p class="muted mono">assets/exp_ist/: prepare_ist.py, ist_prepared.npz, dgp.py,
+ist_lip_gamma_2d_pilot.json | scripts/sbatch_ist_pilot.sh | raw CSV cached in
+/scratch1/haghim/uci_cache/IST_corrected.csv</p></body></html>
