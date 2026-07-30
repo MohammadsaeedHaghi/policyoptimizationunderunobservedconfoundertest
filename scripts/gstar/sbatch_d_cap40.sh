@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=d_cap40
+#SBATCH --partition=main
+#SBATCH --account=vayanou_651
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=5
+#SBATCH --mem=8G
+#SBATCH --time=3:00:00
+#SBATCH --output=/home1/haghim/gstar_d_cap40_%j.out
+# exp_gstar campaign wave job (cluster token license -- no WLS, no chaining).
+echo "SBATCH START $(date) on $(hostname)  job=$SLURM_JOB_ID"
+module load gurobi/12.0.3
+echo "GRB_LICENSE_FILE=$GRB_LICENSE_FILE"
+cd "/home1/haghim/code 1.1"
+python3 assets/run_experiment_parallel.py --dgp assets/exp_gstar/dgp_cap40.py --out assets/exp_gstar/gstar_cap40_ce1.0.json --n 600 --seeds 5 --gammas 1,1.5,2,2.5,3,4,5,6,8 --regimes cap --ceps 1.0 --workers 5 --threads 1 \
+  && echo "GSTAR_D_CAP40_DONE $(date)"
+echo "SBATCH END $(date)"
