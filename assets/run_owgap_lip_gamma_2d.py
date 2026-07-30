@@ -25,7 +25,7 @@ _W = {}
 def _load(rel, fn):
     s = importlib.util.spec_from_file_location(fn, str(ROOT / rel)); m = importlib.util.module_from_spec(s); sys.modules[fn] = m; s.loader.exec_module(m); return getattr(m, fn)
 
-def _init(dgp_path, gammas=None):
+def _init(dgp_path, gammas=None, capped=False):
     global GAMMAS
     if gammas is not None: GAMMAS = list(gammas)
     import common; _W["common"] = common
@@ -33,13 +33,15 @@ def _init(dgp_path, gammas=None):
     from shapley import extend_with_shapley, extract_support
     _W["shp"] = extend_with_shapley; _W["extract"] = extract_support
     sp = importlib.util.spec_from_file_location("dgpmod", dgp_path); d = importlib.util.module_from_spec(sp); sp.loader.exec_module(d); _W["dgp"] = d
+    suf, Cap = ("capped", "Capped") if capped else ("uncapped", "Uncapped")
     S = {}
-    S["IPW-O-X"] = _load("methods/IPW-O-X/Uncapped/ipw_o_x_uncapped.py", "solve_ipw_o_x_uncapped")
-    S["DoublyRobust-O-X"] = _load("methods/DoublyRobust-O-X/Uncapped/doublyrobust_o_x_uncapped.py", "solve_doublyrobust_o_x_uncapped")
-    S["Hajek-O-X"] = _load("methods/Hajek-O-X/Uncapped/hajek_o_x_uncapped.py", "solve_hajek_o_x_uncapped")
-    S["IPW-O-W"] = _load("methods/IPW-O-W/Uncapped/ipw_o_w_uncapped.py", "solve_ipw_o_w_uncapped")
-    S["DoublyRobust-O-W"] = _load("methods/DoublyRobust-O-W/Uncapped/doublyrobust_o_w_uncapped.py", "solve_doublyrobust_o_w_uncapped")
+    S["IPW-O-X"] = _load("methods/IPW-O-X/%s/ipw_o_x_%s.py" % (Cap, suf), "solve_ipw_o_x_%s" % suf)
+    S["DoublyRobust-O-X"] = _load("methods/DoublyRobust-O-X/%s/doublyrobust_o_x_%s.py" % (Cap, suf), "solve_doublyrobust_o_x_%s" % suf)
+    S["Hajek-O-X"] = _load("methods/Hajek-O-X/%s/hajek_o_x_%s.py" % (Cap, suf), "solve_hajek_o_x_%s" % suf)
+    S["IPW-O-W"] = _load("methods/IPW-O-W/%s/ipw_o_w_%s.py" % (Cap, suf), "solve_ipw_o_w_%s" % suf)
+    S["DoublyRobust-O-W"] = _load("methods/DoublyRobust-O-W/%s/doublyrobust_o_w_%s.py" % (Cap, suf), "solve_doublyrobust_o_w_%s" % suf)
     _W["S"] = S
+    _W["kw0"] = {"cap": tuple(float(c) for c in d.CAP)} if capped else {}
 
 PGRID = np.linspace(-1.0, 1.0, 41)   # fixed eval grid for saved policy curves (seed 0)
 
@@ -84,12 +86,13 @@ def solve_job(job):
     pol = {m: {gk: {} for gk in Gk} for m in METHODS}
     sup = {m: {gk: {} for gk in Gk} for m in METHODS}
     Pg = PGRID.reshape(-1, 1)
+    kw0 = _W["kw0"]
     def call(m, g, L):
-        if m == "IPW-O-X": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
-        if m == "DoublyRobust-O-X": return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, lipschitz=L)
-        if m == "Hajek-O-X": return S[m](X, T, Y, wraw, n_arms=K, Gamma=g, maximize=True, discretize=False, lipschitz=L)
-        if m == "IPW-O-W": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, lipschitz=L)
-        return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, lipschitz=L)
+        if m == "IPW-O-X": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, lipschitz=L, **kw0)
+        if m == "DoublyRobust-O-X": return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, lipschitz=L, **kw0)
+        if m == "Hajek-O-X": return S[m](X, T, Y, wraw, n_arms=K, Gamma=g, maximize=True, discretize=False, lipschitz=L, **kw0)
+        if m == "IPW-O-W": return S[m](X, T, Y, w, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, lipschitz=L, **kw0)
+        return S[m](X, T, Y, w, mu, n_arms=K, Gamma=g, discretize=False, zscore=False, epsilon=eps, lipschitz=L, **kw0)
     for m in METHODS:
         for g in GAMMAS:
             for L, lk in zip(LGRID, Lkeys):
@@ -120,6 +123,8 @@ def main():
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--k", type=int, default=50)
     ap.add_argument("--ceps", type=float, default=1.0); ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--dgp", default=DGP_PATH, help="path to a DGP module (default: exp_owgap_cont)")
+    ap.add_argument("--cap", action="store_true",
+                    help="capped regime: load the Capped solvers and pass cap=d.CAP")
     ap.add_argument("--gammas", default=None,
                     help="comma-separated Gamma grid override (e.g. '4.95' when the true "
                          "Gamma* is known by construction and no sweep is needed)")
@@ -134,7 +139,7 @@ def main():
     jobs = [(sd, a.n, a.ntest, a.k, a.ceps, a.deploy) for sd in seeds]
     print("L×Γ 2-D (%d methods): N=%d Nte=%d seeds=%d gammas=%s Ls=%s workers=%d deploy=%s dgp=%s" % (len(METHODS), a.n, a.ntest, a.seeds, Gk, Lkeys, a.workers, a.deploy, a.dgp), flush=True)
     t0 = time.time()
-    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(str(Path(a.dgp).resolve()), GAMMAS)) as pool:
+    with mp.get_context("spawn").Pool(a.workers, initializer=_init, initargs=(str(Path(a.dgp).resolve()), GAMMAS, a.cap)) as pool:
         res = pool.map(solve_job, jobs)
     surface = {m: {gk: {lk: round(float(np.nanmean([o[m][gk][lk] for _, o, _, _, _ in res])), 4) for lk in Lkeys} for gk in Gk} for m in METHODS}
     oracle = round(float(np.mean([r["oracle"] for _, _, r, _, _ in res])), 4)
@@ -152,7 +157,13 @@ def main():
         bg, bl, bv = max(cells, key=lambda t: t[2]) if cells else ("", "", float("nan"))
         best[m] = {"gamma": bg, "L": bl, "value": bv}
     bm = max(METHODS, key=lambda m: best[m]["value"])
+    dcap = None
+    if a.cap:
+        sp0 = importlib.util.spec_from_file_location("dgptag", str(Path(a.dgp).resolve()))
+        d0 = importlib.util.module_from_spec(sp0); sp0.loader.exec_module(d0)
+        dcap = tuple(float(c) for c in d0.CAP)
     out = {"N_train": a.n, "N_test": a.ntest, "seeds": seeds, "k": a.k, "deploy": a.deploy,
+           "regime": "cap" if a.cap else "uncap", "cap": dcap,
            "methods": METHODS, "gammas": Gk, "Lgrid": Lkeys,
            "oracle": oracle, "never_treat": never, "all_treat": all_treat, "naive_dr": naive_dr,
            "dgp": str(Path(a.dgp).resolve()), "policy_grid": PGRID.tolist(), "policies_seed0": policies,

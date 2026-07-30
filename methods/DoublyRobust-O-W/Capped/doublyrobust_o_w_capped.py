@@ -81,6 +81,7 @@ def solve_doublyrobust_o_w_capped(
     epsilon: Optional[Sequence[float]] = None,
     rounding_digits: int = 6,
     debug: bool = False,
+    lipschitz=None,
 ) -> ROWDoublyRobustResult:
     """Solve the CAPPED R-OW-DoublyRobust dual LP and return the optimal policy + duals.
 
@@ -163,6 +164,12 @@ def solve_doublyrobust_o_w_capped(
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- policy constraints: simplex, tie, CAPACITY ---
+    if lipschitz is not None:                              # L-Lipschitz policy class (1-D: consecutive sorted pairs)
+        _o = np.argsort(np.asarray(support_X).ravel()); _xs = np.asarray(support_X).ravel()[_o]
+        for _a in range(n - 1):
+            _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
+            m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+            m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
     for i in range(n):                                        # each unit's policy is a distribution
         m.addConstr(gp.quicksum(pi[k, i] for k in range(K)) == 1.0, name=f"simplex_{i}")
     for g in groups:                                         # tie the policy across same-cell units
