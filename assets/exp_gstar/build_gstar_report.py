@@ -31,6 +31,9 @@ KAL = J("gstar_kallus.json")
 C = {ce: J(f"gstar_cont_uncap_ce{ce}.json") for ce in ("1.0", "1.5", "2.0")}
 CCAP = J("gstar_cont_cap30_ce1.0.json")
 KALC = J("gstar_kallus_cont.json")
+SHARP = J("gstar_sharp.json")
+SHARPC = J("gstar_sharp_cont.json")
+MC["SharpIPW-O-X"] = "#9467bd"   # sharp box-only: purple, box-set dash/marker via the O-X suffix
 GS = 5.0
 MORDER = ["IPW-O-W", "DoublyRobust-O-W", "DoublyRobust-X-X", "DoublyRobust-O-X",
           "IPW-X-X", "IPW-O-X", "Hajek-O-X", "Direct-X-X"]
@@ -156,6 +159,9 @@ if R0:
     for reg, lab, orc in (("uncap", "Uncapped (oracle 0.847)", 0.847), ("cap", "Capped 30% (capped oracle 0.727)", 0.727)):
         mu = R0["regimes"][reg]["mean"]
         s = [ser(m, gam, mu[m]) for m in MORDER if m in mu]
+        if SHARP:
+            s.append(ser("SharpIPW-O-X", SHARP["gammas"], SHARP["regimes"][reg]["mean"]["SharpIPW-O-X"],
+                         lab="Sharp-O-X"))
         if reg == "uncap" and KAL:
             s.append(ser("Kallus", KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
         figs.append(vline_chart(s, "Average test outcome vs Gamma -- " + lab, "exact E[Y]",
@@ -169,9 +175,11 @@ if R0:
             mu = Rce["regimes"][reg]["mean"]
             nv = max(mu["DoublyRobust-X-X"][0], mu["IPW-X-X"][0], mu["Direct-X-X"][0])
             ow = max(mu["IPW-O-W"][gce], mu["DoublyRobust-O-W"][gce])
-            rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}, {reg}</td><td>{nv:.3f}</td>"
+            sh = SHARP["regimes"][reg]["mean"]["SharpIPW-O-X"][SHARP["gammas"].index(5.0)] if SHARP else float("nan")
+            rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}, {reg}</td><td>{nv:.3f}</td><td>{sh:.3f}</td>"
                         f"<td>{mu['IPW-O-W'][gce]:.3f}</td><td>{mu['DoublyRobust-O-W'][gce]:.3f}</td>"
-                        f"<td class='g'>{ow - nv:+.3f}</td></tr>")
+                        f"<td class='g'>{ow - nv:+.3f}</td>"
+                        f"<td class='{'g' if ow - sh > 0 else 'b'}'>{ow - sh:+.3f}</td></tr>")
     mu_c = R0["regimes"]["cap"]["mean"]
     nvc = max(mu_c["DoublyRobust-X-X"][0], mu_c["IPW-X-X"][0], mu_c["Direct-X-X"][0])
     cap_rows = [f"<tr><td>30% (main)</td><td>{nvc:.3f}</td><td>{mu_c['IPW-O-W'][gi]:.3f}</td>"
@@ -213,6 +221,13 @@ if R0:
             gks = [k for k in pbs[m][seeds[0]]]
             disc_pol[reg][m] = {gk: [float(np.mean([pbs[m][s][gk][j] for s in seeds]))
                                      for j in range(len(R0["grid"]))] for gk in gks}
+    if SHARP:
+        for reg in ("uncap", "cap"):
+            pbss = SHARP["regimes"][reg]["policy_by_seed"]["SharpIPW-O-X"]
+            seeds = [k for k in pbss if k.isdigit()]
+            disc_pol[reg]["SharpIPW-O-X"] = {gk: [float(np.mean([pbss[s][gk][j] for s in seeds]))
+                                                  for j in range(len(R0["grid"]))]
+                                             for gk in pbss[seeds[0]]}
     if KAL:
         pbsk = KAL["regimes"]["uncap"]["policy_by_seed"]["Kallus"]
         seeds = [k for k in pbsk if k.isdigit()]
@@ -225,7 +240,7 @@ if R0:
     PD["disc"] = {"kind": "disc", "grid": [float(x) for x in R0["grid"]],
                   "gammas": [k for k in disc_pol["uncap"]["IPW-O-W"]],
                   "regimes": ["uncap", "cap"],
-                  "methods": MORDER + (["Kallus"] if KAL else []), "pol": disc_pol,
+                  "methods": MORDER + (["SharpIPW-O-X"] if SHARP else []) + (["Kallus"] if KAL else []), "pol": disc_pol,
                   "refs": {"oracle_uncap": [0.0 if c_ <= 0 else 1.0 for c_ in gt["cate"]],
                            "oracle_cap": cap_orc}}
     T2.append(f"""
@@ -238,9 +253,23 @@ peak far below naive (uncapped best {max(mu_u['IPW-O-X'][gi], mu_u['DoublyRobust
 Kallus collapses to never-treat by &Gamma; &asymp; 2.5. The O-W curves are FLAT across
 &Gamma; = 2&ndash;8: robustness to misspecifying the sensitivity level, on top of winning at
 the true one.</div>
-<h3>Values at &Gamma;&#9733; = 5, all transport budgets</h3>
+<div class="card warn"><b>The sharp-box test (the strongest available box-only baseline;
+Dorn-Guo-style sharp MSM bounds, closed-form, added deliberately as the hardest referee
+question).</b> Two-sided result, reported in full. UNCAPPED: the sharp score never flips any
+level's treatment sign, so Sharp-O-X is FLAT at 0.704 for every &Gamma; &mdash; exactly the
+infinite-data naive value: <b>sharpness removes the box's pessimism but inherits naive's bias;
+the ranking inversion at X=0 survives sharpening</b>, and only the W constraint fixes it
+(IPW-O-W 0.772, +0.068 over sharp, +0.152 over realized naive). CAPPED at the flagged
+&Gamma;&#9733;=5: the sharp greedy ranking is genuinely strong (0.479) and BEATS IPW-O-W
+(0.424) there; O-W overtakes from &Gamma; &ge; 6 (0.527 at &Gamma;=8) and wins every other
+cell of the campaign. We report this openly: it says the productive comparison is not
+sharp-vs-W but sharp-AND-W &mdash; the sharpness constraints are linear in the adversary's
+weights and can be added to the O-W program; we flag Sharp-O-W as the natural extension.</div>
+<h3>Values at &Gamma;&#9733; = 5, all transport budgets (Sharp-O-X is &epsilon;-free; its
+column repeats across budgets)</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>best naive</th><th>IPW-O-W</th><th>DR-O-W</th><th>O-W margin</th></tr>
+<tr><th>setting</th><th>best naive</th><th>Sharp-O-X</th><th>IPW-O-W</th><th>DR-O-W</th>
+<th>O-W vs naive</th><th>O-W vs Sharp</th></tr>
 {''.join(rows)}
 </table></div>
 <h3>Cap-budget robustness (at &Gamma;&#9733;)</h3>
@@ -295,6 +324,9 @@ if C0:
                               "CAPPED 30%% IPW-O-W: test E[Y] over Gamma x L (capped oracle %.2f)" % CAP_ORACLE,
                               "Gamma", "Lipschitz L", min(CCAP["never_treat"], -0.5), CAP_ORACLE, W=560, H=280))
     sl_u = [ser(m, gl, [C0["surface"][m][g]["3"] for g in Gk]) for m in C0["methods"]]
+    if SHARPC:
+        sl_u.append(ser("SharpIPW-O-X", [float(g) for g in SHARPC["gammas"]],
+                        SHARPC["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (binned)"))
     if KALC:
         sl_u.append(ser("Kallus", [float(g) for g in KALC["gammas"]], KALC["regimes"]["uncap"]["mean"]["Kallus"]))
     ch_u = vline_chart(sl_u, "UNCAPPED: average test outcome vs Gamma at L = 3", "test E[Y]",
@@ -304,6 +336,9 @@ if C0:
     parts = [ch_u]
     if CCAP:
         sl_c = [ser(m, gl, [CCAP["surface"][m][g]["3"] for g in CCAP["gammas"]]) for m in CCAP["methods"]]
+        if SHARPC:
+            sl_c.append(ser("SharpIPW-O-X", [float(g) for g in SHARPC["gammas"]],
+                            SHARPC["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (binned)"))
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", CAP_ORACLE, "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], CAP_NAIVE, "2 3")],
@@ -316,7 +351,9 @@ if C0:
         bo = Cx["best_overall"]
         ow = max(row["IPW-O-W"], row["DoublyRobust-O-W"]); box = max(row["IPW-O-X"], row["DoublyRobust-O-X"])
         nv = Cx["naive_dr"] if "uncap" in lab else CAP_NAIVE
-        ct_rows.append(f"<tr><td>{lab}</td><td>{nv:.3f}</td>"
+        shreg = "uncap" if "uncap" in lab else "cap"
+        shv = SHARPC["regimes"][shreg]["mean"]["SharpIPW-O-X"][SHARPC["gammas"].index(5.0)] if SHARPC else float("nan")
+        ct_rows.append(f"<tr><td>{lab}</td><td>{nv:.3f}</td><td>{shv:.3f}</td>"
                        f"<td>{row['IPW-O-X']:.3f}</td><td>{row['IPW-O-W']:.3f}</td>"
                        f"<td>{row['DoublyRobust-O-X']:.3f}</td><td>{row['DoublyRobust-O-W']:.3f}</td>"
                        f"<td class='g'>{ow - nv:+.3f}</td>"
@@ -345,7 +382,7 @@ if C0:
 {sv_widgets}
 <h3>At &Gamma;&#9733; = 5, L = 3; margins vs the honest reference per regime</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>naive ref</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
+<tr><th>setting</th><th>naive ref</th><th>Sharp-O-X</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
 <th>O-W margin</th><th>best overall</th></tr>
 {''.join(ct_rows)}
 </table></div>
@@ -356,8 +393,11 @@ Lipschitz port to the capped solvers): against the HONEST capped references &mda
 naive {CAP_NAIVE:.3f}, capped oracle {CAP_ORACLE:.3f} &mdash; the best capped O-W cell reaches
 {(CCAP or {}).get('best_overall', {}).get('value', float('nan')):.3f}
 (IPW-O-W @ &Gamma;8, L1), i.e. +{(CCAP or {}).get('best_overall', {}).get('value', 0) - CAP_NAIVE:.2f}
-over budgeted naive and 67% of the capped oracle. L behaves as in every experiment: L =
-&infin; is &Gamma;-inert and poor, L &asymp; 2&ndash;3 is the sweet spot, L &le; 1 over-smooths.</div>
+over budgeted naive and 67% of the capped oracle. Against the SHARP box baseline (binned, closed-form): O-W leads in both continuous regimes
+&mdash; uncapped 0.549 vs sharp 0.502 at &Gamma;&#9733;, capped 0.420 (best cell) vs sharp
+0.238 (best) &mdash; the smooth-policy setting is where the W term is clearly indispensable
+even against sharp bounds. L behaves as in every experiment: L = &infin; is &Gamma;-inert and
+poor, L &asymp; 2&ndash;3 is the sweet spot, L &le; 1 over-smooths.</div>
 <h2>2. The learned policy vs X (uncapped)</h2>
 <p>First panel: the solver's RAW per-unit policy at the 400 support points (seed 0). Second:
 the Shapley-deployed &pi;(x). Exact at support &mdash; the curve must thread the dots.</p>
