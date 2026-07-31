@@ -1,0 +1,1760 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage[dvipsnames]{xcolor}
+\usepackage{microtype}
+\usepackage{graphicx}
+%\usepackage{subfigure}
+\usepackage{enumitem}
+\usepackage{wrapfig}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{adjustbox}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{pifont}
+% For theorems and such
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{subcaption}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% THEOREMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CUSTOM COMMANDS
+\newcommand*\diff{\mathop{}\!\mathrm{d}}
+%\newcommand{\E}{\mathbb{E}}
+%\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\prob}{\mathbb{P}}
+\newcommand{\indep}{\perp \!\!\! \perp}
+\newcommand{\TODO}[1]{{\color{red}#1}}
+\newcommand{\makeblue}[1]{{\color{blue}#1}}
+\newcommand{\makered}[1]{{\color{red}#1}}
+\usepackage{xspace}
+  \newcommand{\eg}{e.\,g.\xspace}
+  \newcommand{\ie}{i.\,e.\xspace}
+\usepackage{bbm}
+\newcommand{\greentext}[1]{\textcolor{ForestGreen}{#1}}
+\newcommand{\redtext}[1]{\textcolor{BrickRed}{#1}}
+\newcommand{\cmark}{\textcolor{ForestGreen}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{BrickRed}{\ding{55}}}
+
+\newcommand{\q}{F_{x,a}^{-1}}
+\newcommand{\Q}{F_{X,A}^{-1}}
+\newcommand{\Indl}{\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}}}
+\newcommand{\indl}{\mathbbm{1}_{\{y\leq \q({\alpha^+})\}}}
+\newcommand{\Indg}{\mathbbm{1}_{\{Y\geq \q({\alpha^+})\}}}
+\newcommand{\indg}{\mathbbm{1}_{\{y\geq \q({\alpha^+})\}}}
+
+\newcommand{\IndL}{\mathbbm{1}_{\{Y\leq \Q({\alpha^+})\}}}
+\newcommand{\indL}{\mathbbm{1}_{\{y\leq \Q({\alpha^+})\}}}
+\newcommand{\IndG}{\mathbbm{1}_{\{Y\geq \Q({\alpha^+})\}}}
+\newcommand{\indG}{\mathbbm{1}_{\{y\geq \Q({\alpha^+})\}}}
+
+
+\newcommand{\Indlb}{\mathbbm{1}_{\{Y\leq \q({\alpha^-})\}}}
+\newcommand{\indlb}{\mathbbm{1}_{\{y\leq \q({\alpha^-})\}}}
+\newcommand{\Indgb}{\mathbbm{1}_{\{Y\geq \q({\alpha^-})\}}}
+\newcommand{\indgb}{\mathbbm{1}_{\{y\geq \q({\alpha^-})\}}}
+
+\newcommand{\IndLb}{\mathbbm{1}_{\{Y\leq \Q({\alpha^-})\}}}
+\newcommand{\indLb}{\mathbbm{1}_{\{y\leq \Q({\alpha^-})\}}}
+\newcommand{\IndGb}{\mathbbm{1}_{\{Y\geq \Q({\alpha^-})\}}}
+\newcommand{\indGb}{\mathbbm{1}_{\{y\geq \Q({\alpha^-})\}}}
+
+%\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+%\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+
+\newcommand{\f}{\mathbbm{IF}}
+\makeatletter
+\def\ubar#1{\underline{\sbox\tw@{$#1$}\dp\tw@\z@\box\tw@}}
+\makeatother
+
+\newcommand{\stareq}{\mathrel{\stackrel{(*)}{=}}}
+%\newcommand{\Eqref}[1]{Eq.~\eqref{#1}}
+\newcommand{\rebuttal}[1]{\textcolor{black}{#1}}
+%\DeclareMathOperator*{\argmax}{arg\,max}
+%\DeclareMathOperator*{\argmin}{arg\,min}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{Efficient and Sharp Off-Policy Learning under Unobserved Confounding}
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+\author{
+\textbf{Konstantin Hess}\textsuperscript{1,2,*},
+\textbf{Dennis Frauen}\textsuperscript{1,2},
+\textbf{Valentyn Melnychuk}\textsuperscript{1,2},
+\textbf{Stefan Feuerriegel}\textsuperscript{1,2}\\[0.8em]
+\textsuperscript{1}LMU Munich \quad
+\textsuperscript{2}Munich Center for Machine Learning \quad
+%\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\\
+%\footnotetext[1]{Corresponding author: \texttt{k.hess@lmu.de}}
+\textsuperscript{*}{Corresponding author: \texttt{k.hess@lmu.de}}
+}
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+We develop a novel method for personalized off-policy learning in scenarios with unobserved confounding. Thereby, we address a key limitation of standard policy learning: standard policy learning assumes unconfoundedness, meaning that no unobserved factors influence both treatment assignment and outcomes. However, this assumption is often violated, because of which standard policy learning produces biased estimates and thus leads to policies that can be harmful. To address this limitation, we employ causal sensitivity analysis and derive a \emph{semi-parametrically efficient estimator for a sharp bound on the value function under unobserved confounding}. Our estimator has three advantages: (1)~Unlike existing works, our estimator avoids unstable minimax optimization based on inverse propensity weighted outcomes. (2)~Our estimator is semi-parametrically efficient. (3)~We prove that our estimator leads to the {optimal} confounding-robust policy. Finally, we extend our theory to the related task of {policy improvement} under unobserved confounding, i.e., when a baseline policy such as the standard of care is available. We show in experiments with synthetic and real-world data that our method outperforms simple plug-in approaches and existing baselines. Our method is highly relevant for decision-making where unobserved confounding can be problematic, such as in healthcare and public policy.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+Policy learning is crucial in many areas such as healthcare \citep{Feuerriegel.2024,Kraus.2023}, education \citep{Chan.2023}, and public policy \citep{Ladi.2020}. However, collecting data through randomized experiments is often either infeasible or unethical. Instead, methods are needed that use observational data to inform decision-making. Here, we focus on \emph{off-policy learning} to optimize decision policies from observational data \citep{Athey.2021}.
+
+
+The reliability of standard off-policy learning is compromised when \emph{unobserved confounding} is present \citep{Kallus.2019}. Unobserved confounding arises when factors affect both treatment choices and outcomes but are not recorded \citep{Pearl.2009}. For example, the race of a patient may -- unfortunately -- affect the access to treatments \citep{Obermeyer.2019}, yet race is typically not recorded in patient records. Hence, standard off-policy learning that relies on the assumption of no unobserved confounding will lead to \emph{biased} estimates and may even generate \emph{harmful} policies.
+
+
+As a remedy, \emph{confounding-robust policy learning} aims to find the optimal policy under worst-case unobserved confounding. This is typically achieved using the marginal sensitivity model (MSM) \citep{Tan.2006}, a framework from causal sensitivity analysis that bounds the effect of unobserved confounding. However, the existing method for confounding-robust policy learning under the MSM (see \citep{Kallus.2018c} for the conference paper and \citep{Kallus.2021d} for the journal version) has notable shortcomings. First, it must numerically optimize the worst-case effect on the regret function due to unobserved confounding. Such minimax optimization is based on inverse propensity weighted outcomes and hence unstable. Second, this method is statistically suboptimal: it lacks the property of semi-parametric efficiency and thus suffers from suboptimal variance properties.
+
+In this paper, we address the above shortcomings by developing a novel \emph{semi-parametrically efficient and sharp estimator for personalized off-policy learning under unobserved confounding}. Here, semi-parametric efficiency means the unbiased estimator with the lowest possible variance. Our key novelties are the following: (i)~We derive a \emph{closed-form expression} for a \emph{sharp bound on the value function} of a candidate policy under unobserved confounding.\footnote{We use the term ``sharp'' as in earlier work from causal sensitivity analysis \citep{Frauen.2023c}: a valid upper (lower) bound of a causal quantity is \emph{sharp} if there does not exist another valid bound that is strictly smaller (larger).} As a result, we can thereby directly minimize our closed-form bound and, unlike existing works, avoid an unstable minimax optimization based on inverse propensity weighted outcomes. (ii)~We propose an estimator that is semi-parametrically efficient. Hence, our estimator is the first to achieve the \emph{lowest variance} among all unbiased estimators for our task.
+
+% \footnote{Throughout this work, we use \emph{efficiency} synonymously for \emph{semi-parametric efficiency}. That is, we refer to the unbiased estimator with the lowest possible variance \citep{Kennedy.2022}.}
+
+Methodologically, we proceed as follows. We first derive a \emph{sharp bound} on the value function for scenarios with unobserved confounding and, hence, avoid the unstable minimax optimization as in other methods. We then propose a novel \emph{one-step bias-corrected estimator} to achieve semi-parametric efficiency and thus guarantee that our estimator has the lowest variance among all unbiased estimators.  For this, we derive the corresponding {efficient influence function} of the sharp bound on the value function. We finally provide theoretical guarantees that minimizing our estimated sharp bound on the value function ensures that our method yields the \emph{optimal} confounding-robust policy. Such guarantees are particularly crucial in high-stakes applications such as medicine or public policy, where unreliable policies can lead to harmful consequences.  
+
+%a novel \emph{efficient estimator for our sharp bound on the value function}. For this, we derive the efficient influence function \citep{Kennedy.2022} %\citep{Hines2022,Kennedy.2022, Tsiatis.2006, vanderlaan.2023}
+%of the sharp bound on the value function and propose a one-step bias-corrected estimator, which achieves semi-parametric efficiency \citep{Bickel.1998} of our method. We provide theoretical guarantees that minimizing our estimated sharp bound on the value function ensures that our method yields the \emph{optimal} confounding-robust policy. This guarantee is particularly critical in high-stakes applications, such as in medicine or public policy, where unreliable policies can lead to harmful consequences. 
+
+Our work makes the following \textbf{contributions}\footnote{{Code is available at \url{https://github.com/konstantinhess/Efficient_sharp_policy_learning}.}}:
+~(i)~We propose a novel \emph{efficient estimator for our sharp bound on the value function}. (ii)~We derive an estimator for our bounds that is \emph{semi-parametrically efficient}. (iii)~We generalize our theoretical findings to the related task of \emph{confounding-robust policy improvement}. (iv)~Through extensive experiments using synthetic and real-world datasets, we show that our method consistently \emph{outperforms} simple plug-in estimators and existing baselines. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Related work}\label{sec:rw}
+
+\begin{wraptable}{r}{0.48\textwidth} % no [lines] -> auto height
+\vspace{-1.7cm}              % tiny nudge up (optional)
+\setlength{\intextsep}{0pt}          % trim top/bottom glue around wrapped float
+\setlength{\columnsep}{1em}          % gap between text and table
+\centering
+\begin{adjustbox}{width=\linewidth}
+    \tiny
+    \begin{tabular}{lcccc}
+    \toprule
+    \multicolumn{1}{c}{} & \makecell{Robust under\\unobserved conf.} &
+    \makecell{Sharp\\bounds} &
+    \makecell{Discrete\\treatments} &
+    \makecell{Efficient for\\policy learning} \\
+    \midrule
+    \citet{Oprescu.2023} &  \textbf{\cmark} & \textbf{\cmark} & \textbf{\xmark} & \textbf{\xmark} \\
+   % \midrule
+    \citet{Swaminathan.2015} &  \textbf{\xmark} & \textbf{\xmark} & \textbf{\cmark}& \textbf{\xmark} \\
+    \citet{Athey.2021, Dudik.2011} &  \textbf{\xmark} & \textbf{\xmark} & \textbf{\cmark}& \textbf{\cmark} \\
+    \citet{Kallus.2018c,Kallus.2021d} &  \textbf{\cmark} & \textbf{\xmark} & \textbf{\cmark} & \textbf{\xmark} \\
+    \midrule
+    Efficient \& sharp~(ours) & \textbf{\cmark} & \textbf{\cmark} & \textbf{\cmark} & \textbf{\cmark} \\
+    \bottomrule
+    \end{tabular}
+\end{adjustbox}
+\vspace{-0.3cm} 
+\caption{Overview of related methods. \citet{Oprescu.2023} is designed for a different task, and standard policy learners ignore the issue of unobserved confounding. Only \citet{Kallus.2018c,Kallus.2021d} deals with  our setting, but provides neither sharp bounds nor an efficient estimator. Only our work can deal with unobserved confounding, discrete treatments, provides sharp bounds, and an efficient estimator.}\label{tab:table_method_overview}
+\vspace{-0.7cm} 
+\end{wraptable}
+
+We provide an overview of three literature streams particularly relevant to our work, namely, standard off-policy learning (i)~with and (ii)~without unobserved confounding as well as (iii)~causal sensitivity analysis. We provide an extended related work in Appendix~\ref{app:rw} (where we distinguish our work from other streams such as, e.g., unobserved confounding in reinforcement learning).
+
+\textbf{Off-policy learning under unconfoundedness:} Off-policy learning aims to optimize the policy value, which needs to be estimated from data. For this, there are three major approaches: (i)~the direct method (DM)~\citep{Qian.2011} leverages estimates of the response functions; (ii)~inverse propensity weighting (IPW)~\citep{Swaminathan.2015} re-weights the data such that in order to resemble samples under the evaluation policy; and (iii)~the doubly robust method (DR)~\citep{Athey.2021,Dudik.2011}. The latter is based on the efficient influence function of the policy value \citep{Robins.1994b} and is %asymptotically
+efficient \citep{Chernozhukov.2018,vanderVaart.1998}. 
+
+Several works aim at improving the finite sample performance of these methods, for instance, via re-weighting \citep{Kallus.2018, Kallus.2021b} or TMLE 
+%targeted maximum likelihood estimation
+\citep{Bibaut.2019}. Further, several methods have been proposed for off-policy learning in specific settings involving, for example, distributional robustness \citep{Kallus.2022}, fairness \citep{Frauen.2024}, interpretability \citep{Tschernutter.2022}, and continuous treatments \citep{Kallus.2018d, Schweisthal.2023}. However, all of the works assume unconfoundedness and, therefore, do \textbf{\underline{not}} account for unobserved confounding.
+
+
+\textbf{Off-policy learning under unobserved confounding:} In scenarios with unobserved confounding, standard approaches for off-policy learning are biased \citep{Kallus.2018c,Kallus.2021d}, which can lead to harmful decisions. The reason is that, under unobserved confounding, the policy value  \emph{cannot} be identified from observational data. As a remedy, previous works leverage causal sensitivity analysis or related methods to obtain bounds on the unidentified policy value \citep{Bellot.2024,Guerdan.2024, Huang.2024,  Joshi.2024,Namkoong.2020, Zhang.2024}, which can then be used to learn an optimal worst-case policy. Optimizing such bounds is often termed ``confounding-robust policy learning''.
+However, these works do \emph{not} consider sharp bounds under unobserved confounding and do \emph{not} provide semi-parametrically efficient estimators.
+
+Closest to our work is \citep{Kallus.2018c} with an extended version published in \citep{Kallus.2021d}. Therein, the authors propose a method for confounding-robust policy improvement, yet with two notable shortcomings: (i)~it is \emph{not} based on closed-form solutions for the bounds, and (ii)~it is \emph{not} based on a semi-parametrically efficient estimator of these bounds. Therefore, \citet{Kallus.2018c,Kallus.2021d} require solving a minimax optimization problem that is relies in inverse propensity weighted outcomes, which is \emph{unstable}. Further, their estimator is suboptimal because it fails to achieve semi-parametric efficiency, meaning it does \emph{not} achieve the lowest-possible variance among all unbiased estimators. \rebuttal{We provide a thorough discussion on the work by \citet{Kallus.2018c,Kallus.2021d} and a detailed comparison to our method in Supplement~\ref{appendix:kz_comparison}.}
+
+%\citep{Kennedy.2022}.
+
+
+\textbf{Causal sensitivity analysis:} Causal sensitivity analysis \citep{Cornfield.1959} allows practitioners to account for unobserved confounding by using so-called sensitivity models \citep{Jin.2022,Rosenbaum.1987}, which incorporate domain knowledge on the strength of unobserved confounding. As a result, the sensitivity model allows to obtain bounds on a causal quantity of interest, which, if the sensitivity model is correctly specified, can then be used for consequential decision-making  \citep{Jesson.2021}. 
+
+A prominent sensitivity model is the MSM \citep{Tan.2006}. The MSM gained popularity in recent years and, for instance, was used to obtain bounds on the conditional average treatment effect (CATE) through machine learning \citep{Jesson.2021, Kallus.2019, Yin.2022}. \rebuttal{Works like \citet{Aronow.2013, Miratrix.2018, Zhao.2019} target mean effects under the MSM, rely on Hájek-style estimators which have finite-sample bias, and are not designed for policy learning. \citet{Yadlowsky.2018} study ATE bounds, but their framework is limited to \emph{binary} treatments. Finally, \citet{Bruns-Smith.2023} consider \emph{dynamic} policies in Markov decision processes and must estimate ratios of transition probabilities, which yields a fundamentally different estimator that is not sharp for action spaces with more than two actions.} Only recently, sharp bounds on the CATE have been derived \citep{Bonvini.2022, Dorn.2022, Frauen.2024b, Frauen.2023c, Jin.2023}. Other works have considered the estimation of such bounds \citep{Dorn.2024, Oprescu.2023}, or instruments for partial identification \cite{Schweisthal.2025}. However, these works only consider causal sensitivity analysis for CATE but \textbf{\underline{not}} policy learning. 
+Further, their works are limited to \textbf{\underline{binary}} treatments. In contrast, our method can handle \emph{discrete} treatments, and, therefore, requires entirely different influence functions. % via the efficient influence function.
+
+\textbf{Research gap:} To the best of our knowledge, we are the first to derive a \emph{semi-parametrically efficient estimator for a sharp bound on the value function using the MSM}. Thereby, we enable optimal confounding-robust off-policy learning.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\section{Problem setup}\label{sec:setup} 
+
+\begin{wrapfigure}{r}{0.25\textwidth}
+  \centering
+  \vspace{-2.cm}
+  \includegraphics[width=0.25\textwidth, trim=3cm 20.5cm 11.5cm 4cm, clip]{figures/unobserved_confounding.pdf}%left bottom right top
+  \vspace{-0.2cm}
+    \caption{We can only block backdoor paths for observed confounders $X$. Hence, under unobserved confounding $U$, we cannot point-identify $V(\pi)$.}%the potential outcome $Y[a]$ and related quantities such as the value function $V(\pi)$.}
+\label{fig:unobserved_confounding}
+  \vspace{-0.5cm}
+\end{wrapfigure}
+
+\textbf{Data:} Let $Y\in\mathcal{Y}\subset\mathbb{R}$ be our outcome of interest, such as the health condition of a patient. We follow the convention that w.l.o.g. \emph{lower} values correspond to \emph{better} outcomes \citep{Kallus.2018c}. Further, let $X\in\mathcal{X}\subset\mathbb{R}^{d_x}$ denote covariates that contain additional information, such as age, gender, or disease-related information. Finally, let $A\in\mathcal{A}=\{0,1,\ldots,d_a-1\}$ be the assigned treatment (or action). Note that we do not restrict our setting to binary treatments but allow for arbitrary, discrete treatments. For the product space, we use $\mathcal{D}=\mathcal{Y}\times\mathcal{X}\times \mathcal{A}$. In the following, we assume that we have access to an observational dataset $\mathcal{D}_n=\{(Y_i,X_i,A_i)\}_{i=1}^n$ that consists of $n$ i.i.d. copies of $(Y,X,A)\in \mathcal{D}$.
+
+
+\textbf{Policy value:} Policy learning aims to find the best policy for assigning treatments, given covariates. Formally, a \emph{policy} $\pi(a\mid x)$ is a conditional probability mass function $\pi:\mathcal{A}\times \mathcal{X}\to[0,1]$ with $\sum_{a\in\mathcal{A}}\pi(a\mid x)=1$, corresponding to the probability of receiving treatment $A=a$, given covariates $X=x$. The \emph{value} $V(\pi)$ of a policy is defined as
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts 
+%\begin{align}
+    $V(\pi) = \mathbb{E}\Big[\sum_{a\in\mathcal{A}} \pi(a\mid X) Y[a]\Big],$
+%\end{align}
+%\endgroup
+where $Y[a]$ denotes the potential outcome for $Y$ when intervening on treatment $A=a$ \citep{Neyman.1923, Rubin.1978}. Hence, the policy value  $V(\pi)$ is the expected average potential outcome when adhering to the policy $\pi$.
+
+\textbf{Standard off-policy learning:} Off-policy learning aims to find a policy $\pi$ that has the best policy value among all $\pi \in \Pi$ for some policy class $\Pi$. Of note, it is standard in the literature \citep{ Frauen.2024, Hatt.2022b,Kallus.2018c} to restrict the analysis to policy classes $\Pi$ with finite complexity such as neural networks. 
+
+The value function is identifiable under the following three assumptions \citep{Rubin.1978}: 
+(i)~\emph{Consistency:} $Y[A]=Y$; \rebuttal{(ii)~\emph{Strong overlap:} There exists $c\in(0,1)$ such that $c \leq p(A=a \mid X=x)\leq 1-c \;\forall \; a\in \mathcal{A},x\in \mathcal{X}$;} (iii)~\emph{Unconfoundedness:} $Y[a]\indep A \mid X \;\forall \; a \in \mathcal{A}$. Then, the policy value is identified from the observational data via
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{equation}
+   $V(\pi) = \mathbb{E}\Big[\sum_{a\in\mathcal{A}} \pi(a\mid X) Q(a,X)\Big],$
+%\end{equation}
+%\endgroup
+where $Q(a,x) = \E[Y \mid X=x, A = a]$ is the {conditional average potential outcome} function. 
+
+The optimal policy can then be learned via
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+\begin{align}\label{eq:pstar_naive}
+    \pi_{\text{standard}}^* = \argmin_{\pi \in \Pi} \hat{V}(\pi),% 
+\end{align}
+%\endgroup
+where $\hat{V}(\pi)$ is an estimator of the identified policy value. Recall that we follow the convention in \citep{Kallus.2018c, Kallus.2021d} that lower $Y$ are better, so we aim to \emph{minimize} the value function.
+
+
+%%%
+
+\textbf{Allowing for unobserved confounding:} The assumption of (iii)~\emph{unconfoundedness} is problematic and often unrealistic \citep{Hemkens.2018}: Unconfoundedness requires that the observed covariates $X$ capture \emph{all} factors that affect both treatment choice and outcome. In this work, we do \textbf{\underline{not}} rely on the \emph{unconfoundedness} assumption, which is restrictive and oftentimes unrealistic. Instead, we allow for \emph{unobserved confounding}, which we denote by a random variable $U\in\mathcal{U}\subset\mathbb{R}$ (see Figure~\ref{fig:unobserved_confounding}).
+
+
+
+Importantly, under unobserved confounding, we cannot point-identify the value function $V(\pi)$. 
+Instead, we aim to \emph{partially} identify the value function $V(\pi)$ by leveraging causal sensitivity analysis. Specifically, we adopt the MSM \citep{Tan.2006} to bound the ratio between the \emph{nominal propensity score}
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+    \begin{align}\label{eq:nominal_prop}
+    e(a,x)=p(A=a\mid X=x), 
+    \end{align}
+%\endgroup
+which can be estimated from data $\mathcal{D}_n$ and the \emph{true propensity score}
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+    \begin{align}\label{eq:true_prop}
+    e(a,x,u)=p(A=a\mid X=x,U=u),
+    \end{align}
+%\endgroup
+which is fundamentally unobserved. Formally, the MSM assumes
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+    \begin{align}\label{eq:msm}
+        \Gamma^{-1} \leq \frac{e(a,x)}{1-e(a,x)}\frac{1-e(a,x,u)}{e(a,x,u)}\leq \Gamma
+    \end{align}
+%\endgroup
+for some $\Gamma \geq 1$ that can be chosen by domain domain knowledge \citep{ Frauen.2023c, Kallus.2019} or data-driven heuristics \citep{Hatt.2022b} (see Supplement~\ref{appendix:msm}).
+
+
+Intuitively, $\Gamma$ close to $1$ implies that the impact of unobserved variables $U$ on the treatment decision is small, whereas a large $\Gamma$ means that observed variables $X$ do not contain sufficient information to fully capture the treatment decision. In particular, $\Gamma=1$ implies that the true propensity score coincides with the nominal propensity score. Hence, there is no unobserved confounding and our scenario simplifies to the na\"ive unconfoundedness setting. Conversely, if we let $\Gamma>1$, the true and the nominal propensity scores differ, and, therefore, we account for additional unobserved confounding. 
+
+
+
+Formally, the marginal sensitivity model gives rise to a set of distributions $\mathcal{P}(\Gamma)$ over $\mathcal{D} \times \mathcal{U}$ that are compatible with the constraints in \Eqref{eq:msm}. This set is defined as
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+\begin{equation}
+%\begin{split}
+    \mathcal{P}(\Gamma) = \bigg\{ \tilde{p}\in \mathcal{P}(\mathcal{D}\times\mathcal{U}):
+    \;\int_\mathcal{U}\tilde{p}(d,u)\diff u = p(d)\\ \forall d\in\mathcal{D},\;
+    %\int_\mathcal{U}\tilde{p}(\mathcal{D},u)\diff u = p(\mathcal{D}),\\
+    \Gamma^{-1} \leq \frac{\tilde{e}(A,X)}{1-\tilde{e}(A,X)}\frac{1-\tilde{e}(A,X,U)}{\tilde{e}(A,X,U)}\leq \Gamma \bigg\}, 
+    \label{eq:constraints}
+%\end{split}
+\end{equation}
+%\endgroup
+where $\mathcal{P}(\mathcal{D}\times\mathcal{U})$ is the set of all possible joint distributions of the observables and the unobserved confounders, and where the nominal propensity score $\tilde{e}(A,X)$ and the true propensity score $\tilde{e}(A,X,U)$ result from $\tilde{p}$ as in \Eqref{eq:nominal_prop} and \Eqref{eq:true_prop}, respectively.
+
+Different from standard off-policy learning under the unconfoundedness assumption, we can \emph{not} point-identify the value function, and, hence, optimizing the objective in \Eqref{eq:pstar_naive} is \emph{biased}. Instead, we need to account for the worst-case scenario that can occur under unobserved confounding. That is, we are interested in: \emph{Which policy yields the optimal value under the worst-case unobserved confounding, given our sensitivity constraints?}
+
+%In order to answer this question, the literature \citep{Kallus.2018c, Kallus.2021d} shows that the optimal policy solves the minimax problem
+%\begin{align}\label{eq:minimax_regret}
+% \pi^* = \argmin_{\pi \in \Pi} \; \sup_{\tilde{p} \in \mathcal{P}(\Gamma)} \;  R_{\pi_0}(\pi),
+%\end{align}
+%or, equivalently,
+
+\textbf{Objective:} Formally, the optimal confounding-robust policy $\pi^*$ is the solution to the minimax problem
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+\begin{align}\label{eq:minimax_value}
+    \pi^* = \argmin_{\pi \in \Pi} \; \sup_{\tilde{p}\in \mathcal{P}(\Gamma)} \;  V(\pi).
+\end{align}
+%\endgroup
+
+However, the existing method \citep{Kallus.2018c,Kallus.2021d} for our task has key limitations: (i)~It requires directly solving the minimax optimization problem, which can be unstable due to inverse propensity weighting. Instead, we later derive a \emph{closed-form expression for the inner supremum} (i.e., an upper bound), which reduces \Eqref{eq:minimax_value} to a simple minimization task. (ii)~This method is \emph{not} semi-parametrically efficient, thus leading to suboptimal finite-sample performance. As a remedy, we later derive an estimator that is \emph{semi-parametrically efficient}.
+
+%Finally, we provide \emph{learning guarantees} when optimizing the estimator with respect to the policy.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Sharp bounds and efficient estimation}
+
+In this section, we introduce our estimator for sharp bounds of the value function under unobserved confounding. For this, we first derive a \emph{closed-form solution} for the {sharp bounds of the value function} (Section~\ref{sec:sharp_bounds}), which directly solves the inner maximization in \Eqref{eq:minimax_value}. Then, we present our {estimator} for these bounds (Section~\ref{sec:efficient_estimator}), which is based on non-trivial derivations of the efficient influence function to offer \emph{semi-parametric efficiency}. Further, we provide \emph{learning guarantees} when optimizing the bounds of the value function (Section~\ref{sec:improvement_guarantee}). Finally, we propose an \emph{extension of our method} for scenarios where the aim is to optimize the relative improvement of a policy over a given baseline policy such as the standard of care in medicine (Section~\ref{sec:extension_regret}).
+
+
+
+\subsection{Sharp bounds for the value function}\label{sec:sharp_bounds}
+\begin{wrapfigure}{r}{0.45\textwidth}
+  \centering
+  \vspace{-1.2cm}
+  \includegraphics[width=0.45\textwidth, trim=2.5cm 0.5cm 0.5cm 0.cm, clip]{figures/bounds_plot.drawio.pdf}%left bottom right top
+  \vspace{-0.2cm}
+    \caption{Under unobserved confounding, the value function is unidentifiable, and the ground-truth optimal policy is unknown. Ignoring unobserved confounding can lead to a policy with \emph{large regret}, and may introduce harm. Further, optimizing w.r.t. a suboptimal bound can lead to an \emph{overconservative} policy. Instead, we seek to find the optimal confounding-robust policy by minimizing a \emph{sharp bound} on the worst-case effect of unobserved confounding. }
+\label{fig:unobserved_confounding}
+  \vspace{-0.5cm}
+\end{wrapfigure}
+% to do: introduce sharp bounds for CAPO
+We now derive our sharp bound for the value function under unobserved confounding, given our sensitivity constraints $\mathcal{P}(\Gamma)$ in \Eqref{eq:constraints}. Recall that our aim is to \emph{minimize} the value function $V(\pi)$, and, hence, we are interested in an \emph{upper bound} for $V(\pi)$. That is, we seek to find the value function in the worst-case confounding scenario under the MSM, which  is given by
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{align}
+$V^{+,*}(\pi) = \sup_{\tilde{p}\in\mathcal{P}(\Gamma)} V(\pi)$.
+%\end{align}
+%\endgroup
+
+By definition, a closed-form solution to this maximization problem ensures that (i)~the bound is \emph{valid}, i.e., $V^{+,*}(\pi)\geq V(\pi)$ for all $\tilde{p}\in\mathcal{P}(\Gamma)$, and that (ii)~the bound is \emph{sharp}, i.e., there does \textbf{not} exist a valid upper bound $V^{+,\dagger}(\pi)$ such that $V^{+,\dagger}(\pi)<V^{+,*}(\pi)$.
+
+In order to derive $V^{+,*}(\pi)$, we first introduce the \emph{conditional average potential outcome} function
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+\begin{align}
+    Q(a,x) = \mathbb{E}[Y[a]\mid X=x],
+\end{align}
+%\endgroup
+which is the expected potential outcome for treatment $A=a$, given covariate information $X=x$. Importantly, because we do \textbf{not} make Assumption (iii) of \emph{unconfoundedness}, the quantity $Q(a,x)$ is not point-identified.
+
+We now state our first theorem, which provides a sharp upper bound of the value function under our sensitivity constraints $\mathcal{P}(\Gamma)$. Further, we also provide the sharp lower bound $V^{-,*}=\inf_{\tilde{p}\in\mathcal{P}(\Gamma)}V(\pi)$, which we later need for our extensions in Section~\ref{sec:extension_regret}.
+
+\begin{proposition}\label{prop:sharp_value}
+    Let $Q^{+,*}(a,x) = \sup_{\tilde{p}\in \mathcal{P}(\Gamma)}Q(a,x)$ and $Q^{-,*}(a,x) = \inf_{\tilde{p}\in \mathcal{P}(\Gamma)}Q(a,x)$ be the sharp upper and lower bound for the conditional average potential outcome, respectively, given our sensitivity constraints $\mathcal{P}(\Gamma)$. Then, the sharp upper bound $\sup_{\tilde{p}\in \mathcal{P}(\Gamma)}V(\pi)=V^{+,*}(\pi)$ and the sharp lower bound $\inf_{\tilde{p}\in \mathcal{P}(\Gamma)}V(\pi)=V^{-,*}(\pi)$ for the value function $V(\pi)$ are given by
+    %\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+    \begin{align}\label{eq:sharp_value}
+        V^{\pm,*}(\pi) = \int_\mathcal{X} \sum_a  Q^{\pm,*}(a,x) \pi(a\mid x) \diff p(x).
+    \end{align}
+    %\endgroup
+\end{proposition}
+\begin{proof}
+    See Supplement~\ref{appendix:sharp_value}.
+\end{proof}
+
+
+Our above derivation of the closed-form solution has a crucial advantage over existing works \citep{Kallus.2018c, Kallus.2021d}: we avoid an unstable minimax optimization that is based on inverse propensity weighted outcomes, and, instead, we can directly work with $V^{+,*}(\pi)$, which simplifies \Eqref{eq:minimax_value} to
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{align}
+     $\pi^* = \argmin_{\pi \in \Pi} \; V^{+,*}(\pi)$.
+%\end{align}
+%\endgroup
+As a result, we have reduced the original minimax problem to a much simpler \emph{minimization task}.
+
+\subsection{Semi-parametrically efficient estimator for the sharp upper bound}\label{sec:efficient_estimator}
+
+In this section, we derive a semi-parametrically efficient estimator for our sharp upper bound $V^{+,*}(\pi)$ of the value function $V(\pi)$. semi-parametrically efficient estimators are desirable because they achieve the \emph{lowest possible variance among all unbiased estimators} \citep{Hines2022,Kennedy.2022}.
+
+In order to derive such an estimator of $V^{+,*}(\pi)$, we first need to decompose the estimand $Q^{\pm,*}(a,x)$ in Proposition~\ref{prop:sharp_value}.
+
+\begin{definition}[\citep{Dorn.2022, Frauen.2023c}]   
+Sharp bounds $Q^{\pm,*}(a,x)$ of the conditional average potential outcome $Q(a,x)$ function are given by
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+{\small
+\begin{align}\label{eq:sharp_capo}
+    Q^{\pm,*}(a,x) = c^{\mp}(a,x) \ubar{\mu}^{\pm}(a,x) + c^{\pm}(a,x) \bar{\mu}^{\pm}(a,x),
+\end{align}
+}
+%\endgroup
+where we let
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+{\small
+\begin{align}
+    &c^{\pm}(a,x) = b^{\pm}e(a,x) +\Gamma^{\pm 1}, \; b^{\pm} = (1-\Gamma^{\pm 1})
+\end{align}
+}
+%\endgroup
+and 
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+{\small
+\begin{align}
+    &\ubar{\mu}^{\pm}(a,x)=\mathbb{E}[Y\ubar{\Delta}^\pm (Y,A,X)\mid X=x,A=a],\;
+    &\bar{\mu}^{\pm}(a,x)=\mathbb{E}[Y\bar{\Delta}^\pm(Y,A,X)\mid X=x,A=a]
+\end{align}
+}
+%\endgroup
+with
+{\small
+\begin{align}
+    &\ubar{\Delta}^\pm (y,a,x)=\mathbbm{1}_{\{y\leq \q({\alpha^\pm})\}},\;
+    &\bar{\Delta}^{\pm}(y,a,x)=\mathbbm{1}_{\{y\geq \q({\alpha^\pm})\}},
+\end{align}
+}
+where $\alpha^+ = \Gamma / (1+\Gamma)$ and $\alpha^- = 1 / (1+\Gamma)$, and where $F_{x,a}^{-1}(q)$ is the conditional quantile function
+%\begingroup\makeatletter\def\f@size{8}\check@mathfonts
+{\small
+\begin{align}
+    F_{x,a}^{-1}(q) = \inf \{ y\in\mathcal{Y}:\; p(Y\leq y \mid X=x, A=a)\geq q\}.
+\end{align}
+}
+%\endgroup
+\end{definition}
+
+In order to achieve semi-parametric efficiency for the sharp upper bound $V^{+,*}(\pi)$, we need to carefully take into account the nuisance functions in \Eqref{eq:sharp_value} and \Eqref{eq:sharp_capo}, respectively. That is, the key difficulty lies in that $V^{+,*}(\pi)$ depends on several nuisance functions 
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+\begin{align}
+\eta= \{e(a,x),F_{a,x}^{-1}(\alpha^{\pm}), \bar{\mu}^\pm(a,x), \ubar{\mu}^\pm(a,x)\}.    
+\end{align}
+%\endgroup
+If we followed a na\"ive plug-in approach (i.e., if we estimated $\hat{\eta}$ from data $\mathcal{D}_n$ and plugged them into \Eqref{eq:sharp_value} and thus \Eqref{eq:sharp_capo}), our final estimator $\hat{V}^{+,*}(\pi)$ would suffer from \textbf{first-order bias} due to estimation errors in the nuisance functions. 
+As a remedy, we present a \emph{one-step bias-corrected} estimator. That is, we estimate the first-order bias and subtract it from our plug-in estimate \citep{Hess.2026, Frauen.2025b, Kennedy.2022, vanderVaart.1998}. %To obtain a one-step bias-corrected estimator for our task, we need to make non-trivial derivations of the efficient influence function of $V^{+,*}(\pi)$ below. In the following, we let $\mathbb{P}_n\{\cdot\}$ denote the \emph{sample average} for a dataset $\mathcal{D}_n$. Further, we use the short notation $f_x = f(x)$ for any function $f(\cdot)$ to improve readability.
+
+\begin{theorem}\label{prop:v+}
+\rebuttal{Let $\E[|Y|]<\infty$ and $p(y\mid x,a)$ admit a continuous density bounded away from zero in a neighborhood of $F_{x,a}^{-1}(\alpha^+)$. This holds, for example, if the density $p(y\mid x,a)$ is strictly positive and continuous.} %Let the conditional density $p(y\mid x,a)$ be strictly positive and continuous for all $x\in\mathcal{X},a\in\mathcal{A}$.}
+Then, an estimator for the sharp upper bound of the value function is given by
+%\begingroup\makeatletter\def\f@size{8}\check@mathfonts
+{\small
+\begin{align}
+&\hat{V}^{+,*}(\pi) \nonumber = \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}\Big[ \hat{Q}^{+,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{-}\hat{\ubar{\mu}}_{a,X}^+ + b^{+}\hat{\bar{\mu}}_{a,X}^+ \Big) \Big]
+    + \pi_{A,X} \Big( b^{-}\hat{\ubar{\mu}}_{A,X}^+ + b^{+}\hat{\bar{\mu}}_{A,X}^+ \Big) \nonumber \\
+    &\qquad\quad + \frac{\pi_{A,X}}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{-}- \hat{c}_{A,X}^{+}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^+)(\hat{\ubar{\Delta}}_{Y,A,X}^+ - \alpha^+)\Big)\label{eq:v+}\\
+    &\qquad\quad +\hat{c}_{A,X}^{-}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^+ - \hat{\ubar{\mu}}_{A,X}^+\Big)
+    +\hat{c}_{A,X}^{+}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^+ - \hat{\bar{\mu}}_{A,X}^+\Big)
+    \Big]\Big\}.\nonumber
+\end{align}
+%\endgroup
+}
+\rebuttal{If, on top, $\E[|Y|^2]<\infty$,} the above estimator is \textbf{semi-parametrically efficient}.
+\end{theorem}
+\begin{proof}
+    See Supplement~\ref{appendix:proof_v+}.
+\end{proof}
+We now have a \emph{semi-parametrically efficient estimator} for the sharp upper bound of the value function under unobserved confounding. Algorithm~\ref{algorithm:training} presents a flexible procedure to learn confounding-robust policies for parametric policy classes $\Pi_\theta$ (e.g., neural networks). \rebuttal{For simplicity, Algorithm~\ref{algorithm:training} only uses a single spit, but we emphasize that cross-fitting can be used to increase sample efficiency.} 
+
+%this allows for semi-parametrically efficient learning of the optimal confounding-robust policy. We show the general learning approach for parametric policy classes $\Pi_\theta$ (e.g., neural networks) in Algorithm~\ref{algorithm:training}.
+
+
+\begin{wrapfigure}{R}{0.4\textwidth}
+\begin{minipage}{0.4\textwidth}
+\vspace{-1.5cm} % Adjust vertical spacing as needed
+\begin{algorithm}[H]
+{\small
+\textbf{Input:} Data $\mathcal{D}_n=\{(Y_i,A_i,X_i)\}_{i=1}^n$, sensitivity parameter ${\Gamma\geq 1}$, sample split $\rho\in(0,1)$, learning rate $\lambda$,
+parametric policy class $\Pi_\theta$, training iterations $K$ 
+
+\vspace{1mm}
+\textbf{Output:} $\hat{V}^{+,*}(\pi)$
+}
+{\small
+\begin{algorithmic}[1]
+\STATE Perform sample split $\mathcal{D}_{\lceil \rho n\rceil}^\eta$, $\mathcal{D}_{\lfloor (1-\rho) n\rfloor}^{V^{+,*}}$ \rebuttal{(Employ cross-fitting to improve sample-efficiency.)}
+\STATE Estimate nuisance functions $\hat{\eta}$ on $\mathcal{D}_{\lceil \rho n\rceil}^\eta$
+\STATE Evaluate $\hat{\eta}$ on $\mathcal{D}_{\lfloor (1-\rho) n\rfloor}^{V^{+,*}}$
+
+\STATE Initialize policy $\pi_\theta^{(0)}\in\Pi_\theta$
+
+\FOR{$k=0$ to $K-1$}
+    \STATE Estimate $V^{+,*}(\pi_\theta^{(k)})$ as in \Eqref{eq:v+} (using evaluated $\hat{\eta}$)
+    \STATE Update policy parameters:% (e.g., via gradient descent):
+    \STATE \quad $\theta^{(k+1)} \gets \theta^{(k)} - \lambda \nabla_\theta V^{+,*}(\pi_\theta^{(k)})$
+\ENDFOR
+
+\STATE \textbf{Return:} Robust policy $\pi^* \gets \pi_\theta^{(K)}$
+\end{algorithmic}
+}
+\caption{Confounding-robust policy learning.}\label{algorithm:training}
+\end{algorithm}
+\vspace{-1.2cm} % Adjust spacing below as necessary
+\end{minipage}
+\end{wrapfigure}
+
+
+\subsection{Learning guarantees}\label{sec:improvement_guarantee}
+In this section, we provide asymptotic learning guarantees in the form of generalization bounds when learning the confounding-robust policy $\pi$ via our Algorithm~\ref{algorithm:training}. Of note, it is \emph{not} obvious that minimizing the \emph{estimated} sharp upper bound $\hat{V}^{+,*}(\pi)$ provides a meaningful, confounding-robust policy $\pi^*$. Hence, we provide learning guarantees where we show that, with high probability, \emph{minimizing our estimated sharp upper bound yields the optimal policy}.
+
+
+For this, we show that minimizing the \emph{estimated} sharp upper bound $\hat{V}^{+,*}(\pi)$ with respect to $\pi$ indeed minimizes the true, unknown value function $V(\pi)$ on population level. Fortunately, our method only requires one additional assumption, namely, {boundedness of the outcome} $|Y|\leq C_y$. This is a very mild restriction and reasonable in practice.
+
+We express the flexibility of our policy class $\Pi$ in terms of the Rademacher complexity $\mathcal{R}_n(\pi)$, which is a common choice in the literature \citep{Athey.2021, Frauen.2024,Hatt.2022b, Kallus.2018c}. \rebuttal{For example, the class of neural networks with bounded size and smoothness, e.g., with fixed depth, bounded width, and weights controlled by simple norm constraints (so the networks are Lipschitz and outputs bounded), has Rademacher complexity $\mathcal{R}_n(\Pi)\in\mathcal{O}(n^{-1/2})$.}
+
+\begin{theorem}\label{prop:improvement_value}
+Assume $|Y|\le C_y$. Let $C_v \coloneqq 2C_y(1+\Gamma^{-1}+\Gamma)$ and let $R_n(\Pi)$ denote the empirical Rademacher complexity of the policy class $\Pi$. Then, with probability at least $1-\delta$,
+\rebuttal{
+\begin{equation}\label{eq:uniform_bound}
+\sup_{\pi\in\Pi}\Big\{ V(\pi) - \hat V^{+,*}(\pi) \Big\}
+\;\;\le\;\; 2C_v\!\left( R_n(\Pi) \;+\; \tfrac{5}{2}\sqrt{\tfrac{1}{2n}\log\!\tfrac{2}{\delta}} \right).
+\end{equation}
+}
+Equivalently, on the same high-probability event, \rebuttal{\emph{simultaneously for all} $\pi\in\Pi$},
+\begin{equation}\label{eq:uniform_per_policy}
+V(\pi)\;\le\; \hat V^{+,*}(\pi) \;+\; 2C_v\!\left( R_n(\Pi) \;+\; \tfrac{5}{2}\sqrt{\tfrac{1}{2n}\log\!\tfrac{2}{\delta}} \right).
+\end{equation}
+
+\end{theorem}
+\begin{proof}
+    See Supplement~\ref{appendix:improvement_value}.
+\end{proof}
+
+The above Theorem~\ref{prop:improvement_value} has the following implication: given our sensitivity constraints $\mathcal{P}(\Gamma)$, our estimated sharp upper bound $\hat{V}^{+,*}(\pi)$ correctly bounds the true, unknown value function $V(\pi)$ on population level with high probability. Therefore, given sufficient data $\mathcal{D}_n$, minimizing $\hat{V}^{+,*}(\pi)$ with respect to $\pi$ also minimizes $V(\pi)$ and, hence, yields the optimal $\pi^*$.
+
+In sum, we have derived (i)~a novel \emph{sharp upper bound of the value function}, which circumvents unstable minimax optimization based on inverse propensity weighted outcomes. Further, we have proposed (ii)~an estimator for this bound that is \emph{semi-parametrically efficient}, i.e., an unbiased estimator with the lowest possible variance. Finally, we have derived (iii)~\emph{learning guarantees}, which show that minimizing our estimated bound via Algorithm~\ref{algorithm:training} indeed optimizes the true, unknown population value.
+
+\subsection{Extension to policy improvement}\label{sec:extension_regret}
+
+%Our main results from above focus on optimizing the value function $V(\pi)$, which is common in practice \citep[e.g.,][]{Dudik.2011, Hatt.2022b}. However, in some scenarios, an established baseline policy $\pi_0$ may be available; then, one may aim to make a small relative improvement yet with certain guarantees. This setting is commonly termed as \emph{policy improvement} \citep{Kallus.2018c, Kallus.2021d, Laroche.2019,Thomas.2015}. We extend our theory to policy improvement under unobserved confounding in \textbf{Supplement~\ref{appendix:policy_improvement}}.
+Our main results from above focus on optimizing the value function $V(\pi)$, which is common in practice \citep[e.g.,][]{Dudik.2011, Hatt.2022b}. However, in some scenarios, an established baseline policy $\pi_0$ may be available; then, one may aim to make a small relative improvement yet with certain guarantees. This setting is commonly termed as \emph{policy improvement} \citep{Kallus.2018c, Kallus.2021d, Laroche.2019,Thomas.2015}.
+
+Hence, we no longer aim to minimize bounds on the value function $V(\pi)$ but, instead, bounds on the regret of a candidate policy against a baseline policy \citep{Kallus.2018c}. Specifically, we can define the \emph{regret} of policy $\pi$ over baseline $\pi_0$ as
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{align}
+    $R_{\pi_0}(\pi) = V(\pi) - V(\pi_0)$.
+%\end{align}
+%\endgroup
+Hence, a negative regret implies that policy $\pi$ improves upon $\pi_0$. Importantly, the optimal confounding-robust policy $\pi^*$ in \Eqref{eq:minimax_value} can also be defined as the policy $\pi$ that achieves the best relative improvement over baseline $\pi_0$ in the worst-case scenario, that is,
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+\begin{align}\label{eq:minimax_regret}
+ \pi^* = \argmin_{\pi \in \Pi} \; \sup_{\tilde{p} \in \mathcal{P}(\Gamma)} \;  R_{\pi_0}(\pi).
+\end{align}
+%\endgroup
+This definition is \emph{equivalent} to \Eqref{eq:minimax_value}. Nevertheless, the above objective may be preferred in practice when aiming at policy improvement. 
+
+We now show in the following three corollaries that our results directly generalize to policy improvement. First, we provide a closed-form solution for an upper bound of the regret function $R_{\pi_0}(\pi)$, given our sensitivity constraints $\mathcal{P}(\Gamma)$.
+
+\begin{corollary}\label{prop:sharp_regret}
+    %Given $Q^{\pm,*}(a,x)$ and our sensitivity constraints $\mathcal{P}(\Gamma)$ as in Proposition~\ref{prop:sharp_value}, 
+    An upper bound for the regret function $R_{\pi_0}(\pi)$ is given by
+    %\begingroup\makeatletter\def\f@size{8}\check@mathfonts
+    %\begin{align}
+        $R_{\pi}^{+}(\pi) = \int_\mathcal{X} \sum_a  \Big(  Q^{+,*}(a,x) \pi(a\mid x) - Q^{-,*}(a,x)\pi_0(a\mid x) \Big) \diff p(x)$.
+    %\end{align}
+    %\endgroup
+\end{corollary}
+
+\begin{proof}
+See Supplement~\ref{appendix:sharp_regret}.
+\end{proof}
+
+Next, we derive a semi-parametrically efficient, one-step bias-corrected estimator, which is based on the efficient influence function.
+
+
+
+\begin{corollary}
+    A semi-parametrically efficient estimator for the upper regret bound is given by
+%\begingroup\makeatletter\def\f@size{8}\check@mathfonts
+\begin{align}
+&\hat{R}_{\pi_0}^{+}(\pi)
+= \sum_{\pm\in\{-,+\}}\pm \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}^\pm\Big[ \hat{Q}^{\pm,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{\mp}\hat{\ubar{\mu}}_{a,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{a,X}^\pm \Big) \Big]\nonumber\\
+    &\qquad\quad+ \pi_{A,X}^\pm \Big( b^{\mp}\hat{\ubar{\mu}}_{A,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{A,X}^\pm \Big)\nonumber
+    + \frac{\pi_{A,X}^\pm}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{\mp}- \hat{c}_{A,X}^{\pm}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^\pm)(\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \alpha^\pm)\Big)\nonumber\\
+    &\qquad\quad+\hat{c}_{A,X}^{\mp}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \hat{\ubar{\mu}}_{A,X}^\pm\Big)
+    +\hat{c}_{A,X}^{\pm}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^\pm - \hat{\bar{\mu}}_{A,X}^\pm\Big)
+    \Big]\Big\},\nonumber
+\end{align}
+%\endgroup
+where we let $\pi^+=\pi$ and $\pi^-=\pi_0$ for readability.
+\end{corollary}
+
+\begin{proof}
+See Supplement~\ref{appendix:efficient_estimator_regret}.
+\end{proof}
+
+Finally, we provide improvement guarantees: given a baseline policy $\pi_0$ (e.g., the standard of care), if the empirical estimator $\hat{R}_{\pi_0}(\pi)^+$ is \emph{negative}, which we can check by evaluating it, we are \emph{guaranteed} that $\pi$ improves upon $\pi_0$ and introduces \emph{no harm}.
+
+\begin{corollary}
+Under the same assumption as in Theorem~\ref{prop:improvement_value}, for any policy $\pi \in \Pi$ and baseline policy $\pi_0\in\Pi$, it holds, with probability $1-\delta$, that
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{align}
+    $R_{\pi_0}(\pi) \leq \hat{R}_{\pi_0}^{+}(\pi) +4 C_v \Big(\mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big)$.
+%\end{align}
+%\endgroup
+\end{corollary}
+
+\begin{proof}
+See Supplement~\ref{appendix:improvement_regret}.
+\end{proof}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Experiments}\label{sec:experiments}
+
+\begin{table*}[h]
+    \vspace{-0.5cm}
+    \centering
+    \small  % Increases font size
+    \setlength{\tabcolsep}{3pt}  % Reduces column spacing
+    \begin{adjustbox}{max width=\textwidth}
+    \begin{tabular}{l@{\hskip 5pt}c@{\hskip 2pt}c@{\hskip 2pt}c@{\hskip 2pt}c@{\hskip 2pt}c@{\hskip 2pt}c@{\hskip 2pt}c@{\hskip 2pt}c}
+        \toprule
+          & $\Gamma^*=2$& $\Gamma^*=4$& $\Gamma^*=6$& $\Gamma^*=8$& $\Gamma^*=10$& $\Gamma^*=12$& $\Gamma^*=14$& $\Gamma^*=16$\\
+        \midrule
+        Standard IPW estimator & $\mathbf{-1.31\pm0.02}$ &$-0.60\pm0.15$ & $-0.09\pm0.01$& $-0.07\pm0.01$& $-0.06\pm0.01$ &$-0.06\pm0.01$ & $-0.05\pm0.01$ & $-0.03\pm0.01$
+ \\
+        Standard DR estimator & $-1.30\pm0.04$ & $-0.71\pm0.02$ & $-0.18\pm0.13$  & $-0.07\pm0.01$ & $-0.07\pm0.01$ & $-0.06\pm0.01$ & $-0.05\pm0.01$ & $-0.04\pm0.01$
+  \\
+        \citet{Kallus.2018c,Kallus.2021d} & $-1.21\pm0.10$ & $-0.70\pm0.06$ & $-0.40\pm0.06$ & $-0.22\pm0.04$ & $-0.16\pm0.02$ & $-0.14\pm0.02$ & $-0.10\pm0.01$ & $-0.08\pm0.01$
+ \\        
+\midrule
+        \textbf{Efficient + sharp estimator}~(ours) & $-1.12\pm0.08$ & $\mathbf{-1.00\pm0.08}$ & $\mathbf{-0.89\pm0.13}$ &  $\mathbf{-0.66\pm0.14}$ & $\mathbf{-0.64\pm0.14}$ & $\mathbf{-0.58\pm0.17}$ & $\mathbf{-0.50\pm0.20}$& $\mathbf{-0.30\pm0.22}$ \\
+\midrule
+        Absolute improvement & $\redtext{+0.19}$ & $\greentext{-0.29}$ & $\greentext{-0.49}$ & $\greentext{-0.44}$ & $\greentext{-0.48}$ & $\greentext{-0.44}$ & $\greentext{-0.40}$ & $\greentext{-0.22}$\\
+        %Relative improvement  &  $\redtext{-6\%}$ & $\redtext{-14\%}$ & $\redtext{-6\%}$ & $\greentext{\:\:+41\%}$ & $ \greentext{\:\:+63\%}$ & $ \greentext{\:\:+123\%}$ & $ \greentext{\:\:+180\%}$ & $ \greentext{\:\:+201\%}$ & $ \greentext{\:\:+187\%}$ & $ \greentext{\:\:+308\%}$ & $ \greentext{\:\:+405\%}$ & $ \greentext{\:\:+314\%}$ & $ \greentext{\:\:+338\%}$ & $ \greentext{\:\:+422\%}$ & $ \greentext{\:\:+466\%}$ & $ \greentext{\:\:+260\%}$\\
+        
+    \bottomrule
+    \end{tabular}
+    \end{adjustbox}
+    \vspace{-0.2cm}
+    \caption{\textbf{Varying confounding strength.} We vary the confounding parameter $\Gamma^*$ in the DGP along with the sensitivity parameter $\Gamma$ in both our efficient estimator and the baseline \citep{Kallus.2018c,Kallus.2021d}. Then, we report the regret over a randomized policy (\emph{lower values are better}). As confounding increases, our estimator is the only method that is robust and thus performs best.}%\emph{$\Rightarrow$\,Our method outperforms the best baseline of up to a factor of $4$.}}
+    \label{tab:results_gamma}
+    \vspace{-0.1cm}
+\end{table*}
+
+
+In the following, we evaluate the performance of our method against: (1)~the minimax optimization approach by \citet{Kallus.2018c, Kallus.2021d} and standard methods for policy learning, namely, (2)~the IPW estimator \citep{Swaminathan.2015}  and (3)~the DR estimator \citep{Athey.2021,Dudik.2011}. Importantly, the approach by  \citet{Kallus.2018c, Kallus.2021d} is the \textbf{only} baseline that can deal with confounding-robust policy learning with the MSM and thus the \textbf{only} baseline for our task. To ensure a \emph{fair comparison}, we use the same neural instantiations for all models in terms of (i)~the nuisance functions $\hat{\eta}$ and (ii)~the policy $\pi_\theta$ (see Supp.~\ref{appendix:implementation_details}). All results are averaged over 10 seeds.
+
+%\vspace{-0.18cm}
+%\subsection{Synthetic Data}
+%\vspace{-0.18cm}
+
+%\begin{figure}[t]%{r}{0.5\textwidth}
+\begin{wrapfigure}{r}{0.4\textwidth}
+  \centering
+  \vspace{-0.6cm}
+  %\includegraphics[width=0.5\textwidth, trim=0cm 0.cm 0cm 0cm, clip]{figures/results_misspecified_gamma_deep_color.pdf}%left bottom right top
+  \includegraphics[width=0.4\textwidth, trim=0cm 0.cm 0cm 0cm, clip]{figures/results_misspecified_gamma_deep_color_minimax_added_pastel.pdf}%left bottom right top
+  \vspace{-0.3cm}
+    \caption{\textbf{Robustness analysis.} We set $\Gamma^*=7$ in the data-generating process but use mis-specified sensitivity parameters $\Gamma$ in our estimator (i.e., $\Gamma = 7$ is correctly specified, while $\Gamma \neq 7$ is mis-specified). We report the regret over a randomized policy \emph{(lower values are better)}. Our estimator significantly improves upon the standard DR estimator, even for a completely mis-specified $\Gamma$.}
+\label{fig:unobserved_confounding_misspecified}
+  \vspace{-0.6cm}
+%\end{figure}
+\end{wrapfigure}
+\underline{$\bullet$~\textbf{Synthetic Data:}}~As is standard in causal inference literature \citep{Hess.2025, Hess.2024,Kallus.2019}, we evaluate our method on synthetic data in order to have access to ground-truth counterfactuals. Here, we use an established data-generating process from the literature \citep{Kallus.2019}: First, we simulate observed confounders $X\sim \text{Unif}[-2, 2]$ and unobserved confounders $U\sim \text{Ber}(1/2)$. The potential outcomes $Y[a]$ are then given by
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{align}
+    $Y[a] = (2a-1)X+(2a-1)-2\sin(2(2a-1)X)%\nonumber\\
+    %\quad\quad\quad
+    -2(2U-1)(1+0.5X)+\varepsilon$,
+%\end{align}
+%\endgroup
+where $\varepsilon \sim \mathcal{N}(0,1)$ is random noise. Further, we assume a binary treatment, i.e., $d_a=2$. For this, we first fix a ground-truth $\Gamma^*$. Then, we let the \emph{true propensity score} be given by 
+%\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+%\begin{align}
+    $e(1,x,u) = \frac{u}{{\rho}(x;1/\Gamma^*)}+\frac{1-u}{{\rho}(x;\Gamma^*)}$,
+%\end{align}
+%\endgroup
+where ${\rho}(x;\gamma)=1+(1/e(1,x)-1)\gamma$, and $e(1,x)=\sigma (0.75x+0.5)$ is the nominal propensity score.
+
+
+
+\textbf{Varying confounding strength:} First, we demonstrate the performance of our method for increasing levels of unobserved confounding. For this, we increase the confounding parameter $\Gamma^*$ in the data-generating process. We compare the regret of each method over a randomized baseline policy. In our method and \citep{Kallus.2018c,Kallus.2021d}, we set the sensitivity parameter $\Gamma$ equal to $\Gamma^*$. 
+
+Our results are shown in \textbf{Table}~\ref{tab:results_gamma}: (i)~As expected, the standard methods for off-policy learning (i.e., a standard IPW estimator and a standard DR estimator) perform well for zero to very low levels of confounding. However, the standard methods are \emph{biased} and thus become ineffective for $\Gamma^*>1$. (ii)~The method by \citet{Kallus.2018c,Kallus.2021d} performs well under low levels of confounding. Yet, the performance quickly deteriorates. (iii)~Our proposed method performs clearly best for increasing $\Gamma^*$. Here, our method achieves a \emph{relative performance gain by up to a factor of $4$}.
+
+
+
+\textbf{Robustness analysis:} Next, we show that our method is robust to mis-specification of the sensitivity parameter $\Gamma$. We thus fix the confounding strength to $\Gamma^*=7$ in the DGP. We increase $\Gamma$ from $1$ (which corresponds to unconfoundedness) up to $100$ (which mirrors almost assumption-free bounds). We again compute the regret of our learned policy over a randomized baseline policy to showcase the improvement. %The method by \citet{Kallus.2018c,Kallus.2021d} has only a regret of $-0.27\pm0.06$, even for correctly specified $\Gamma=7$, and is hence not competitive; we thus removed it from the plot for better visualization. 
+\textbf{Figure}~\ref{fig:unobserved_confounding_misspecified} shows that our approach yields \emph{robust results even for mis-specified} $\Gamma$ (i.e., when $\Gamma \neq 7$). \rebuttal{In contrast, the method by \citet{Kallus.2018c,Kallus.2021d} improves for mis-specified values $\Gamma<\Gamma^*$, but performance \emph{quickly deteriorates} for larger $\Gamma$, which renders it \emph{unreliable}. This behavior is expected, as their method only minimizes a bound on the regret over a baseline policy, and quickly reverts to the baseline when the specified $\Gamma$ increases (see Supplement~\ref{appendix:kz_comparison} for a detailed discussion).} Further, even under the (almost) no assumptions constraint of $\Gamma=100$, our method provides significant improvements over the biased DR estimator.
+
+
+%\begin{figure}[t]%{r}{0.5\textwidth}
+\begin{wrapfigure}{r}{0.4\textwidth}
+  \centering
+  \vspace{-0.7cm}
+  \includegraphics[width=0.4\textwidth, trim=0cm 0.cm 0cm 0cm, clip]{figures/results_sample_size_gamma6_all_deep_color_pastel.pdf}%left bottom right top
+  \vspace{-0.4cm}
+    \caption{\textbf{Property of semi-parametrically efficient estimation.} We compare our efficient estimator with a simple plug-in estimator of our sharp upper bound from Proposition~\ref{prop:sharp_value}. We report the regret over a randomized policy \emph{(lower values are better)}. Our efficient estimator leads to a lower regret and benefits from increasing sample size due to its optimal estimation properties.}
+\label{fig:efficient_estimation}
+  \vspace{-0.6cm}
+%\end{figure}
+\end{wrapfigure}
+
+\textbf{Semi-parametrically efficient estimation:} Finally, we show the benefits of our efficient estimation strategy over simple plug-in estimators. A semi-parametrically efficient estimator is the unbiased estimator with the lowest variance  \citep{Kennedy.2022,vanderVaart.1998}. Hence, policies based on efficiently estimated bounds are learned better in low sample settings than those based on plug-in approaches. Therefore, we report the performance when we vary the number of training samples $\mathcal{D}_n$. Here, we compare our method against a na\"ive plug-in estimator of our sharp bounds based on Proposition~\ref{prop:sharp_value}. We again report the regret over a randomized baseline policy. \textbf{Figure}~\ref{fig:efficient_estimation} shows that our method performs better in low sample settings, and achieves larger performance gains when increasing the sample size.
+
+%\vspace{-0.18cm}
+%\subsection{Real-world medical data}
+%\vspace{-0.18cm}
+
+%\begin{figure}[t]%{r}{0.5\textwidth}
+\begin{wrapfigure}{r}{0.4\textwidth}
+  \centering
+  \vspace{-0.7cm}
+  %\includegraphics[width=0.5\textwidth, trim=0cm 0.cm 0cm 1cm, clip]{figures/results_rwd_deep_color.pdf}%left bottom right top
+  \includegraphics[width=0.4\textwidth, trim=0cm 0.cm 0cm 1cm, clip]{figures/results_rwd_deep_color_all_gamma_pastel.pdf}%left bottom right top
+  \vspace{-0.3cm}
+    \caption{\textbf{Real-world medical data.} We compare our efficient estimator against the previous baselines based on data from the International Stroke Trial. Our method yields the best treatment policy and is robust over different $\Gamma$.}
+    % Therein, we artificially introduce unobserved confounding in the training data via sub-sampling. 
+\label{fig:rwd_results}
+  \vspace{-0.6cm}
+%\end{figure}
+\end{wrapfigure}
+
+\underline{$\bullet$~\textbf{Real-world medical data:}}~ We evaluate our method on a real-world medical case study. For this, we use data from the International Stroke Trial \citep{Sandercock.2011}, which is a randomized control trial (RCT) that examines the outcomes for early administration of aspirin, heparin, a combination of both, or none on acute ischaemic stroke. Importantly, this means that there are \emph{four different} treatments available. The advantage of an RCT over observational data is that we can estimate the ground truth value function without bias, as the true propensity score is known. Our aim is to find the optimal treatment strategy based on patient covariates in order to prolong the \emph{time-to-death} (TD) outcome variable (in days). 
+
+For this, we artificially introduce unobserved confounding as follows: In the training dataset, we randomly drop $60\%$ of the untreated patients whose diastolic blood pressure is larger than the average, as well as $60\%$ of the patients who received aspirin and whose blood pressure is lower than average. Then, we remove the diastolic blood pressure variable. Thereby, we introduce \emph{unobserved} confounding in the training dataset.
+
+%and, hence, introduce \emph{unobserved confounding} in the training set.
+
+\textbf{Results:} We report the estimated improvement of the TD outcome of all methods over the randomized policy in Figure~\ref{fig:rwd_results}. \rebuttal{We report regret relative to a fully randomized (RCT) policy because, under unobserved confounding, it is the only baseline whose value remains identified and therefore provides a neutral, assumption-free reference point for evaluating policy improvement.} Here, we vary the sensitivity parameter for both the method by \citet{Kallus.2018c,Kallus.2021d} and our method. Our method performs best at $\Gamma=24$. Further, our method has the overall best treatment strategy. %, whereas all baselines fail to improve upon the randomized policy.
+\rebuttal{Only for very small $\Gamma$, the performance of our method deteriorates -- this is expected, as it does not guard against unobserved confounding and is therefore biased, and in contrast to standard methods, requires estimation of more complex nuisance functions. The baseline performance is generally poor. Specifically, we observe a similar pattern for the method by \citet{Kallus.2018c,Kallus.2021d} as in the robustness analysis; it only optimizes against a baseline policy, and quickly reverts to it as $\Gamma$ increases (see Supplement~\ref{appendix:kz_comparison})}. In contrast, our method is highly stable for appropriate parameterizations of $\Gamma$, which confirms the effectiveness of our method, and shows its applicability to medical scenarios. 
+
+%\textbf{Limitations:} Our method offers a solution to avoid the restrictive \emph{unconfoundedness} assumption. Yet, as for the baselines, it still requires the \emph{consistency} and \emph{positivity} assumptions.
+
+
+\textbf{Conclusion:} We develop a novel semi-parametrically efficient estimator for sharp bounds on the value function under unobserved confounding. %Further, our approach yields provably optimal, confounding-robust policies and avoids the instability of existing minimax-based methods. 
+Our results provide a principled way for reliable decision-making from observational data, and show that robust policy learning can improve decision-making in sensitive applications such as healthcare. 
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+
+\section*{Acknowledgments}
+This paper is supported by the DAAD program ``Konrad Zuse Schools of Excellence in Artificial Intelligence'', sponsored by the Federal Ministry of Education and Research.
+
+\bibliography{bibliography}
+\bibliographystyle{iclr2026_conference}
+\clearpage
+
+\appendix
+
+\section{Extended related work}\label{app:rw}
+
+
+\textbf{Offline reinforcement learning under unobserved confounding:} Offline reinforcement learning deals with the problem of learning the optimal policy when the reward (value) function is defined over an infinite time horizon \citep{Javurek.2026}. Therefore, these works rely upon techniques that are different from ours.
+
+Some works focus on off-policy evaluation under unobserved confounding \citep{Bennett.2021,Kallus.2020d} and even propose computationally efficient algorithms for this task \citep{Kausik.2024}. However, these methods primarily focus on the identification of policy value bounds without semi-parametrically efficient estimation procedures. In contrast, \citet{Bennet.2024} propose an efficient estimator for offline reinforcement learning. Different from our work, however, they require estimation of density ratios in order to evaluate the policy value. Further, \citet{Pace.2024} propose a heuristic approach that learns representations of the unobserved confounders but does not provide theoretical guarantees for efficiency or unbiasedness. \citet{Shi.2022b} propose an approach that involves the approximation of bridge functions in partially observable Markov decision processes (POMDPs). Additionally, \citet{shi.2024} use mediators as auxiliary variables to construct confidence intervals for policy evaluation under unobserved confounding. Finally, \citet{wang.2021c} improve sample efficiency in offline reinforcement learning under both observed and unobserved confounding.
+
+\citet{Frauen.2025c} develops a retargeting strategy for the conditional average treatment effect to balance estimation error and decision performance.
+
+\rebuttal{Further, \citet{Rambachan.2025} study a slightly related but different problem setting: a \emph{binary} selection decision $D\in\{0,1\}$ with a \emph{binary} selectively observed outcome $Y^\ast$, and they derive sharp bounds on \emph{prediction and fairness} metrics (e.g.\ risk, ROC, precision--recall) under a \emph{Mean Outcome Sensitivity Model (MOSM)}. The MOSM directly bounds the outcome gap 
+\begin{align}
+\delta(x)=P(Y^\ast=1\mid D=0,X=x)-P(Y^\ast=1\mid D=1,X=x),
+\end{align}
+and their sharpness guarantees hold relative to this MOSM.}
+
+\rebuttal{Our work concerns \emph{offline policy evaluation and learning} with (possibly) 
+multi-valued actions $A\in\mathcal{A}$ and general outcomes $Y$, under a 
+\emph{Marginal Sensitivity Model (MSM)} on treatment assignment. We target the 
+\emph{policy value} $V(\pi)$ and derive \emph{closed-form, sharp MSM bounds} together 
+with a semiparametrically efficient EIF-based estimator.}
+
+\rebuttal{Importantly, \citet{Rambachan.2025} show that propensity-based models such as the MSM \emph{imply a particular MOSM} (via outcome bounds derived from Bayes' rule), but the 
+resulting MOSM ``may not exhaust all implications'' of the original MSM. Thus MOSM bounds 
+are generally \emph{valid but not sharp} for the MSM. In contrast, our analysis works 
+directly at the level of the MSM and characterizes the \emph{sharp MSM-identified set} 
+for $V(\pi)$.}
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{\rebuttal{Comparison with \citet{Kallus.2018c,Kallus.2021d}}}
+\label{appendix:kz_comparison}
+
+\rebuttal{\subsection{Technical summary of \citet{Kallus.2018c,Kallus.2021d}}}
+\rebuttal{\citet{Kallus.2018c,Kallus.2021d} work under the same marginal sensitivity model as we do, specified via an odds-ratio bound $\Gamma$ between the nominal propensity $e(A\mid X)$ and the true propensity $e(A\mid X,U)$. For a fixed policy $\pi$ and baseline policy $\pi_0$, they define an IPW/Hájek-type estimator for the \emph{advantage} of $\pi$ over $\pi_0$, say $\lambda_i(\pi,\pi_0)$ for samples $i \in \{1,\ldots, n\}$, and consider the set of feasible weights $w=(w_1,\dots,w_n)$ implied by the marginal sensitivity model:
+\begin{align}
+U_\Gamma \;=\;\big\{w: \underline{w}_i(\Gamma) \le w_i \le \overline{w}_i(\Gamma),\; \tfrac{1}{n}\sum_{i=1}^n w_i = 1 \big\}.
+\end{align}
+Given $U_\Gamma$, they define the worst-case regret of $\pi$ \underline{relative} to $\pi_0$ as
+\begin{align}
+R_\Gamma(\pi;\pi_0)
+\;=\;
+\sup_{w \in U_\Gamma}
+\frac{\sum_{i=1}^n w_i\,\lambda_i(\pi,\pi_0)}{\sum_{i=1}^n w_i},
+\end{align}
+and then select the policy that \emph{minimizes} this worst-case regret. In the binary-action implementation, the inner optimization is solved by sorting the $\lambda_i(\pi,\pi_0)$ and exploiting the fact that the linear--fractional program over $U_\Gamma$ attains its optimum at an extreme point: there exists a single index $k^\ast \in \{1,\ldots,n\}$ such that units on one side of $k^\ast$ are assigned their upper feasible weight and units on the other side their lower feasible weight. Hence the inner supremum reduces to a one-dimensional search over $i$ to find $k^\ast$, which \citet{Kallus.2018c,Kallus.2021d} implement via ternary search.}
+
+\rebuttal{\subsection{Our approach and key differences}}
+\rebuttal{Our work builds on the same marginal sensitivity model but differs in several technical aspects:}
+
+\begin{itemize}[leftmargin=1.5em]
+\item \rebuttal{\emph{Objective: regret vs. value bounds.} \citet{Kallus.2018c,Kallus.2021d} optimize \emph{worst-case regret} relative to a baseline policy, which is sharp for that regret quantity but does not provide closed-form sharp bounds on the \emph{value} $V(\pi)$ itself. In contrast, we derive explicit \emph{closed-form sharp upper and lower bounds} on $V(\pi)$ under the marginal sensitivity model and directly optimize these bounds over the policy class.}
+
+\rebuttal{\item \emph{Propagation of IPW instability.} In \citet{Kallus.2018c,Kallus.2021d}, the worst-case weights are determined by a single threshold $k^\ast$ on the sorted IPW/Hájek-based scores $\lambda_i$. Because $k^\ast$ is global, small estimation errors in the inverse propensities (and hence in the $\lambda_i$) can change which constraints bind in the inner problem and thus alter $k^\ast$. This then leads to a global change in the worst-case weights assigned to all units. Hence, local IPW noise can directly propagate into large changes in the estimated worst-case regret.}
+
+\rebuttal{\item \emph{Closed-form sharp bounds and local error propagation.} Our estimator avoids this discrete minimax search and global thresholding. We derive sharp value bounds in closed form and estimate them with a semi-parametrically efficient, one-step bias-corrected estimator. That is, nuisance estimation errors then do \textbf{not} enter to the final bound estimate as first order bias, but only as lower order biases. Further, there is \textbf{no} single threshold index $k^\ast$ in our method whose mis-estimation can flip the worst-case assignment for the entire sample. This yields substantially more stable behavior in practice.}
+
+\rebuttal{\item \emph{Sharpness and efficiency.} While \citet{Kallus.2018c,Kallus.2021d} show sharpness for the regret interval relative to a baseline, our results provide the \emph{globally sharp identified set for $V(\pi)$ itself}. Moreover, our one-step estimator based on the EIF is semi-parametrically efficient and Neyman-orthogonal with respect to the nuisances, whereas the Hájek/IPW-type estimators used in \citep{Kallus.2018c,Kallus.2021d} do not achieve this efficiency bound.}
+
+\rebuttal{\item \emph{Sharp regret does not imply sharp value.}  
+The Kallus–Zhou method yields the sharp identified set for the \emph{regret} 
+$R(P)=V(\pi;P)-V(\pi_0;P)$ over $P\in\mathcal{P}(\Gamma)$, but this does \textbf{not} 
+imply sharp bounds on $V(\pi)$ itself. The distributions that maximize regret and those 
+that maximize the baseline value generally do not coincide. Consequently, the implied 
+value upper bound satisfies only the loose inequality
+\begin{align}
+\sup_{P\in\mathcal{P}(\Gamma)} V(\pi;P)
+\;<\;
+\sup_{P\in\mathcal{P}(\Gamma)}\!\big(V(\pi;P)-V(\pi_0;P)\big)
+\;+\;
+\sup_{P\in\mathcal{P}(\Gamma)} V(\pi_0;P),
+\end{align}
+and this inequality is typically \emph{strict}. Hence, even a sharp regret interval does 
+not translate into the sharp identified set for $V(\pi)$. In contrast, our Theorem~\ref{prop:sharp_value} directly characterizes the closed-form sharp bounds for $V(\pi)$ under the MSM.}
+
+\end{itemize}
+
+
+
+\rebuttal{Overall, we move from numerical minimax regret based on unstable IPW weights to closed-form sharp value bounds with an efficient, influence-function–based estimator that is both statistically and numerically more robust.}
+
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\section{\rebuttal{Additional results: Complex propensity scores}}
+\label{appendix:additional_propagation}
+
+\begin{wrapfigure}{r}{0.5\textwidth}
+\vspace{-0.5cm}
+    \centering
+ \includegraphics[width=0.5\textwidth, trim=0cm 0.cm 0cm 0cm, clip]{figures/results_discrete_treatments_pastel.pdf}%left bottom right top
+    \caption{\rebuttal{Performance comparison between our efficient and sharp method and \citet{Kallus.2018c,Kallus.2021d} under increasing dimension  $d_a$ of the action-space.}}
+    \label{fig:multi_action_results}
+\vspace{-0.5cm}
+\end{wrapfigure}
+
+\rebuttal{In this section, we provide additional experimental results that illustrate the mechanism by which our efficient and sharp estimator improves over the method by \citet{Kallus.2018c,Kallus.2021d}. In particular, we show how estimation
+errors in increasingly complex propensity score models propagate differently in the two approaches.}
+
+\paragraph{\rebuttal{Experimental setup:}}
+\rebuttal{We extend the synthetic data-generating process from Section~\ref{sec:experiments} beyond binary actions and allow for
+\begin{align}
+a \in \{0,1,\dots, d_a - 1\}.
+\end{align}
+We fix the unobserved confounding at $\Gamma^* = 5$ and run both methods with the same correctly specified sensitivity parameter $\Gamma = 5$.
+Increasing $d_a$ substantially complicates propensity estimation: estimating $e(a \mid X)$ becomes a multiclass classification problem, and the resulting inverse-propensity terms become noisier as $d_a$ grows. This provides an ideal setting to study how each method handles nuisance complexity.}
+
+
+\paragraph{\rebuttal{Results:}}
+\rebuttal{Figure~\ref{fig:multi_action_results} summarizes the results. The findings align with our theoretical discussion in Supplement~\ref{appendix:kz_comparison}:}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \rebuttal{\textbf{Our method remains stable.}
+    Our estimator maintains tight value bounds and stable performance as $d_a$ increases. The one-step correction based on the efficient influence function ensures that first-order sensitivity to errors in the estimated nuisances is eliminated. Consequently, even as the propensity scores become harder to estimate, the resulting bounds remain well behaved and lead to an increasingly better, confounding-robust policy.}
+
+    \item \rebuttal{\textbf{ \citet{Kallus.2018c,Kallus.2021d} become increasingly conservative.}
+    In contrast, the approach of \citet{Kallus.2018c,Kallus.2021d} again reverts to the baseline policy. Their method computes worst-case regret relative to $\pi_0$ via a minimax optimization over feasible weights $U_\Gamma$:
+    \[
+    R_\Gamma(\pi;\pi_0)
+    \;=\;
+    \sup_{w \in U_\Gamma}
+    \frac{\sum_{i=1}^n w_i \lambda_i(\pi,\pi_0)}{\sum_{i=1}^n w_i},
+    \]
+    where the $\lambda_i(\pi,\pi_0)$ are IPW/Hájek-type advantage scores.
+    The optimizer selects a single global threshold $k^*$ (via ternary search) after sorting the $\lambda_i$ to determine which observations receive lower versus upper feasible weights.}
+
+    \rebuttal{When $d_a$ grows, the estimated $\lambda_i$ become highly variable due to propensity estimation noise. This causes the inner maximization to lock onto overly pessimistic weights in which many non-baseline units receive their lower feasible weight. As a result, nearly all non-baseline policies appear unsafe, and the learned policy collapses back to $\pi_0$, even though the true confounding level is correctly specified.}
+
+\end{itemize}
+
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{\rebuttal{IHDP Dataset}}
+
+\begin{table*}[h]
+    \centering
+    \small
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{adjustbox}{max width=\textwidth}
+    \begin{tabular}{lcccccccccccccc}
+    \toprule
+      & $\Gamma=1.0$ & 1.1 & 1.2 & 1.3 & 1.4 & 1.5 & 1.6 & 1.7 & 1.8 & 1.9 & 2.0 & 2.1 & 2.2 & 2.3 \\
+    \midrule
+
+Standard IPW estimator
+ & $-0.32\pm0.15$ & $-0.32\pm0.15$ & $-0.32\pm0.15$ & $-0.32\pm0.15$ &
+   $-0.32\pm0.15$ & $-0.32\pm0.15$ & $-0.32\pm0.15$ & $-0.32\pm0.15$ &
+   $-0.32\pm0.15$ & $-0.32\pm0.15$ & $-0.32\pm0.15$ & $-0.32\pm0.15$ &
+   $-0.32\pm0.15$ & $-0.32\pm0.15$ \\[2pt]
+
+Standard DR estimator
+ & $-2.19\pm0.41$ & $-2.19\pm0.41$ & $-2.19\pm0.41$ & $-2.19\pm0.41$ &
+   $-2.19\pm0.41$ & $-2.19\pm0.41$ & $-2.19\pm0.41$ & $-2.19\pm0.41$ &
+   $-2.19\pm0.41$ & $-2.19\pm0.41$ & $-2.19\pm0.41$ & $-2.19\pm0.41$ &
+   $-2.19\pm0.41$ & $-2.19\pm0.41$ \\[2pt]
+
+ \citet{Kallus.2018c,Kallus.2021d}
+ & $-0.02\pm0.15$ & $-0.02\pm0.14$ & $-0.01\pm0.14$ & $-0.00\pm0.15$ &
+   $-0.02\pm0.14$ & $0.02\pm0.13$ & $0.03\pm0.13$ & $0.02\pm0.13$ &
+   $-0.01\pm0.13$ & $0.01\pm0.14$ & $0.02\pm0.12$ & $0.02\pm0.12$ &
+   $0.01\pm0.12$ & $-0.01\pm0.13$ \\[2pt]
+
+\textbf{Efficient + sharp (ours)}
+ & $\mathbf{-2.42\pm0.31}$ & $\mathbf{-2.46\pm0.32}$ & $\mathbf{-2.92\pm0.22}$ & $\mathbf{-2.68\pm0.27}$ &
+   $\mathbf{-2.84\pm0.24}$ & $\mathbf{-2.88\pm0.26}$ & $\mathbf{-3.05\pm0.25}$ & $\mathbf{-2.89\pm0.27}$ &
+   $\mathbf{-2.82\pm0.30}$ & $\mathbf{-2.65\pm0.28}$ & $\mathbf{-2.58\pm0.25}$ & $\mathbf{-2.57\pm0.25}$ &
+   $\mathbf{-2.54\pm0.30}$ & $\mathbf{-2.60\pm0.31}$ \\
+
+\midrule
+\textbf{Absolute improvement}
+ & \greentext{$-0.23$}
+ & \greentext{$-0.27$}
+ & \greentext{$-0.74$}
+ & \greentext{$-0.49$}
+ & \greentext{$-0.65$}
+ & \greentext{$-0.70$}
+ & \greentext{$-0.86$}
+ & \greentext{$-0.70$}
+ & \greentext{$-0.63$}
+ & \greentext{$-0.46$}
+ & \greentext{$-0.39$}
+ & \greentext{$-0.38$}
+ & \greentext{$-0.35$}
+ & \greentext{$-0.41$} \\
+\bottomrule
+    \end{tabular}
+    \end{adjustbox}
+
+    \caption{\rebuttal{\textbf{Regret over randomized policy for varying sensitivity parameter $\Gamma$}. 
+    Lower values indicate better performance. Absolute improvement is computed against the best-performing baseline.}}
+    \label{tab:regret_gamma}
+\end{table*}
+
+\paragraph{\rebuttal{Dataset:}}
+\rebuttal{The IHDP dataset is a widely used semi-synthetic benchmark based on the Infant Health and Development Program (IHDP) randomized trial. Here, the effect of home visits on cognitive test scores for infants are measured. 
+Covariates are taken from the real RCT, and potential outcomes are simulated following \citet{Hill.2011}. }
+
+\rebuttal{Similar to our real-world data study in Section~\ref{sec:experiments}, because the original study is unconfounded, we can introduce a known amount of unobserved confounding in a controlled way: here, we select covariates \emph{birth weight (indicator of neonatal health)}, \emph{head circumference at birth (developmental marker)}, and \emph{weeks of gestation (prematurity measure)}, and drop $60\%$ of the observations whose value for any of the three covariates is below average and has received home visits, as well as $60\%$ of the observations whose value is below the average and has received \emph{no} home visits. Then, we drop the three covariates and, thereby, introduce unobserved confounding.  This mimics a realistic setting where key health indicators are absent from the recorded data but nevertheless influence treatment decisions and the outcome variable.  }
+
+\paragraph{\rebuttal{Results:}}
+\rebuttal{We evaluate the regret of all methods relative to a randomized policy because, under unobserved confounding, it is the only baseline whose value remains identified, whereas any non-randomized policy would implicitly rely on violated unconfoundedness assumptions and thus provide a misleading comparison.}
+
+\rebuttal{The results in Table~\ref{tab:regret_gamma} closely mirror the patterns in our previous real–world experiment in Section~\ref{sec:experiments}. 
+As expected, the standard IPW and DR baselines are biased and completely insensitive to the choice of $\Gamma$, since they assume unconfoundedness regardless of the true data-generating process. }
+
+\rebuttal{The method of \citet{Kallus.2018c,Kallus.2021d} again behaves overly conservatively. In particular, it effectively reverts back toward its baseline policy and produces regret over the RCT baseline that cluster near zero. This, again, shows that the worst-case optimization collapses under even moderate confounding. }
+
+\rebuttal{In contrast, our efficient and sharp estimator consistently achieves the lowest regret across all values of $\Gamma$. This demonstrates that our method computes meaningful bounds on the unidentified value function and, on top, finds optimizes toward the global best performing, confounding-robust policy.}
+
+
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Choosing the sensitivity parameter in the MSM}\label{appendix:msm}
+
+In this work, we adopt the MSM \citep{Tan.2006} in order to bound the ratio between the \emph{nominal propensity score}
+\begin{align}
+e(a,x)=p(A=a\mid X=x), 
+\end{align}
+and the \emph{true propensity score}
+\begin{align}
+e(a,x,u)=p(A=a\mid X=x,U=u).
+\end{align}
+Here, the nominal propensity score can be estimated from data, whereas the true propensity score is fundamentally unobservable. In particular, the MSM is given by
+\begin{align}
+    \Gamma^{-1} \leq \frac{e(a,x)}{1-e(a,x)}\frac{1-e(a,x,u)}{e(a,x,u)}\leq \Gamma
+\end{align}
+for some sensitivity parameter $\Gamma \geq 1$.
+
+
+Typically, the sensitivity constraints $\Gamma$ are chosen via domain knowledge \citep{Frauen.2023c,Kallus.2019} or data-driven heuristics \citep{Hatt.2022b}. For example, in practical applications, one typically has a benchmark variable (e.g., hours with sunlight) that is a known cause of the outcome (e.g., vitamin D deficiency), and one then wants to study how strong a confounder (e.g., other ecological activities such as nutrition) must be to explain away the effect of the benchmark variables. \citep{Cinelli.2020b} term this the robustness value, which quantifies the strength of unobserved confounding needed to change conclusions.
+
+Hence, to achieve this, a commonly used strategy for selecting $\Gamma$ is the following: We can search for the smallest $\Gamma$ such that the partially identified interval for the causal quantity of interest includes $0$. Then, we can interpret $\Gamma$ as a measure of the minimal deviation from unconfoundedness required to invalidate the effect of an intervention \citep{Jesson.2021,Jin.2023}.
+
+
+\clearpage
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Proofs}\label{appendix:proofs}
+\subsection{Sharp bound of the value function}\label{appendix:sharp_value}
+\begin{proposition}%\label{prop:sharp_value}
+    Let $Q^{\pm,*}(a,x)$ be the sharp upper/lower bound for the conditional average potential outcome, given our sensitivity constraints $\mathcal{P}(\Gamma)$. Then, sharp bounds for the value function $V(\pi)$ are given by
+    \begin{align}
+        V^{\pm,*}(\pi) = \int_\mathcal{X} \sum_a  Q^{\pm,*}(a,x) \, \pi(a\mid x) \diff p(x).
+    \end{align}
+\end{proposition}
+\begin{proof}
+    We provide the proof for the sharp upper bound $V^{+,*}(\pi)$. The lower bound follows completely analogously by swapping the signs and replacing the supremum with an infimum.
+
+    We start by noting that the upper bound on the value function depends on the set of admissible distributions $\mathcal{P}(\Gamma)$ induced by the sensitivity model, that is,
+    \begin{align}
+        V^{+,*}(\pi) = V^{+,*}(\pi, \mathcal{P}(\Gamma)).
+    \end{align}
+    Hence, we can write
+    \begin{align}
+        &V^{+,*}(\pi) \\
+        =& V^{+,*}(\pi, \mathcal{P}(\Gamma))\\
+        =& \sup_{\tilde{p} \in \mathcal{P}(\Gamma)} V(\pi, \tilde{p})\\
+        =& \sup_{\tilde{p} \in \mathcal{P}(\Gamma)}  \int_\mathcal{X} \sum_a  Q(a,x, \tilde{p}) \, \pi(a\mid x)  \diff \tilde{p}(x)\\
+        =& \sup_{\tilde{p} \in \mathcal{P}(\Gamma)}  \int_\mathcal{X} \sum_a  Q(a,x, \tilde{p}) \, \pi(a\mid x)  \diff p(x)
+        ,\label{eq:equality_marginals1}
+    \end{align}
+    where \Eqref{eq:equality_marginals1} follows from the equality $p(\mathcal{D})=\tilde{p}(\mathcal{D})$ for all $\tilde{p}\in \mathcal{P}(\Gamma)$.
+    
+    Clearly, by definition of the optimal bounds $Q^{+,*}(a,x)$, we have that
+    \begin{align}
+        Q(a,x,\tilde{p}) \leq \sup_{\tilde{p}\in\mathcal{P}(\Gamma)} Q(a,x,\tilde{p}) = Q^{+,*}(a,x,\mathcal{P}(\Gamma))
+    \end{align}
+    for all $\tilde{p}\in\mathcal{P}(\Gamma)$, and since $Q^{+,*}(a,x)\in L^{1}(\pi,p)$, we know by dominated convergence \citep{Frauen.2023c} that
+    \begin{align}
+        &\sup_{\tilde{p} \in \mathcal{P}(\Gamma)}  \int_\mathcal{X} \sum_a Q(a,x, \tilde{p}) \, \pi(a\mid x) \diff p(x)
+        = \int_\mathcal{X} \sum_a Q^{+,*}(a,x) \, \pi(a\mid x) \diff p(x).
+    \end{align}
+\end{proof}
+
+\clearpage
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\subsection{Efficient estimator of the sharp bound of the value function}\label{appendix:proof_v+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\paragraph{\rebuttal{On the construction of semi-parametrically efficient estimators.}}
+\rebuttal{Let $\Psi(P)=V^{+,*}(\pi;P)$ denote our target functional in the nonparametric model, 
+and let $\mathcal{T}(P)$ be the corresponding tangent space. 
+For any regular parametric submodel $\{P_\varepsilon\}$ through $P$ with score 
+$s_\varepsilon(Z)=\partial_\varepsilon \log p_\varepsilon(Z)\vert_{\varepsilon=0}$, 
+the pathwise derivative of $\Psi$ at $P$ in direction $s \in \mathcal{T}(P)$ is
+\[
+\dot\Psi_P(s)
+:=
+\left.\frac{d}{d\varepsilon}\Psi(P_\varepsilon)\right|_{\varepsilon=0}.
+\]
+The \emph{canonical gradient} $g^\star \in L_0^2(P)$ is defined as the unique element such that
+\begin{align}
+\dot\Psi_P(s) 
+=
+\mathbb{E}_P\big[g^\star(Z)\,s(Z)\big]
+\quad\text{for all } s \in \mathcal{T}(P),
+\end{align}
+i.e., $g^\star$ is the Riesz representer of the pathwise derivative functional
+(see, e.g., \citet{vanderVaart.1998}, Chapter 25).
+}
+
+\rebuttal{In the following, we derive the influence function of $V^{+,*}(\pi)$ via the chain rule for pathwise differentiability. Specifically, we decompose $V^{+,*}(\pi)$ into building blocks (conditional expectations, conditional distributions), plug in the known canonical gradients for each of these primitives, and then apply the chain rule as in \citet{Kennedy.2022} and Lemma~S3 of \citet{Luedtke.2024}. By construction, the resulting function $\varphi(Z)$ satisfies
+\begin{align}
+\left.\frac{d}{d\varepsilon}\Psi(P_\varepsilon)\right|_{\varepsilon=0}
+=
+\mathbb{E}_P\big[\varphi(Z)\,s_\varepsilon(Z)\big]
+\quad\text{for every regular submodel } \{P_\varepsilon\}.
+\end{align}
+Hence $\varphi$ is exactly the canonical gradient $g^\star$, and therefore the efficient 
+influence function in the nonparametric model. 
+By standard semiparametric theory (e.g., \citet{vanderVaart.1998}), the one-step 
+estimator based on this $\varphi$ is semiparametrically efficient for $V^{+,*}(\pi)$.
+}
+
+
+\begin{theorem}%\label{prop:v+}
+\rebuttal{Let $\E[|Y|]<\infty$ and $p(y\mid x,a)$ admit a continuous density bounded away from zero in a neighborhood of $F_{x,a}^{-1}(\alpha^+)$. This holds, for example, if the density $p(y\mid x,a)$ is strictly positive and continuous.} %Let the conditional density $p(y\mid x,a)$ be strictly positive and continuous for all $x\in\mathcal{X},a\in\mathcal{A}$.}
+Then, an estimator for the sharp upper bound of the value function is given by
+%\begingroup\makeatletter\def\f@size{8}\check@mathfonts
+\begin{align}
+&\hat{V}^{+,*}(\pi) \nonumber = \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}\Big[ \hat{Q}^{+,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{-}\hat{\ubar{\mu}}_{a,X}^+ + b^{+}\hat{\bar{\mu}}_{a,X}^+ \Big) \Big]
+    + \pi_{A,X} \Big( b^{-}\hat{\ubar{\mu}}_{A,X}^+ + b^{+}\hat{\bar{\mu}}_{A,X}^+ \Big) \nonumber \\
+    &\qquad\quad + \frac{\pi_{A,X}}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{-}- \hat{c}_{A,X}^{+}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^+)(\hat{\ubar{\Delta}}_{Y,A,X}^+ - \alpha^+)\Big)\label{eq:v+}\\
+    &\qquad\quad +\hat{c}_{A,X}^{-}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^+ - \hat{\ubar{\mu}}_{A,X}^+\Big)
+    +\hat{c}_{A,X}^{+}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^+ - \hat{\bar{\mu}}_{A,X}^+\Big)
+    \Big]\Big\}.\nonumber
+\end{align}
+%\endgroup
+\rebuttal{If, on top, $\E[|Y|^2]<\infty$,} the above estimator is \textbf{semi-parametrically efficient}.
+\end{theorem}
+
+\begin{proof}
+The sharp upper bound of the value function is given by
+\begin{align}
+    V^{\pm,*}(\pi) = \int_\mathcal{X}\sum_a Q^{\pm,*}(a,x) \pi(a\mid x)\diff p(x).
+\end{align}
+In the following, we derive the efficient estimator for this quantity. Therein, we make use of the chain rule for deriving efficient influence function \citep{Kennedy.2022}. \emph{A proof of the validity of the chain rule for deriving efficient influence functions is provided by \citet{Luedtke.2024}}  \textbf{(Lemma S3)}. 
+
+In order to avoid notational overload and for the sake of clarity, we do not use additional variables such as $b^\pm$, $c^\pm$, $\ubar{\Delta}^\pm$, $\bar{\mu}^\pm$, etc. until the final steps, such that the derivation becomes easier to follow. Moreover, we make the dependency on nuisance functions $\eta\subseteq \{e(a,x),F_{a,x}^{-1}(\alpha^{\pm}), \bar{\mu}^\pm(a,x),\ubar{\mu}^\pm(a,x)\}$ explicit by writing, for example, $V^{+,*}(\pi;\eta)$ for $V^{+,*}(\pi)$.
+
+The influence function of $V^{+,*}(\pi;\eta)$ is given by
+\begin{align}
+    &\f\Big(V^{+,*}(\pi;\eta)\Big) \\
+    =& \f\Big(\int_\mathcal{X}\sum_a Q^{+,*}(a,x;\eta) \pi(a\mid x)\diff p(x)\Big)\\
+    =& \sum_a \int_\mathcal{X} \pi(a\mid x)  \, \f\Big( p(x) Q^{+,*}(a,x;\eta) \Big) \diff x\\
+    =& \sum_a\int_\mathcal{X} \pi(a\mid x)  \, \f\Big( p(x)  \Big)Q^{+,*}(a,x;\eta) + \pi(a\mid x) \, p(x) \, \f\Big( Q^{+,*}(a,x;\eta) \Big)  \diff x\\
+    =& \sum_a\int_\mathcal{X} \pi(a\mid x) \Big(\mathbbm{1}_{\{X=x\}}-p(x)  \Big)Q^{+,*}(a,x;\eta) \diff x +\sum_a\int_\mathcal{X} \pi(a\mid x) \, p(x)  \, \f\Big( Q^{+,*}(a,x;\eta) \Big) \diff x\\
+    =& \sum_a \pi(a\mid X) \, Q^{+,*}(a,X;\eta) - V^{+,*}(\pi;\eta) 
+    +\sum_a\int_\mathcal{X} \pi(a\mid x) \, p(x) \, \f\Big( Q^{+,*}(a,x;\eta) \Big)   \diff x\label{eq:v+_0}
+\end{align}
+
+Hence, in \Eqref{eq:v+_0}, we are left to compute the efficient influence function of $Q^{+,*}(a,x)$, that is, the sharp upper bound of the CAPO. With ${\alpha^+}=\Gamma/(1+\Gamma)$, the sharp upper bound $Q^{+,*}(a,x)$ is given by
+\begin{align}
+    &Q^{+,*}(a,x;\eta)\\
+    =& \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big) \mathbb{E}\Big[ Y \IndL \mid X=x, A=a \Big]\\
+        &+ \Big( (1-\Gamma) e(a, x) +\Gamma \Big) \mathbb{E}\Big[ Y \IndG \mid X=x, A=a \Big].
+\end{align}
+Hence, the influence function is given by
+\begin{align}
+    &\f \Big( Q^{+,*}(a,x;\eta)\Big) \\
+    =& \underbrace{\f\Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big)}_{(a)} \mathbb{E}\Big[ Y \IndL \mid X=x, A=a \Big]\\
+    &+ \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big) \underbrace{\f\Big(\mathbb{E}\Big[ Y \IndL \mid X=x, A=a \Big]\Big)}_{(c)} \\
+    &+ \underbrace{\f\Big( (1-\Gamma) e(a, x) +\Gamma \Big)}_{(b)} \mathbb{E}\Big[ Y \IndG \mid X=x, A=a \Big]\\
+    &+ \Big( (1-\Gamma) e(a, x) +\Gamma \Big) \underbrace{\f\Big(\mathbb{E}\Big[ Y \IndG \mid X=x, A=a \Big]\Big)}_{(d)},
+\end{align}
+\rebuttal{where we can apply the chain rule to the conditional expectation of the truncated first moments of $Y$, since $Y$ is integrable by assumption.}
+We start with $(a)$ and $(b)$. For $(a)$, we obtain
+\begin{align}
+    &\f\Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big)\\
+    =& (1-\Gamma^{-1}) \f\Big( e(a, x)\Big)\\
+    =& (1-\Gamma^{-1}) \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}\Big( \mathbbm{1}_{\{A=a\}}-e(a, x)\Big),\label{eq:if_a}
+\end{align}
+and, similarly for $(b)$, we yield
+\begin{align}
+    &\f\Big( (1-\Gamma) e(a, x) +\Gamma \Big)\\
+    =& (1-\Gamma) \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}\Big( \mathbbm{1}_{\{A=a\}}-e(a, x)\Big).\label{eq:if_b}
+\end{align}
+
+
+
+Next, we compute the influence function of $(c)$ via
+\begin{align}
+    &\f \Big( \mathbb{E}\Big[Y \IndL \mid X=x,A=a\Big] \Big)\\
+    =& \f \Big( \int_\mathcal{Y}  \indl \, y \, p(y\mid x, a) \diff y \Big) \\
+    =& \int_\mathcal{Y}  \f\Big(\indl \Big) \, y \, p(y\mid x,a) + \indl y \f \Big(  p(y\mid x,a)\Big) \diff y\\
+    =& \underbrace{\int_\mathcal{Y}  \, \f\Big(\indl \Big) \, y \, p(y\mid x,a) \diff y}_{(c_1)} + \underbrace{\int_\mathcal{Y} \indl \, y \, \f \Big( p(y\mid x,a)\Big) \diff y}_{(c_2)}.
+\end{align}
+For $(c_1)$, we first note that
+\begin{align}
+    &\f\Big(F_{x,a}({\alpha^+})\Big)\\
+    =& \f \Big( \mathbb{P}(Y\leq y \mid X=x,A=a)\Big)\\
+    =& \f \Big( \mathbb{E}[\mathbbm{1}_{\{Y\leq y\}}\mid X=x,A=a]\Big)\\
+    =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\Big(\mathbbm{1}_{\{Y\leq y\}} - \mathbb{E}[\mathbbm{1}_{\{Y\leq y\}}\mid X=x,A=a]\Big)\\
+    =& \underbrace{\frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\Big(\mathbbm{1}_{\{Y\leq y\}} - F_{x,a}(y)\Big)}_{(*)}.
+\end{align}
+Then, we can simplify $(c_1)$ via
+\begin{align}
+    &\int_\mathcal{Y}  \f\Big(\indl \Big)\,y\,  p(y\mid x,a) \diff y\\
+    =& \int_\mathcal{Y} \delta\Big(y-\q({\alpha^+})\Big)\f\Big(\q({\alpha^+})\Big)\,y\, p(y\mid x,a)\diff y\\
+    =& \f\Big(\q({\alpha^+})\Big)\int_\mathcal{Y} \delta\Big(y-\q({\alpha^+})\Big)\,y\,p(y\mid x,a)\diff y\\
+    =&  \f\Big(\q(F_{x,a}(y^*))\Big) \int_\mathcal{Y} \delta\Big(y-\q({\alpha^+})\Big) \,y \, p(y\mid x,a)\diff y\\
+    =&  \frac{\diff}{\diff q}\q(q)\Big|_{q=F_{x,a}(y^*)} \f\Big(F_{x,a}(y^*)\Big)  \int_\mathcal{Y} \delta \Big( y-\q({\alpha^+})\Big) \, y \, p(y\mid x,a)\diff y \\
+    =&   \frac{1}{F_{x,a}'(\q(F_{x,a}(y^*)))}  \f\Big(F_{x,a}(y^*)\Big)   \int_\mathcal{Y} \delta\Big(y-\q({\alpha^+})\Big) \, y \, p(y\mid x,a)\diff y \label{eq:unique_quantile} \\
+    =&  \frac{1}{p(y^*\mid x,a)}   \f\Big(F_{x,a}(y^*)\Big)\int_\mathcal{Y} \delta\Big(y-\q({\alpha^+})\Big)   \, y \, p(y\mid x,a)\diff y \label{eq:positive_density}\\
+    \stareq & \frac{1}{p(y^*\mid x,a)}   \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\Big(\mathbbm{1}_{\{Y\leq y^*\}} - F_{x,a}(y^*)\Big)   \int_\mathcal{Y} \delta(y-y^*)\, y \, p(y\mid x,a)\diff y\\
+    =&\frac{1}{p(y^*\mid x,a)}   \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\Big(\mathbbm{1}_{\{Y\leq y^*\}} - {\alpha^+}\Big)   \int_\mathcal{Y} \delta(y-y^*) \, y \, p(y\mid x,a)\diff y \\
+    =&\frac{1}{p(y^*\mid x,a)}   \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\Big(\mathbbm{1}_{\{Y\leq y^*\}} - {\alpha^+}\Big)  \,  y^* \, p(y^*\mid x,a)\\
+    =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\q({\alpha^+}) (\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}} - {\alpha^+}),\label{eq:if_ci}
+\end{align}
+for some $y^*\in\mathcal{Y}$ such that $F_{x,a}(y^*)={\alpha^+}$, where $\delta(\cdot)$ is the Dirac-delta function, \rebuttal{and where we use in \Eqref{eq:unique_quantile} that $p(y|x,a)$ is a continuous density strictly bounded away from zero in a neighborhood of $F_{x,a}^{-1}(\alpha^+)$, which guarantees that the \emph{conditional quantile is unique}, and where \Eqref{eq:positive_density} \emph{exists} by positivity of the conditional density}.
+
+Next, we simplify $(c_2)$ via
+\begin{align}
+    &\int_\mathcal{Y} \indl y \f \Big(  p(y\mid x,a)\Big) \diff y\\
+    =& \int_\mathcal{Y} \indl \, y \, \f  \Big( \mathbb{E}[\mathbbm{1}_{\{Y= y\}} \mid X=x,A=a]\Big) \diff y\\
+    =&  \int_\mathcal{Y} \indl \, y \, \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big(\mathbbm{1}_{\{Y= y\}}-p(y\mid x,a \Big) \diff y\\
+    =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big( Y\Indl - \mathbb{E}[Y\IndL \mid X=x,A=a]\Big).\label{eq:if_cii}
+\end{align}
+Then, combining $(c_1)$ and $(c_2)$, we get
+\begin{align}
+     &\f \Big( \mathbb{E}\Big[Y \IndL \mid X=x,A=a\Big] \Big)\\
+     =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big(  Y\Indl - \mathbb{E}[Y\Indl \mid X=x,A=a]+\q({\alpha^+})(\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}} - {\alpha^+})\Big).\label{eq:if_c}
+\end{align}
+
+Finally, we compute the influence function of $(d)$ analogously to $(c)$ via
+\begin{align}
+    &\f \Big( \mathbb{E}\Big[Y \IndG \mid X=x,A=a\Big] \Big)\\
+    = & \underbrace{\int_\mathcal{Y}  \f\Big(\indg \Big) \, y \, p(y\mid x,a) \diff y}_{(d_1)} + \underbrace{\int_\mathcal{Y} \indg \, y \, \f \Big( p(y\mid x,a)\Big) \diff y}_{(d_2)}.
+\end{align}
+Again, we start with $(d_1)$ via
+\begin{align}
+     &\int_\mathcal{Y}  \f\Big(\indg \Big) \, y \, p(y\mid x,a) \diff y\\
+     =& \int_\mathcal{Y}  \f\Big((1-\indl ) \Big) \, y \, p(y\mid x,a) \diff y\\
+     =& -\int_\mathcal{Y}  \f\Big(\indl \Big) \, y \, p(y\mid x,a) \diff y\\
+     =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)}\Big( -\q({\alpha^+})\Big) (\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}} - {\alpha^+}),\label{eq:if_di}
+\end{align}
+using the result for $(c_1)$ in \Eqref{eq:if_ci}. Further, for $(d_2)$, we get that
+\begin{align}
+    &\int_\mathcal{Y} \indg \, y \, \f \Big(  p(y\mid x,a)\Big) \diff y\\
+    =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big( Y\Indg - \mathbb{E}[Y\IndG \mid X=x,A=a]\Big).\label{eq:if_dii}
+\end{align}
+Combining $(d_1)$ and $(d_2)$, we obtain that
+\begin{align}
+     &\f \Big( \mathbb{E}\Big[Y \Indg \mid X=x,A=a\Big] \Big)\\
+     =& \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big(  Y\Indg - \mathbb{E}[Y\IndG \mid X=x,A=a] -\q({\alpha^+})(\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}} - {\alpha^+})\Big).\label{eq:if_d}
+\end{align}
+
+Finally, we can state the influence function of $Q^{+,*}(a,x)$ by combining $(a)$--$(d)$ in \Eqref{eq:if_a}, \Eqref{eq:if_b}, \Eqref{eq:if_c}, and \Eqref{eq:if_d}. We get  
+\begin{align}
+    &\f \Big( Q^{+,*}(a,x;\eta) \Big)\\
+    =&  \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}(1-\Gamma^{-1})\Big( \mathbbm{1}_{\{A=a\}}-e(a, x)\Big)
+       \mathbb{E}\Big[ Y \IndL \mid X=x, A=a \Big]\\
+    &+ \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big)\\
+    & \quad \times  \Big(  Y\Indl
+    - \mathbb{E}[Y\IndL \mid X=x,A=a] +\q({\alpha^+})(\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}} - {\alpha^+})\Big)\\
+    &+ \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}(1-\Gamma) \Big( \mathbbm{1}_{\{A=a\}}-e(a, x)\Big)
+        \mathbb{E}\Big[ Y \IndG \mid X=x, A=a \Big] \\
+    &+  \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big( (1-\Gamma) e(a, x) +\Gamma \Big) \\
+    & \quad \times  \Big(  Y\Indg 
+    - \mathbb{E}[Y\IndG \mid X=x,A=a] -\q({\alpha^+})(\mathbbm{1}_{\{Y\leq \q({\alpha^+})\}} - {\alpha^+})\Big).\label{eq:if_capo_0}
+\end{align}
+
+In order to simplify the above lengthy equation as in our main paper, we introduce the following variables:
+\begin{itemize}
+    \item $b^\pm = (1-\Gamma^{\pm 1})$
+    \item $c^\pm(a,x; \eta) = (b^\pm e(a,x) + \Gamma^{\pm 1})$
+    \item $\ubar{\Delta}^\pm (y,a,x;\eta)=\mathbbm{1}_{\{y\leq \q({\alpha^\pm})\}}$
+    \item $\bar{\Delta}^{\pm}(y,a,x;\eta)=\mathbbm{1}_{\{y\geq \q({\alpha^\pm})\}}$
+    \item $\ubar{\mu}^{\pm}(a,x;\eta)=\mathbb{E}[Y\ubar{\Delta}^\pm (Y,A,X;\eta)\mid X=x,A=a]$
+    \item $\bar{\mu}^{\pm}(a,x;\eta)=\mathbb{E}[Y\bar{\Delta}^\pm(Y,A,X;\eta)\mid X=x,A=a]$
+\end{itemize}
+Then,  \Eqref{eq:if_capo_0} simplifies to
+\begin{align}
+    &\f \Big( Q^{+,*}(a,x;\eta) \Big)\\
+    =&  \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}b^- \Big( \mathbbm{1}_{\{A=a\}}-e(a,x)\Big)
+       \ubar{\mu}^+(a,x;\eta) \\
+    &+ \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(x)e(a,x)} c^- (a,x;\eta)
+    \Big( Y\ubar{\Delta}^{+}(Y,a,x;\eta) - \ubar{\mu}^+ (a,x;\eta) +\q({\alpha^+})(\ubar{\Delta}^{+}(Y,a,x;\eta) - {\alpha^+})\Big)\\
+    &+  \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}b^+ \Big( \mathbbm{1}_{\{A=a\}}-e(a,x)\Big)
+       \bar{\mu}^{{+}}(a,x;\eta)\\
+    &+ \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(x)e(a,x)} c^{+}(a,x;\eta)
+    \Big( Y\bar{\Delta}^{+}(Y,a,x;\eta) - \bar{\mu}^+ (a,x;\eta) -\q({\alpha^+})(\ubar{\Delta}^+(Y,a,x;\eta) - {\alpha^+})\Big) \\
+    =&  \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}
+    \Big\{ 
+        \Big( \mathbbm{1}_{\{A=a\}}-e(a,x)\Big) \Big( b^- \ubar{\mu}^{{+}}(a,x;\eta) + b^{+}\bar{\mu}^{{+}}(a,x;\eta) \Big)\\
+    &+ \frac{\mathbbm{1}_{\{A=a\}}}{e(a,x)} \Big[ \Big(c^{-}(a,x;\eta)- c^+(a,x;\eta)\Big)\Big(\q({\alpha^+})(\ubar{\Delta}^{^+}(Y,a,x;\eta) - {\alpha^+})\Big)\\
+    &+c^{{-}}(a,x;\eta)\Big( Y\ubar{\Delta}^{+}(Y,a,x;\eta) - \ubar{\mu}^{{+}}(a,x;\eta)\Big)
+    +c^{+}(a,x;\eta)\Big( Y\bar{\Delta}^{+}(Y,a,x;\eta) - \bar{\mu}^{{+}}(a,x;\eta)\Big)
+    \Big]
+    \Big\}\label{eq:capo_1}
+\end{align}
+
+Finally, we can combine \Eqref{eq:v+_0} and \Eqref{eq:capo_1}. That is, the efficient influence function of $V^{+,*}(\pi)$ is given by
+\begin{align}
+    &\f\Big(V^{+,*}(\pi;\eta)\Big) \\
+    =& \sum_a \pi(a\mid X)Q^{+,*}(a,X) - V^{+,*}(\pi) \\
+    &+ \sum_a \pi(a\mid X) \Big( \mathbbm{1}_{\{A=a\}}-e(a,X)\Big) \Big( b^{-}\ubar{\mu}^{{+}}(a,X;\eta) + b^{+}\bar{\mu}^{{+}}(a,X;\eta) \Big)\\
+    &+\sum_a \pi(a\mid X) \frac{\mathbbm{1}_{\{A=a\}}}{e(a,X)} \Big[ \Big(c^{-}(a,X;\eta)- c^+(a,X;\eta)\Big)\Big(\q({\alpha^+})(\ubar{\Delta}^{+}(Y,a,X;\eta) - {\alpha^+})\Big)\\
+    &+c^{{-}}(a,X;\eta)\Big( Y\ubar{\Delta}^{+}(Y,a,X;\eta) - \ubar{\mu}^{{+}}(a,X;\eta)\Big)
+    +c^+(a,X;\eta)\Big( Y\bar{\Delta}^{+}(Y,a,X;\eta) - \bar{\mu}^{{+}}(a,X;\eta)\Big)
+    \Big] \\
+    =&  - V^{+,*}(\pi)+ \sum_a \pi(a\mid X)\Big[ Q^{+,*}(a,X) -e(a,X) \Big( b^{-}\ubar{\mu}^{{+}}(a,X;\eta) + b^{+}\bar{\mu}^{{+}}(a,X;\eta) \Big) \Big]  \\
+    &+ \pi(A\mid X) \Big( b^{-}\ubar{\mu}^{{+}}(A,X;\eta) + b^{+}\bar{\mu}^{{+}}(A,X;\eta) \Big)\\
+    &+ \frac{\pi(A\mid X)}{e(A,X)} \Big[ \Big(c^{{-}}(A,X;\eta)- c^+(A,X;\eta)\Big)\Big(\Q({\alpha^+})(\ubar{\Delta}_{\alpha^+}(Y,A,X;\eta) - {\alpha^+})\Big)\\
+    &+c^{-}(A,X;\eta)\Big( Y\ubar{\Delta}^{+}(Y,A,X;\eta) - \ubar{\mu}^{{+}}(A,X;\eta)\Big)
+    +c^{+}(A,X;\eta)\Big( Y\bar{\Delta}^{+}(Y,A,X;\eta) - \bar{\mu}^{{+}}(A,X;\eta)\Big)
+    \Big]
+\end{align}
+
+We can derive the efficient estimator for the bounds of the value function through one-step bias correction via
+\begin{align}
+     &V^{+,*}(\pi;\hat{\eta}) + \mathbb{P}_n\Big\{ V^{+,*}(\pi; \hat{\eta}) \Big\}\\
+     =&  \mathbb{P}_n\Big\{ \sum_a \pi(a\mid X)\Big[ {Q}^{+,*}(a,X;\hat{\eta}) -\hat{e}(a,X) \Big( b^{-}\hat{\ubar{\mu}}^{{+}}(a,X;\hat{\eta}) + b^{{+}}\hat{\bar{\mu}}^{{+}}(a,X;\hat{\eta}) \Big) \Big]  \\
+    & \qquad + \pi(A\mid X) \Big( b^{-}\hat{\ubar{\mu}}^{{+}}(A,X;\hat{\eta}) + b^{{+}}\hat{\bar{\mu}}^{{+}}(A,X;\hat{\eta}) \Big)\\
+    &\qquad + \frac{\pi(A\mid X)}{\hat{e}(A,X)} \Big[ \Big({c}^{-}(A,X;\hat{\eta})- {c}^{{+}}(A,X;\hat{\eta})\Big)\Big(\hat{F}_{X,A}^{-1}({\alpha^+})({\ubar{\Delta}}^{+}(Y,A,X;\hat{\eta}) - {\alpha^+})\Big) \\
+    &\qquad +{c}^{-}(A,X;\hat{\eta})\Big( Y {\ubar{\Delta}}^{+}(Y,A,X;\hat{\eta}) - \hat{\ubar{\mu}}^{{+}}(A,X;\hat{\eta})\Big)
+    +{c}^{{+}}(A,X;\hat{\eta})\Big( Y{\bar{\Delta}}^{+}(Y,A,X;\hat{\eta}) - \hat{\bar{\mu}}^{{+}}(A,X;\hat{\eta})\Big)
+    \Big]\Big\}\\
+    =& \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}\Big[ \hat{Q}^{+,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{-}\hat{\ubar{\mu}}_{a,X}^+ + b^{+}\hat{\bar{\mu}}_{a,X}^+ \Big) \Big]+ \pi_{A,X} \Big( b^{-}\hat{\ubar{\mu}}_{A,X}^+ + b^{+}\hat{\bar{\mu}}_{A,X}^+ \Big)\\
+    &+ \frac{\pi_{A,X}}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{-}- \hat{c}_{A,X}^{+}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^+)(\hat{\ubar{\Delta}}_{Y,A,X}^+ - \alpha^+)\Big)+\hat{c}_{A,X}^{-}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^+ - \hat{\ubar{\mu}}_{A,X}^+\Big)
+    +\hat{c}_{A,X}^{+}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^+ - \hat{\bar{\mu}}_{A,X}^+\Big)
+    \Big]\Big\} \nonumber
+\end{align}
+using our short-hand notation from the main paper.
+
+\end{proof}
+
+
+
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\subsection{Learning guarantee: Value function}\label{appendix:improvement_value}
+\begin{theorem}%\label{prop:improvement_value}
+\rebuttal{Assume $|Y|\le C_y$. Let $C_v \coloneqq 2C_y(1+\Gamma^{-1}+\Gamma)$ and let $R_n(\Pi)$ denote the empirical Rademacher complexity of the policy class $\Pi$. Then, with probability at least $1-\delta$,
+\begin{equation}\label{eq:uniform_bound}
+\sup_{\pi\in\Pi}\Big\{ V(\pi) - \hat V^{+,*}(\pi) \Big\}
+\;\;\le\;\; 2C_v\!\left( R_n(\Pi) \;+\; \tfrac{5}{2}\sqrt{\tfrac{1}{2n}\log\!\tfrac{2}{\delta}} \right).
+\end{equation}
+Equivalently, on the same high-probability event, \emph{simultaneously for all} $\pi\in\Pi$,
+\begin{equation}\label{eq:uniform_per_policy}
+V(\pi)\;\le\; \hat V^{+,*}(\pi) \;+\; 2C_v\!\left( R_n(\Pi) \;+\; \tfrac{5}{2}\sqrt{\tfrac{1}{2n}\log\!\tfrac{2}{\delta}} \right).
+\end{equation}}
+\end{theorem}
+
+\begin{proof}
+We start by bounding the sharp upper bound $V^{+,*}(\pi)$ of the value function. By assumption, we have that $|Y|\leq C_y$. Hence, for any $\pi \in \Pi$, we can bound $V^{+,*}(\pi)$ via
+\begin{align}
+    &|V^{+,*}(\pi)|\\
+    =& \Big| \int_\mathcal{X} \sum_a Q^{+,*}(a,x) \pi(a\mid x)\diff p(x) \Big|\\
+    \leq& \Big|\sup_{(x,a)\in \mathcal{X}\times \mathcal{A}} Q^{+,*}(a,x) \Big| \\
+    =& \sup_{(x,a)\in \mathcal{X}\times \mathcal{A}} \Big| \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big) \mathbb{E}\Big[ Y \Indl \mid X=x, A=a \Big]\\
+        &+ \Big( (1-\Gamma) e(a, x) +\Gamma \Big) \mathbb{E}\Big[ Y \Indg \mid X=x, A=a \Big]  \Big|\\
+    \leq& \sup_{(x,a)\in \mathcal{X}\times \mathcal{A}} C_y \Big(  \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big) 
+        + \Big( (1-\Gamma) e(a, x) +\Gamma \Big)    \Big) \\
+    \leq& C_y \Big(2+ 2\Gamma^{-1}+2\Gamma\Big)\\
+    =& C_v.
+\end{align}
+
+Now, for the main result, we seek to find an upper bound for
+\begin{align}
+    \sup_{\pi \in \Pi}  \hat{V}^{+,*}(\pi) - V(\pi) .
+\end{align}
+By adding a zero and sublinearity of the supremum operator, we have that 
+\begin{align}
+    \sup_{\pi \in \Pi}  \hat{V}^{+,*}(\pi) - V(\pi) 
+    \leq \sup_{\pi \in \Pi} \Big(\hat{V}^{+,*}(\pi) - V^{+,*}(\pi) \Big) +\sup_{\pi \in \Pi} \Big( V^{+,*}(\pi) - V(\pi) \Big).
+\end{align}
+Further, by validity of our bounds, we know that
+\begin{align}
+    \sup_{\pi \in \Pi}  V^{+,*}(\pi) - V(\pi)  \geq 0,
+\end{align}
+such that we only need to focus on 
+\begin{align}
+    D = \sup_{\pi \in \Pi}  \hat{V}^{+,*}(\pi) - V^{+,*}(\pi) .
+\end{align}
+Since
+\begin{align}
+    \hat{V}^{+,*}(\pi) = \frac{1}{n}\sum_{i=1}^n V_i^{+,*}(\pi) = \frac{1}{n}\sum_{i=1}^n \sum_a Q^{+,*}(X_i, a) \pi(a\mid X_i)
+\end{align}
+is a sample average with $|V_i^{+,*}(\pi)|\leq C_v$, we know that $D$ satisfies the bounded difference with $C_v/n$. Hence, we can apply McDiarmid's inequality \citep{McDiarmid.1989}, which yields
+\begin{align}
+    \mathbb{P}\Big(D-\mathbb{E}[D] \geq \epsilon \Big) \leq \underbrace{\exp\Big(-\frac{2\epsilon^2 n}{C_v^2}\Big)}_{=p_1}.
+\end{align}
+Then, solving for $\epsilon$ gives us
+\begin{align}
+    \epsilon = \sqrt{\frac{C_v^2}{2n}\log \Big( \frac{1}{p_1}\Big)}.
+\end{align}
+Hence, we know, with probability at least $1-p_1$, that
+\begin{align}
+    D \leq \mathbb{E}[D] + \sqrt{\frac{C_v^2}{2n}\log \Big( \frac{1}{p_1}\Big)}.\label{eq:diarmid1}
+\end{align}
+
+As in \citep{ Athey.2021,Frauen.2024,Hatt.2022b, Kallus.2018c}, we express the flexibility of our policy class $\Pi$ in terms of the Rademacher complexity. For this, we first note that a standard symmetrization argument yields
+\begin{align}
+    \mathbb{E}[D] \leq \mathbb{E}\Bigg[ \frac{1}{2^n} \sum_{\sigma \in \{-1,+1\}} \sup_{\pi \in \Pi} \Bigg| \frac{1}{n} \sum_{i=1}^n \sigma_i V_i^{+,*}(\pi) \Bigg| \Bigg],
+\end{align}
+where $\sigma_i \sim_\mathrm{iid} \text{Unif}\{-1, +1\}$. Then, using the Rademacher-comparison lemma \citep{Ledoux.1989}, we have that
+\begin{align}
+    \mathbb{E}[D]\leq 2C_v \mathbb{E}\Big[ \mathcal{R}_n({\Pi}) \Big],
+\end{align}
+where
+\begin{align}
+    \mathcal{R}_n({\Pi}) = \mathbb{E}_{\sigma}\Bigg[ \sup_{\pi \in \Pi} \frac{1}{n}\sum_{i=1}^n \sigma_i V_i^{+,*}\Bigg ]
+\end{align}
+is the empirical Rademacher complexity of policy class $\Pi$. Again, $\mathcal{R}_n(\Pi)$ satisfies bounded difference with $2/n$, such that we can apply McDiarmid's inequality \citep{McDiarmid.1989}. This gives
+\begin{align}
+    \mathbb{P}\Big( \mathcal{R}_n(\Pi)  - \mathbb{E}[\mathcal{R}_n(\Pi)] \geq \epsilon \Big) \leq \underbrace{\exp\Big( -\frac{\epsilon^2 n}{2}\Big)}_{=p_2}.
+\end{align}
+Solving for $\epsilon$ yields
+\begin{align}
+    \epsilon = \sqrt{\frac{2}{n} \log \Big( \frac{1}{p_2} \Big) },
+\end{align}
+such that, with probability at least $1-p_2$, we have that
+\begin{align}
+    \mathbb{E}\Big[\mathcal{R}_n(\Pi)\Big] \leq \mathcal{R}_n(\Pi) + \sqrt{\frac{2}{n} \log \Big( \frac{1}{p_2} \Big) }.\label{eq:diarmid2}
+\end{align}
+Combining \Eqref{eq:diarmid2} with our previous result in \Eqref{eq:diarmid1}, we have, with probability of at least $1-p_1-p_2$, that
+\begin{align}
+    &\sup_{\pi \in \Pi} \Big( \hat{V}^{+,*}(\pi) -V^{+,*}(\pi) \Big)\\
+    \leq& 2 C_v \mathcal{R}_n(\Pi) + \sqrt{\frac{C_v^2}{2n}\log\Big( \frac{1}{p_1}\Big)} +2C_v \sqrt{\frac{2}{n} \log \Big( \frac{1}{p_2} \Big) }\\
+    =& 2 C_v \Big(  \mathcal{R}_n(\Pi) + \sqrt{\frac{1}{8n}\log\Big( \frac{1}{p_1}\Big)} + \sqrt{\frac{2}{n} \log \Big( \frac{1}{p_2} \Big) }\Big).
+\end{align}
+Now let $p_1 = p_2 = \delta/2$. Then, we know that with probability at least $1-\delta$,
+\begin{align}
+    &\sup_{\pi \in \Pi} \Big( \hat{V}^{+,*}(\pi) -V^{+,*}(\pi) \Big) \\
+    \leq& 2 C_v \Big(  \mathcal{R}_n(\Pi) + \sqrt{\frac{1}{8n}\log\Big( \frac{1}{\delta}\Big)} + \sqrt{\frac{2}{n} \log \Big( \frac{1}{\delta} \Big) }\Big)\\
+    =& 2C_v \Big( \mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big),
+\end{align}
+or, equivalently,
+\begin{align}
+    V^{+,*}(\pi) \leq \hat{V}^{+,*}(\pi) + 2C_v \Big( \mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big)
+\end{align}
+for all $\pi\in \Pi$, which concludes the proof.
+\end{proof}
+\clearpage
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Bound of the regret function}\label{appendix:sharp_regret}
+\begin{corollary}%\label{prop:sharp_regret}
+    Given $Q^{\pm,*}(a,x)$ and our sensitivity constraints $\mathcal{P}(\Gamma)$ as in Proposition~\ref{prop:sharp_value}, an upper bound for the regret function $R_{\pi_0}(\pi)$ is given by
+    \begin{align}
+        R_{\pi}^{+}(\pi) = \int_\mathcal{X} \sum_a  \Big(  Q^{+,*}(a,x) \pi(a\mid x) - Q^{-,*}(a,x)\pi_0(a\mid x) \Big) \diff p(x).
+    \end{align}
+\end{corollary}
+\begin{proof}
+    Our proof follows similar steps as in the proof of Proposition~\ref{prop:sharp_value}. For clarity, we repeat the same steps such that the proof is self-contained.
+    
+    Again, we start by noting that the upper bound on the regret function depends on the choice of our sensitivity constraints and, hence, the set of distributions $\mathcal{P}(\Gamma)$. Therefore, we can write that
+    \begin{align}
+        R_{\pi_0}^{+}(\pi) = R_{\pi_0}^{+}(\pi, \mathcal{P}(\Gamma)).
+    \end{align}
+    Following similar steps as in Proposition~\ref{prop:sharp_value}, we can write
+    \begin{align}
+        &R_{\pi_0}^{+}(\pi) \\
+        =& R_{\pi_0}^{+}(\pi, \mathcal{P}(\Gamma))\\
+        =&\sup_{\tilde{p} \in \mathcal{P}(\Gamma)} R_{\pi_0}(\pi, \tilde{p})\\
+        =&\sup_{\tilde{p} \in \mathcal{P}(\Gamma)}\Big( V(\pi, \tilde{p}) - V(\pi_0, \tilde{p})\Big)\\
+        =&\sup_{\tilde{p} \in \mathcal{P}(\Gamma)}  \int_\mathcal{X} \sum_a \Big( Q(a,x, \tilde{p}) \pi(a\mid x) - Q(a,x, \tilde{p})\pi_0(a\mid x) \Big) \diff \tilde{p}(x)\\
+        =&\sup_{\tilde{p} \in \mathcal{P}(\Gamma)}  \int_\mathcal{X} \sum_a \Big( Q(a,x, \tilde{p}) \pi(a\mid x) - Q(a,x, \tilde{p})\pi_0(a\mid x) \Big) \diff p(x)
+        ,\label{eq:equality_marginals}
+    \end{align}
+    where \Eqref{eq:equality_marginals} again follows from $p(\mathcal{D})=\tilde{p}(\mathcal{D})$ for all $\tilde{p}\in \mathcal{P}(\Gamma)$.
+    
+    Since the optimal bounds $Q^{\pm,*}(a,x)$ are those $Q(a,x,\tilde{p})$, $\tilde{p}\in\mathcal{P}(\Gamma)$, for which the supremum/infimum are attained, we have that
+    \begin{align}
+        Q(a,x,\tilde{p}) \leq \sup_{\tilde{p}\in\mathcal{P}(\Gamma)} Q(a,x,\tilde{p}) = Q^{+,*}(a,x,\mathcal{P}(\Gamma))
+    \end{align}
+    and
+    \begin{align}
+        Q(a,x,\tilde{p}) \geq \inf_{p\in\mathcal{P}(\Gamma)} Q(a,x,\tilde{p}) = Q^{-,*}(a,x,\mathcal{P}(\Gamma))
+    \end{align}
+    for all $\tilde{p}\in\mathcal{P}(\Gamma)$. Then, since $Q^{\pm,*}(a,x)\in L^{1}(\pi,p)$, it follows by dominated convergence that
+    \begin{align}
+        &\sup_{\tilde{p} \in \mathcal{P}(\Gamma)}  \int_\mathcal{X} \sum_a \Big(Q(a,x, \tilde{p}) \pi(a\mid x) - Q(a,x, \tilde{p}) \pi_0(a\mid x) \Big) \diff p(x)
+        \\
+        =&  \int_\mathcal{X} \sup_{\tilde{p} \in \mathcal{P}(\Gamma)} \sum_a \Big(Q(a,x, \tilde{p}) \pi(a\mid x) - Q(a,x, \tilde{p}) \pi_0(a\mid x) \Big) \diff p(x)
+        \\
+        \leq& \int_\mathcal{X} \sum_a \sup_{\tilde{p} \in \mathcal{P}(\Gamma)} Q(a,x, \tilde{p}) \pi(a\mid x) \diff p(x)- \int_\mathcal{X} \sum_a \inf_{\tilde{p} \in \mathcal{P}(\Gamma)} Q(a,x, \tilde{p}) \pi_0(a\mid x) \diff p(x)\label{eq:supremum_inequality}\\
+        =& \int_\mathcal{X} \sum_a \Big( Q^{+,*}(a,x) \pi(a\mid x) -   Q^{-,*}(a,x) \pi_0(a\mid x) \Big) \diff p(x),
+    \end{align}
+    where \Eqref{eq:supremum_inequality} follows from the sublinearity of the supremum/infimum operator.
+\end{proof}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\subsection{Efficient estimator of the regret bound}\label{appendix:efficient_estimator_regret}
+\begin{corollary}
+\rebuttal{Let $\E[|Y|^2]<\infty$  and $p(y\mid x,a)$ admit a continuous density bounded away from zero in a neighborhood of $F_{x,a}^{-1}(\alpha^+)$. This holds, for example, if the density $p(y\mid x,a)$ is strictly positive and continuous.} Then, an efficient estimator for the upper bound of the regret function is given by
+\begin{align}
+&\hat{R}_{\pi_0}^{+}(\pi)\\
+=& \sum_{\pm\in\{-,+\}}\pm \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}^\pm\Big[ \hat{Q}^{\pm,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{\mp}\hat{\ubar{\mu}}_{a,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{a,X}^\pm \Big) \Big]
+    + \pi_{A,X}^\pm \Big( b^{\mp}\hat{\ubar{\mu}}_{A,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{A,X}^\pm \Big)\\
+    &+ \frac{\pi_{A,X}^\pm}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{\mp}- \hat{c}_{A,X}^{\pm}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^\pm)(\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \alpha^\pm)\Big)
+    +\hat{c}_{A,X}^{\mp}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \hat{\ubar{\mu}}_{A,X}^\pm\Big)
+    +\hat{c}_{A,X}^{\pm}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^\pm - \hat{\bar{\mu}}_{A,X}^\pm\Big)
+    \Big]\Big\},
+\end{align}
+where we use $\pi^+=\pi$ and $\pi^-=\pi_0$ for readability.
+\end{corollary}
+
+\begin{proof}
+The upper bound of the regret function is given by
+\begin{align}
+    R_{\pi_0}^{+} = V^{+,*}(\pi)-V^{-,*}(\pi_0),
+\end{align}
+where
+\begin{align}
+    V^{\pm,*}(\pi) = \int_\mathcal{X}\sum_a Q^{\pm,*}(a,x) \pi(a\mid x)\diff p(x).
+\end{align}
+By additivity of the efficient influence function, we know that
+\begin{align}
+    \f\Big(R_{\pi_0}^{+,*}(\pi)\Big) = \f\Big(V^{+,*}(\pi)\Big)-\f\Big(V^{-,*}(\pi_0)\Big),
+\end{align}
+such that we can focus on both terms separately in Supplements~\ref{appendix:repeat_v+} and ~\ref{appendix:proof_v-} and then plug them together in Supplement~\ref{appendix:proof_r+} in order to obtain our efficient estimator.
+
+\subsubsection{Efficient influence function of $V^{+,*}(\pi)$}\label{appendix:repeat_v+}
+We already have the efficient influence function of $V^{+,*}(\pi)$ from the proof of Theorem~\ref{prop:v+} in Supplement~\ref{appendix:proof_v+}. It is given by
+\begin{align}
+    &\f\Big(V^{+,*}(\pi;\eta)\Big) \\
+    =&  - V^{+,*}(\pi)+ \sum_a \pi(a\mid X)\Big[ Q^{+,*}(a,X) -e(a,X) \Big( b^{-}\ubar{\mu}^{{+}}(a,X;\eta) + b^{+}\bar{\mu}^{{+}}(a,X;\eta) \Big) \Big]  \\
+    &+ \pi(A\mid X) \Big( b^{-}\ubar{\mu}^{{+}}(A,X;\eta) + b^{+}\bar{\mu}^{{+}}(A,X;\eta) \Big)\\
+    &+ \frac{\pi(A\mid X)}{e(A,X)} \Big[ \Big(c^{{-}}(A,X;\eta)- c^+(A,X;\eta)\Big)\Big(\Q({\alpha^+})(\ubar{\Delta}_{\alpha^+}(Y,A,X;\eta) - {\alpha^+})\Big)   \\
+    &+c^{-}(A,X;\eta)\Big( Y\ubar{\Delta}^{+}(Y,A,X;\eta) - \ubar{\mu}^{{+}}(A,X;\eta)\Big)
+    +c^{+}(A,X;\eta)\Big( Y\bar{\Delta}^{+}(Y,A,X;\eta) - \bar{\mu}^{{+}}(A,X;\eta)\Big)
+    \Big].
+\end{align}
+
+
+\newpage
+\subsubsection{Efficient influence function of $V^{-,*}(\pi)$}\label{appendix:proof_v-}
+We can derive the sharp lower bound for the value function analogously to $V^{+,*}$. Again, we make use of the chain rule for deriving efficient influence function \citep{Kennedy.2022}, a proof of which can be found in \citep{Luedtke.2024}  \textbf{(Lemma S3)}. 
+
+For this, let ${\alpha^-}=1/(1+\Gamma)$. Then, the sharp lower bound of the CAPO is given by
+\begin{align}
+    &Q^{-,*}(a,x;\eta)\\
+    =&\Big( (1-\Gamma) e(a, x) +\Gamma \Big) \mathbb{E}\Big[ Y \IndLb \mid X=x, A=a \Big]\\
+        &+ \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big) \mathbb{E}\Big[ Y \IndGb \mid X=x, A=a \Big].
+\end{align}
+Hence, the influence function of $Q^{-,*}(a,x)$ is given by
+\begin{align}
+    &\f \Big( Q^{-,*}(a,x;\eta) \Big)\\
+    =& \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}(1-\Gamma) \Big( \mathbbm{1}_{\{A=a\}}-e(a, x)\Big) 
+       \mathbb{E}\Big[ Y \IndLb \mid X=x, A=a \Big] \\
+    &+  \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big( (1-\Gamma) e(a, x) +\Gamma \Big) \\
+    & \quad \times  \Big(  Y\Indlb - \mathbb{E}[Y\IndLb \mid X=x,A=a] +\q({\alpha^-})(\mathbbm{1}_{\{Y\leq \q({\alpha^-})\}} - {\alpha^-})\Big)\\
+    &+ \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}(1-\Gamma^{-1})\Big( \mathbbm{1}_{\{A=a\}}-e(a, x)\Big)
+        \mathbb{E}\Big[ Y \IndGb \mid X=x, A=a \Big] \\
+    &+ \frac{\mathbbm{1}_{\{X=x,A=a\}}}{p(a,x)} \Big( (1-\Gamma^{-1}) e(a, x) +\Gamma^{-1} \Big) \\
+    & \quad \times  \Big(  Y\Indgb - \mathbb{E}[Y\IndGb \mid X=x,A=a] -\q({\alpha^-})(\mathbbm{1}_{\{Y\leq \q({\alpha^-})\}} - {\alpha^-})\Big)\\
+    =&  \frac{\mathbbm{1}_{\{X=x\}}}{p(x)}
+    \Big\{ 
+        \Big( \mathbbm{1}_{\{A=a\}}-e(a,x)\Big) \Big( b^{+}\ubar{\mu}^{{-}}(a,x;\eta) + b^{{-}}\bar{\mu}^{{-}}(a,x;\eta) \Big)\\
+    &+ \frac{\mathbbm{1}_{\{A=a\}}}{e(a,x)} \Big[ \Big(c^{+}(a,x;\eta)- c^{{-}}(a,x;\eta)\Big)\Big(\q({\alpha^-})(\ubar{\Delta}^{-}(Y,a,x;\eta) - {\alpha^-})\Big)\\
+    &+c^{+}(a,x;\eta)\Big( Y\ubar{\Delta}^{-}(Y,a,x;\eta) - \ubar{\mu}^{{-}}(a,x;\eta)\Big)
+    +c^{{-}}(a,x;\eta)\Big( Y\bar{\Delta}^{-}(Y,a,x;\eta) - \bar{\mu}^{{-}}(a,x;\eta)\Big)
+    \Big]
+    \Big\}
+\end{align}
+
+Following the same steps as for \Eqref{eq:v+_0}, the influence function of $V^{-,*}(\pi)$ is given by
+\begin{align}
+    &\f\Big(V^{-,*}(\pi;\eta)\Big) \\
+    =&  - V^{-,*}(\pi;\eta)+ \sum_a \pi(a\mid X)\Big[ Q^{-,*}(a,X;\eta) -e(a,X) \Big( b^{+}\ubar{\mu}^{{-}}(a,X;\eta) + b^{{-}}\bar{\mu}^{{-}}(a,X;\eta) \Big) \Big]  \\
+    &+ \pi(A\mid X) \Big( b^{+}\ubar{\mu}^{{-}}(A,X;\eta) + b^{{-}}\bar{\mu}^{{-}}(A,X;\eta) \Big)\\
+    &+ \frac{\pi(A\mid X)}{e(A,X)} \Big[ \Big(c^{+}(A,X;\eta)- c^{{-}}(A,X;\eta)\Big)\Big(\Q({\alpha^-})(\ubar{\Delta}^{-}(Y,A,X;\eta) - {\alpha^-})\Big)\\
+    &+c^{+}(A,X;\eta)\Big( Y\ubar{\Delta}^{-}(Y,A,X;\eta) - \ubar{\mu}^{{-}}(A,X;\eta)\Big)
+    +c^{{-}}(A,X;\eta)\Big( Y\bar{\Delta}^{-}(Y,A,X;\eta) - \bar{\mu}^{{-}}(A,X;\eta)\Big)
+    \Big].
+\end{align}
+
+
+
+\subsubsection{Efficient estimator of $R_{\pi_0}^{+}(\pi)$}\label{appendix:proof_r+}
+We can derive the efficient estimator for the bounds of the value function through one-step bias correction using our results form Supplements~\ref{appendix:repeat_v+}~and~\ref{appendix:proof_v-} via
+\begin{align}
+     &V^{\pm,*}(\pi;\hat{\eta}) + \mathbb{P}_n\Big\{ V^{\pm,*}(\pi; \hat{\eta}) \Big\}\\
+     =&  \mathbb{P}_n\Big\{ \sum_a \pi(a\mid X)\Big[ {Q}^{\pm,*}(a,X;\hat{\eta}) -\hat{e}(a,X) \Big( b^{\mp}\hat{\ubar{\mu}}^{{\pm}}(a,X;\hat{\eta}) + b^{{\pm}}\hat{\bar{\mu}}^{{\pm}}(a,X;\hat{\eta}) \Big) \Big]  \\
+    &+ \pi(A\mid X) \Big( b^{\mp}\hat{\ubar{\mu}}^{{\pm}}(A,X;\hat{\eta}) + b^{{\pm}}\hat{\bar{\mu}}^{{\pm}}(A,X;\hat{\eta}) \Big)\\
+    &+ \frac{\pi(A\mid X)}{\hat{e}(A,X)} \Big[ \Big({c}^{\mp}(A,X;\hat{\eta})- {c}^{{\pm}}(A,X;\hat{\eta})\Big)\Big(\hat{F}_{X,A}^{-1}({\alpha^\pm})({\ubar{\Delta}}^{\pm}(Y,A,X;\hat{\eta}) - {\alpha^\pm})\Big)\\
+    &+{c}^{\mp}(A,X;\hat{\eta})\Big( Y {\ubar{\Delta}}^{\pm}(Y,A,X;\hat{\eta}) - \hat{\ubar{\mu}}^{{\pm}}(A,X;\hat{\eta})\Big)
+    +{c}^{{\pm}}(A,X;\hat{\eta})\Big( Y{\bar{\Delta}}^{\pm}(Y,A,X;\hat{\eta}) - \hat{\bar{\mu}}^{{\pm}}(A,X;\hat{\eta})\Big)
+    \Big]\Big\}\\
+    =& \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}\Big[ \hat{Q}^{\pm,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{\mp}\hat{\ubar{\mu}}_{a,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{a,X}^\pm \Big) \Big]+ \pi_{A,X} \Big( b^{\mp}\hat{\ubar{\mu}}_{A,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{A,X}^\pm \Big) \\
+    &+ \frac{\pi_{A,X}}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{\mp}- \hat{c}_{A,X}^{\pm}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^\pm)(\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \alpha^\pm)\Big)+\hat{c}_{A,X}^{\mp}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \hat{\ubar{\mu}}_{A,X}^\pm\Big)
+    +\hat{c}_{A,X}^{\pm}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^\pm - \hat{\bar{\mu}}_{A,X}^\pm\Big)
+    \Big]\Big\}
+\end{align}
+using our short-hand notation from the main paper. Hence, the efficient estimator of the upper bound of the regret function is given by
+\begin{align}
+    &\hat{R}_{\pi_0}^{+}(\pi)\\
+    =& R_{\pi_0}^{+}(\pi; \hat{\eta}) + \mathbb{P}_n\Big\{ \f\Big( R_{\pi_0}^{+,*}(\pi; \hat{\eta}) \Big) \Big\}\\
+    =& \Big( V^{+,*}(\pi;\hat{\eta}) - V^{-,*}(\pi_0;\hat{\eta}) \Big) + \mathbb{P}_n\Big\{ \f\Big(V^{+,*}(\pi; \hat{\eta}) \Big) - \f\Big( V^{-,*}(\pi_0; \hat{\eta}) \Big)\Big\}\\
+    =& \sum_{\pm\in\{+,-\}}\pm \mathbb{P}_n\Big\{ \sum_a \pi_{a,X}^\pm\Big[ \hat{Q}^{\pm,*}_{a,X}
+    -\hat{e}_{a,X} \Big( b^{\mp}\hat{\ubar{\mu}}_{a,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{a,X}^\pm \Big) \Big]
+    + \pi_{A,X}^\pm \Big( b^{\mp}\hat{\ubar{\mu}}_{A,X}^\pm + b^{\pm}\hat{\bar{\mu}}_{A,X}^\pm \Big)\\
+    &+ \frac{\pi_{A,X}^\pm}{\hat{e}_{A,X}} \Big[ \Big(\hat{c}_{A,X}^{\mp}- \hat{c}_{A,X}^{\pm}\Big)
+    \Big(\hat{F}_{X,A}^{-1}(\alpha^\pm)(\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \alpha^\pm)\Big)
+    +\hat{c}_{A,X}^{\mp}\Big( Y\hat{\ubar{\Delta}}_{Y,A,X}^\pm - \hat{\ubar{\mu}}_{A,X}^\pm\Big)
+    +\hat{c}_{A,X}^{\pm}\Big( Y\hat{\bar{\Delta}}_{Y,A,X}^\pm - \hat{\bar{\mu}}_{A,X}^\pm\Big)
+    \Big]\Big\},
+\end{align}
+where we let $\pi^+=\pi$ and $\pi^-=\pi_0$ for readability.
+\end{proof}
+
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+\subsection{Improvement guarantee: Regret function}\label{appendix:improvement_regret}
+\begin{corollary}
+Under the same assumption as in Theorem~\ref{prop:improvement_value}, \rebuttal{simultaneously for all $\pi \in \Pi$} and fixed baseline policy $\pi_0\in\Pi$, it holds, with probability $1-\delta$, that
+\begin{align}
+    R_{\pi_0}(\pi) \leq \hat{R}_{\pi_0}^{+}(\pi) +4 C_v \Big(\mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big),
+\end{align}
+where $C_v=2C_y(1+\Gamma^{-1}+\Gamma)$ and $\mathcal{R}_n(\pi)$ is the empirical Rademacher complexity of policy class $\Pi$.
+\end{corollary}
+
+\begin{proof}
+
+In order to show the main result, we note that
+\begin{align}
+    R_{\pi_0}^{+}(\pi)=V^{+,*}(\pi)-V^{-,*}(\pi_0)
+\end{align}
+for arbitrary $\pi, \pi_0 \in \Pi$.
+
+From Theorem~\ref{prop:improvement_value}, we know that
+\begin{align}
+    V^{+,*}(\pi) \leq \hat{V}^{+,*}(\pi) + 2C_v \Big( \mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big).
+\end{align}
+Since $\pi, \pi_0\in\Pi$ are arbitrary, we can repeat the same arguments for $V^{-,*}(\pi_0)$ and obtain
+\begin{align}
+    V^{-,*}(\pi_0) \geq \hat{V}^{-,*}(\pi_0) - 2C_v \Big( \mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big).
+\end{align}
+Then, we conclude the proof by
+\begin{align}
+    &R_{\pi_0}(\pi)\\
+    =& V(\pi)-V(\pi_0)\\
+    \leq& V^{+,*}(\pi)-V^{-,*}(\pi_0)\\
+    =& \Big[ \hat{V}^{+,*}(\pi) + 2C_v \Big( \mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big)\Big]
+    - \Big[ \hat{V}^{-,*}(\pi_0) - 2C_v \Big( \mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big) \Big]\\
+    =& \hat{R}_{\pi_0}^{+}(\pi) +4 C_v \Big(\mathcal{R}_n(\Pi) + \frac{5}{2}\sqrt{\frac{1}{2n}\log\Big(\frac{2}{\delta}\Big)}\Big).
+    \end{align}
+
+\end{proof}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+
+
+\section{Implementation details}\label{appendix:implementation_details}
+We summarize the neural instantiations of all estimators in Section~\ref{sec:experiments}.
+
+\textbf{Runtime:} Training the first and second stage models for our method took in total approximately $20$ seconds using $n=1000$ synthetic data samples and a standard computer with AMD Ryzen 7 Pro CPU and 32GB of RAM.634. All baselines have a comparable runtime.
+
+\begin{table}[h!]
+    \centering
+    \begin{adjustbox}{max width=\textwidth}
+    \begin{tabular}{c|l|c|c|c|c|c|c} % <-- Added "|c" at the end for new column
+        \toprule
+        \textbf{Nuisance function} & \textbf{Hyperparameter} 
+        & Configuration & \multicolumn{2}{c|}{Standard methods} & \citet{Kallus.2018c,Kallus.2021d}
+        & Plug-in sharp (ours) & Efficient sharp (ours) \\ % <-- New header
+        \cmidrule(lr){4-5}
+        & & & IPW estimator
+        & DR estimator & & \\
+        \midrule
+    
+    \multirow{7}{*}{Propensity score} & Hidden layers 
+        & 3  &  &  & 
+        &  &  \\ % <-- New column value
+    & Layer size
+        & $\{64, 64, 32\}$ & & & & & \\ % <-- New column value
+    & Hidden activation
+        & ReLU &   &   &  &   &  \\ % <-- New column value
+    & Learning rate 
+        & $0.001$ & \cmark & \cmark & \cmark & \xmark & \cmark \\ % <-- New column value
+    & Number of epochs
+        & $300$ &   &   &  &   &  \\ % <-- New column value
+    & Early stopping patience
+        & $10$ &   &   &  &   &  \\ % <-- New column value
+    & Batch size
+        & $64$ &   &   &  &   &  \\ % <-- New column value
+        \midrule
+
+        
+    \multirow{7}{*}{Conditional quantile function} & Hidden layers 
+        & 3  &  &  & 
+        &  &  \\ % <-- New column value
+    & Layer size
+        & $\{64,64, 32\}$ & & & & & \\ % <-- New column value
+    & Hidden activation
+        & ReLU &   &   &  &   &  \\ % <-- New column value
+    & Learning rate 
+        & $0.001$ & \xmark & \xmark & \xmark & \xmark & \cmark \\ % <-- New column value
+    & Number of epochs
+        & $300$ &   &   &  &   &  \\ % <-- New column value
+    & Early stopping patience
+        & $10$ &   &   &  &   &  \\ % <-- New column value
+    & Batch size
+        & $64$ &   &   &  &   &  \\ % <-- New column value
+        \midrule
+
+    \multirow{7}{*}{(Truncated) outcome regression model} & Hidden layers 
+        & 3  &  &  & 
+        &  &  \\ % <-- New column value
+    & Layer size
+        & $\{64,64, 32\}$ & & & & & \\ % <-- New column value
+    & Hidden activation
+        & ReLU &   &   &  &   &  \\ % <-- New column value
+    & Learning rate 
+        & $0.001$ & \xmark & \cmark & \xmark & \cmark & \cmark \\ % <-- New column value
+    & Number of epochs
+        & $300$ &   &   &  &   &  \\ % <-- New column value
+    & Early stopping patience
+        & $10$ &   &   &  &   &  \\ % <-- New column value
+    & Batch size
+        & $64$ &   &   &  &   &  \\ % <-- New column value
+        \midrule
+
+\multirow{7}{*}{Parametric policy} & Hidden layers 
+        & 3  &  &  & 
+        &  &  \\ % <-- New column value
+    & Layer size
+        & $\{64,64, 32\}$ & & & & & \\ % <-- New column value
+    & Hidden activation
+        & ReLU &   &   &  &   &  \\ % <-- New column value
+    & Learning rate 
+        & $0.001$ & \cmark & \cmark & \cmark & \cmark & \cmark \\ % <-- New column value
+    & Number of epochs
+        & $300$ &   &   &  &   &  \\ % <-- New column value
+    & Early stopping patience
+        & $10$ &   &   &  &   &  \\ % <-- New column value
+    & Batch size
+        & $64$ &   &   &  &   &  \\ % <-- New column value
+    
+        \bottomrule
+    \end{tabular}
+    \end{adjustbox}
+
+    \caption{Neural instantiations of estimated nuisance functions $\hat{\eta}$ and parametric policy $\pi_\theta$. To ensure a fair comparison, all methods share the same nuisance function where applicable. For all models, we set the split parameter for training the nuisance and the policy model to $\rho=0.5$.}
+
+    \label{tab:implementation_details}
+\end{table}
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\end{document}
