@@ -367,6 +367,21 @@ def pol_widget_html(wid, dta, defaults=None):
     c.append(f'</div><div id="pw-{wid}-plot" class="fig"></div></div>')
     return "".join(c)
 
+
+def _add_hess_curves(PD, key):
+    """Add Hess et al.'s learned pi(x) to the 2-D policy viewers (1-D covariate, binary A here).
+    It has no Lipschitz axis, so the same curve is replicated across L keys."""
+    try:
+        HC = json.load(open(ROOT / "assets/grand/hess_policy_curves.json"))[key]
+    except Exception as ex:
+        print("Hess curves unavailable:", ex); return
+    for w in PD:
+        if PD[w].get("kind") != "2d" or "Hess-efficient" in PD[w]["methods"]: continue
+        PD[w]["methods"] = list(PD[w]["methods"]) + ["Hess-efficient"]
+        PD[w]["pol"]["Hess-efficient"] = {g: {l: HC.get(g, HC[sorted(HC)[0]]) for l in PD[w]["Ls"]}
+                                          for g in PD[w]["gammas"]}
+
+
 def policy_2d_dataset(RJ):
     ps = RJ["policies_seed0"]
     dta = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
@@ -392,6 +407,7 @@ if MAIN:
 (blue dotted) crosses to "treat" too far left: it treats a wide band the oracle leaves alone.
 The question the plot answers is whether the robust policies pull that crossing back toward the
 oracle's, or simply retreat to never-treat.</p>""")
+    _add_hess_curves(PD, "kz")
     T3.append(pol_widget_html("kzu", PD["kzu"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": LDEF}))
     if CAP:
         PD["kzc"] = policy_2d_dataset(CAP)
@@ -406,6 +422,7 @@ oracle's, or simply retreat to never-treat.</p>""")
         T3.append(pol_widget_html("kzi", PD["kzi"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": LDEF}))
 else:
     T3.append('<p class="muted">Wave running.</p>')
+
 
 # ================================ assembly ================================
 hero = """<div class="hero" style="background:radial-gradient(130% 150% at 0% 0%,#2d3a4a 0%,#1f2d3d 46%,#0c1119 100%)">

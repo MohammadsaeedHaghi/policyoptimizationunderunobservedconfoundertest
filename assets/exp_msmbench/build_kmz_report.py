@@ -249,6 +249,21 @@ def pol_widget_html(wid, dta, defaults=None):
     c.append(f'</div><div id="pw-{wid}-plot" class="fig"></div></div>')
     return "".join(c)
 
+
+def _add_hess_curves(PD, key):
+    """Add Hess et al.'s learned pi(x) to the 2-D policy viewers (1-D covariate, binary A here).
+    It has no Lipschitz axis, so the same curve is replicated across L keys."""
+    try:
+        HC = json.load(open(ROOT / "assets/grand/hess_policy_curves.json"))[key]
+    except Exception as ex:
+        print("Hess curves unavailable:", ex); return
+    for w in PD:
+        if PD[w].get("kind") != "2d" or "Hess-efficient" in PD[w]["methods"]: continue
+        PD[w]["methods"] = list(PD[w]["methods"]) + ["Hess-efficient"]
+        PD[w]["pol"]["Hess-efficient"] = {g: {l: HC.get(g, HC[sorted(HC)[0]]) for l in PD[w]["Ls"]}
+                                          for g in PD[w]["gammas"]}
+
+
 def policy_2d_dataset(RJ):
     ps = RJ["policies_seed0"]
     dta = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
@@ -272,6 +287,7 @@ if C0:
 <h2>1. Learned policy vs x -- uncapped</h2>
 <p>Raw per-unit support policy (seed 0) above; Shapley-deployed pi(x) below. The oracle's
 oscillating interior structure is the test: naive under-treats the positive regions.</p>""")
+    _add_hess_curves(PD, "km")
     T3.append(pol_widget_html("kuncap", PD["kuncap"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": "3"}))
     if CC:
         PD["kcap"] = policy_2d_dataset(CC)
@@ -279,6 +295,7 @@ oscillating interior structure is the test: naive under-treats the positive regi
         T3.append(pol_widget_html("kcap", PD["kcap"], defaults={"m": ["IPW-O-W"], "g": GKEY, "l": "3"}))
 else:
     T3.append('<p class="muted">Wave running.</p>')
+
 
 # ================================ assembly ================================
 hero = """<div class="hero" style="background:radial-gradient(130% 150% at 0% 0%,#4a4a2d 0%,#3d3d1f 46%,#1a1a0c 100%)">
