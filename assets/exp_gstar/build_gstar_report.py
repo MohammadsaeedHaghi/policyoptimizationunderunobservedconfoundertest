@@ -357,6 +357,27 @@ else:
 # ============================ TAB 3: CONTINUOUS ============================
 T3 = []
 C0 = C.get("1.0")
+
+def _add_hess_curves(PD):
+    """Hess et al.'s learned pi(x) in the continuous viewers. The capped viewer gets the CAPPED
+    policy; it has no Lipschitz axis, so the curve is replicated across L keys."""
+    try:
+        UNC = json.load(open(ROOT / "assets/grand/hess_policy_curves.json"))["gs_cont"]
+    except Exception as ex:
+        print("Hess curves unavailable:", ex); return
+    try:
+        CAPC = json.load(open(ROOT / "assets/grand/hess_capped.json"))["gs_cont"]["curves"]
+    except Exception:
+        CAPC = None
+    for w in PD:
+        if PD[w].get("kind") != "2d" or "Hess-efficient" in PD[w]["methods"]: continue
+        src = CAPC if ("cap" in w and CAPC) else UNC
+        if src is None: continue
+        PD[w]["methods"] = list(PD[w]["methods"]) + ["Hess-efficient"]
+        PD[w]["pol"]["Hess-efficient"] = {g: {l: src.get(g, src[sorted(src)[0]]) for l in PD[w]["Ls"]}
+                                          for g in PD[w]["gammas"]}
+
+
 def policy_2d_dataset(RJ):
     ps = RJ["policies_seed0"]
     dta = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
@@ -427,27 +448,13 @@ if C0:
                        f"<td>{bo['method']}@G{bo['gamma']},L{bo['L']}={bo['value']:.3f}</td></tr>")
     PD["cont"] = policy_2d_dataset(C0)
     if CCAP: PD["contcap"] = policy_2d_dataset(CCAP)
-    # overlay Sharp-O-X on the continuous pi(x) viewers: its policy is per-bin, so it is constant
-    # across L -- replicate the same curve under every L key so the selector keeps working.
-    if SV2:
-        for wid, regkey, RJ in (("cont", "uncap", C0), ("contcap", "cap30", CCAP)):
-            if wid not in PD or not RJ: continue
-            pg = SV2["continuous"][regkey].get("policy_grid_seed0", {})
-            if not pg: continue
-            PD[wid]["methods"] = list(PD[wid]["methods"]) + ["SharpIPW-O-X"]
-            PD[wid]["pol"]["SharpIPW-O-X"] = {
-                g: {l: pg.get(g, pg.get(sorted(pg)[0])) for l in PD[wid]["Ls"]}
-                for g in PD[wid]["gammas"]}
+    _add_hess_curves(PD)
     SURFDS["uncap"] = {"gammas": Gk, "Ls": Lk, "methods": C0["methods"], "surface": C0["surface"],
                        "oracle": C0["oracle"], "naive": C0["naive_dr"], "never": C0["never_treat"]}
     if CCAP:
         SURFDS["cap"] = {"gammas": CCAP["gammas"], "Ls": CCAP["Lgrid"], "methods": CCAP["methods"],
                          "surface": CCAP["surface"], "oracle": CAP_ORACLE, "naive": CAP_NAIVE,
                          "never": CCAP["never_treat"]}
-    if HESSD:
-        _hx = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
-        for _w in EVD:
-            EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hx
     sv_widgets = ""
     for wid, lab in (("uncap", "uncapped"), ("cap", "capped 30%")):
         if wid not in SURFDS: continue
@@ -456,6 +463,18 @@ if C0:
                     "surface": D0["surface"], "gstar": 5.0,
                     "hlines": {"oracle": D0["oracle"], "naive": D0["naive"], "never-treat": D0["never"]},
                     "extra": {}}
+        # Hess et al. as a selectable series. The CAPPED widget must get the CAPPED policy:
+        # plotting the unconstrained one against capped references made it appear to beat the
+        # capped oracle, which is impossible for a policy actually paying the 30% budget.
+        if HESSD:
+            _src = None
+            if wid == "cap":
+                try: _hc = json.load(open(ROOT / "assets/grand/hess_capped.json"))["gs_cont"]
+                except Exception: _hc = None
+                if _hc: _src = {g: v for g, v in zip(_hc["gammas"], _hc["mean"])}
+            else:
+                _src = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
+            if _src: EVD[wid].setdefault("extra", {})["Hess-efficient"] = _src
         sv_widgets += ev_widget_html(wid, EVD[wid],
                                      defaults={"m": ["IPW-O-W", "IPW-O-X", "Hess-efficient"], "l": "3"},
                                      title="E[Y] vs Gamma -- tick methods, choose L (%s)" % lab)
