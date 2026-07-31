@@ -69,7 +69,7 @@ T1 = f"""
 <p>We run the paper's own confounding-strength sweep, log &Gamma;* &isin; {{0.5, 1.0, 1.5}}
 (&Gamma;* &asymp; 1.65 / 2.72 / 4.48), each experiment at its MATCHED &Gamma; = &Gamma;* --
 known by construction, nothing tuned. Pipeline units: x = X/2 &isin; [-1, 1]. 5 seeds,
-N = 400 train (+ n = 1000 ablation) / 4,000 test draws, Shapley deployment; every raw
+N = 400 train / 4,000 test draws, Shapley deployment; every raw
 per-seed policy persisted.</p>
 <div class="card warn"><b>Declared expectation (the honest frame, written before the wave).</b>
 This DGP has U &perp; X: measured corr(x, S) &asymp; 0.01 -- the ZERO-COUPLING anchor of our
@@ -238,8 +238,8 @@ hero = """<div class="hero" style="background:radial-gradient(130% 150% at 0% 0%
 <h1>The KMZ'19 benchmark campaign &mdash; the literature's synthetic, full pipeline</h1>
 <p>Kallus-Mao-Zhou (2019) DGP, unmodified, with the paper's own confounding-strength sweep
 (log &Gamma;* &isin; {0.5, 1.0, 1.5}, each at its matched &Gamma; -- known by construction) plus
-our ablations: transport budgets, n = 400 vs 1000, the L &times; &Gamma; surface, the capped
-30% variant, and Kallus + Sharp-O-X baselines. 5 seeds; parallel CARC-license wave; all raw
+our ablations: transport budgets, the L &times; &Gamma; surface, the capped 30% variant,
+and Kallus + Sharp-O-X baselines. 5 seeds; parallel CARC-license wave; all raw
 policies persisted.</p></div>"""
 
 WIDGET_CSS = """
