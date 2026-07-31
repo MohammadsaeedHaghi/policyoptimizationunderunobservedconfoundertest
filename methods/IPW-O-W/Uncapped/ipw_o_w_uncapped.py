@@ -72,6 +72,7 @@ def solve_ipw_o_w_uncapped(
     rounding_digits: int = 6,
     debug: bool = False,
     lipschitz=None,
+    sharp_cells=None,
 ) -> ROWResult:
     """Solve the UNCAPPED R-OW dual LP and return the optimal policy + duals.
 
@@ -110,6 +111,25 @@ def solve_ipw_o_w_uncapped(
     # ---- 4. MARGINAL-SENSITIVITY BOX: per-unit Γ interval [a_i, b_i] -----------------------------
     a_box, b_box = marginal_sensitivity_box(w_hat, Gamma)
 
+    # ---- SHARPNESS (Dorn-Guo): per-(arm, cell) weight-total equalities -> Sharp-O-W ------------
+    # sharp_cells: length-n integer cell id per unit (None => plain O-W, unchanged).
+    # For each (arm k, cell j) present in the data we require the adversary to preserve the
+    # NOMINAL weight total of that group; it may only redistribute within it. See patch_sharp_ow.py
+    # for the dual derivation. Groups with a single unit pin that unit's weight to w_hat exactly,
+    # which is the degenerate limit the caller controls through the coarseness of the cells.
+    _sharp_groups = {}
+    if sharp_cells is not None:
+        _sc = np.asarray(sharp_cells).astype(int).ravel()
+        if _sc.shape[0] != n:
+            raise ValueError("sharp_cells must have length n.")
+        for _k in range(K):
+            for _j in np.unique(_sc):
+                _idx = [int(i) for i in np.where((_sc == _j) & (T == _k))[0]]
+                if _idx:
+                    _sharp_groups[(_k, int(_j))] = (_idx, float(np.sum(w_hat[_idx])))
+    _cell_of = (np.asarray(sharp_cells).astype(int).ravel()
+                if sharp_cells is not None else np.zeros(n, dtype=int))
+
     i_by_t = {k: np.where(T == k)[0].tolist() for k in range(K)}  # factual rows per arm
     for k in range(K):
         if not i_by_t[k]:
@@ -137,6 +157,10 @@ def solve_ipw_o_w_uncapped(
         obj += (1.0 / n) * gp.quicksum(gd[k, i] for i in range(n))   # transport-demand term
     for i in range(n):
         obj += mu[i] * float(a_box[i]) - nu[i] * float(b_box[i])     # MSM-box interval term
+    delta = {}
+    for _key, (_idx, _R) in _sharp_groups.items():          # free dual per (arm, cell) equality
+        delta[_key] = m.addVar(lb=-GRB.INFINITY, name="delta_%d_%d" % _key)
+        obj += delta[_key] * _R                             # + delta * (nominal group total)
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- policy constraints: simplex + tie ONLY (NO capacity) ---
@@ -158,8 +182,10 @@ def solve_ipw_o_w_uncapped(
     # --- dual feasibility on factual rows ---
     for k in range(K):
         for i in i_by_t[k]:
+            _d = delta.get((k, int(_cell_of[i]))) if _sharp_groups else None
             m.addConstr((1.0 / n) * pi[k, i] * float(Y[i]) + (1.0 / n) * theta[k, i]
-                        - mu[i] + nu[i] >= 0.0, name=f"feas_{k}_{i}")
+                        - mu[i] + nu[i] - (_d if _d is not None else 0.0) >= 0.0,
+                        name=f"feas_{k}_{i}")
 
     # --- transport-metric constraints (Wasserstein ball geometry) ---
     for k in range(K):

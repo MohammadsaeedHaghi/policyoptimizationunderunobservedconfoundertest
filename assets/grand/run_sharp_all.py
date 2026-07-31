@@ -113,11 +113,22 @@ for camp, arms in CAMPAIGNS.items():
             for sd in SEEDS:
                 obs, _ = d.generate(NTRAIN, sd)
                 X, T, Y = obs["X"].ravel(), obs["T"], obs["Y"]
-                ci = np.clip(np.digitize(X, edges) - 1, 0, BINS - 1)
+                # LEAK FIX: bins come from THIS SEED'S TRAINING x, never from the test draw.
+                # Deriving them from the 200k evaluation sample leaked the test covariate
+                # distribution into the learned policy and quietly advantaged this baseline
+                # over the solvers, which see only training data.
+                ed_tr = np.quantile(X, np.linspace(0, 1, BINS + 1))
+                ed_tr[0] -= 1e-9; ed_tr[-1] += 1e-9
+                ci = np.clip(np.digitize(X, ed_tr) - 1, 0, BINS - 1)
+                cte_s = np.clip(np.digitize(xte, ed_tr) - 1, 0, BINS - 1)
+                mass_s = np.array([(cte_s == j).mean() for j in range(BINS)])
+                def val_s(pb, _c=cte_s):
+                    pv = np.asarray(pb, float)[_c]
+                    return float(np.mean(pv * Y1 + (1 - pv) * Y0))
                 for gi, g in enumerate(gg):
                     m1, m0 = sharp_scores(Y, T, ci, BINS, float(g))
                     sc = np.nan_to_num(m1, nan=-1e9) - np.nan_to_num(m0, nan=0.0)
-                    vals[gi].append(val(policy(sc, mass, cap)))
+                    vals[gi].append(val_s(policy(sc, mass_s, cap)))
             node["regimes"][cname] = {
                 "mean": [round(float(np.mean(vals[gi])), 4) for gi in range(len(gg))],
                 "sd": [round(float(np.std(vals[gi])), 4) for gi in range(len(gg))]}
@@ -128,5 +139,5 @@ for camp, arms in CAMPAIGNS.items():
                  node["regimes"]["uncap"]["mean"][min(range(len(gg)), key=lambda i: abs(gg[i] - gstar))],
                  node["refs"]["uncap"]["oracle"], node["refs"]["uncap"]["naive"]), flush=True)
 
-(HERE / "sharp_all.json").write_text(json.dumps(out, indent=1))
+(HERE / "sharp_all_trainbins.json").write_text(json.dumps(out, indent=1))
 print("saved assets/grand/sharp_all.json")
