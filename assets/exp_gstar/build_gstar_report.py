@@ -700,18 +700,88 @@ for (const k of Object.keys(PD)) pwDraw(k);
 for (const k of Object.keys(SURFDS)) svDraw(k);
 """
 
+
+# ======================= TAB 4: coupling head-to-head, ALPHA=10 vs ALPHA=4 =======================
+T4 = []
+A4U = J("gstar_a4_cont_uncap_ce1.0.json"); A4C = J("gstar_a4_cont_cap30_ce1.0.json")
+if A4U and C0:
+    def _best(d, fam, g="5", l="3"):
+        return max(d["surface"][m][g][l] for m in fam)
+    OWF = ("IPW-O-W", "DoublyRobust-O-W"); OXF = ("IPW-O-X", "DoublyRobust-O-X")
+    rows = []
+    for lab, d in (("&alpha; = 10 (current headline)", C0), ("&alpha; = 4", A4U)):
+        ow, ox = _best(d, OWF), _best(d, OXF)
+        nev, orc, nv = d["never_treat"], d["oracle"], d["naive_dr"]
+        rows.append((lab, ow, ox, nv, nev, orc,
+                     (ow - nev) / (orc - nev) if orc > nev else float("nan"),
+                     (ow - nv) / (orc - nv) if orc > nv else float("nan")))
+    tr = "".join(
+        f"<tr><td>{r[0]}</td><td><b>{r[1]:.3f}</b></td><td>{r[2]:.3f}</td><td>{r[1]-r[2]:+.3f}</td>"
+        f"<td>{r[3]:.3f}</td><td>{r[1]-r[3]:+.3f}</td><td>{r[5]:.3f}</td>"
+        f"<td><b>{100*r[6]:.0f}%</b></td><td><b>{100*r[7]:.0f}%</b></td></tr>" for r in rows)
+    capr = ""
+    if A4C and CCAP:
+        for lab, d in (("&alpha; = 10", CCAP), ("&alpha; = 4", A4C)):
+            ow, ox = _best(d, OWF), _best(d, OXF)
+            capr += f"<tr><td>{lab}</td><td><b>{ow:.3f}</b></td><td>{ox:.3f}</td><td>{ow-ox:+.3f}</td></tr>"
+    EVD["a4"] = {"gammas": A4U["gammas"], "Ls": A4U["Lgrid"], "methods": A4U["methods"],
+                 "surface": A4U["surface"], "gstar": 5.0,
+                 "hlines": {"oracle": A4U["oracle"], "naive": A4U["naive_dr"],
+                            "never-treat": A4U["never_treat"]}, "extra": {}}
+    if A4C:
+        EVD["a4cap"] = {"gammas": A4C["gammas"], "Ls": A4C["Lgrid"], "methods": A4C["methods"],
+                        "surface": A4C["surface"], "gstar": 5.0,
+                        "hlines": {"capped oracle": A4C["oracle"], "never-treat": A4C["never_treat"]},
+                        "extra": {}}
+    PD["a4"] = policy_2d_dataset(A4U)
+    if A4C: PD["a4cap"] = policy_2d_dataset(A4C)
+    T4.append(f"""
+<h2>Which coupling should be the headline? &alpha; = 10 vs &alpha; = 4</h2>
+<div class="card"><b>The question.</b> The coupling ablation peaks at &alpha; = 4, so the whole
+continuous arm was re-run there (same n = 400, same 5 seeds, same &Gamma; grid, same everything
+else). The two settings disagree about which is "better", and they disagree for a reason worth
+understanding rather than resolving by picking the bigger number.
+<br><br><b>&alpha; = 10</b> looks better against an ABSOLUTE ceiling: O-W recovers 74% of what
+the oracle could add over never-treat, vs 38% at &alpha; = 4. <b>&alpha; = 4</b> looks better
+against the baseline a practitioner would actually use: it closes 60% of the gap between the
+NAIVE and the oracle, vs 57%, and its margins over both the naive and box-only O-X are larger.
+The &alpha; = 4 margins are big partly because the naive COLLAPSES there (-0.339, below
+never-treat) &mdash; not purely because we do better.
+<br><br>&alpha; = 4 is also the more moderate DGP: corr(x, S) = 0.704 vs 0.837.</div>
+<h3>Uncapped, matched &Gamma;&#9733; = 5, L = 3</h3>
+<div class="tw"><table>
+<tr><th>setting</th><th>best O-W</th><th>best O-X</th><th>transport margin</th><th>naive</th>
+<th>O-W &minus; naive</th><th>oracle</th><th>% of oracle over never-treat</th>
+<th>% of gap over naive closed</th></tr>
+{tr}</table></div>
+<h3>Capped 30%, matched &Gamma;&#9733; = 5, L = 3</h3>
+<div class="tw"><table><tr><th>setting</th><th>best O-W</th><th>best O-X</th>
+<th>transport margin</th></tr>{capr}</table></div>
+<p class="muted">The capped cell is where the two settings differ most: the transport margin is
++0.028 at &alpha; = 10 and +0.197 at &alpha; = 4.</p>
+<h3>&alpha; = 4: average test outcome vs &Gamma;</h3>
+{ev_widget_html("a4", EVD["a4"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "l": "3"}, title="ALPHA=4 uncapped")}
+{ev_widget_html("a4cap", EVD["a4cap"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "l": "3"}, title="ALPHA=4 capped 30%") if "a4cap" in EVD else ""}
+<h3>&alpha; = 4: learned policy vs x</h3>
+{pol_widget_html("a4", PD["a4"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": "5", "l": "3"})}
+""")
+else:
+    T4.append('<p class="muted">ALPHA=4 continuous results not found.</p>')
+
 TABS = f"""
 <div class="tabs" role="tablist" style="position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:6px;padding:10px 0;margin:0 0 6px">
 <button id="tb-dgp" class="on" onclick="showTab('dgp')">DGP explanation</button>
 <button id="tb-disc" onclick="showTab('disc')">Discrete experiments</button>
 <button id="tb-cont" onclick="showTab('cont')">Continuous experiments</button>
+<button id="tb-a4" onclick="showTab('a4')">Coupling: &alpha;=10 vs &alpha;=4</button>
 </div>
 <div id="tab-dgp" class="tabpane on">{T1}</div>
 <div id="tab-disc" class="tabpane">{''.join(T2)}</div>
 <div id="tab-cont" class="tabpane">{''.join(T3)}</div>
+<div id="tab-a4" class="tabpane">{''.join(T4)}</div>
 <script>
 function showTab(id){{
-  for (const t of ['dgp','disc','cont']){{
+  for (const t of ['dgp','disc','cont','a4']){{
     document.getElementById('tab-'+t).classList.toggle('on', t===id);
     document.getElementById('tb-'+t).classList.toggle('on', t===id);
   }}
