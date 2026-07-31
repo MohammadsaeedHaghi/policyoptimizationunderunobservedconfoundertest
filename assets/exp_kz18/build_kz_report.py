@@ -17,7 +17,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
-from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap
+from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS
 from latex2mathml.converter import convert as l2m
 import importlib.util
 
@@ -31,6 +31,7 @@ MC["SharpIPW-O-X"] = "#9467bd"
 def J(fn):
     try: return json.load(open(HERE / fn))
     except Exception: return None
+EVD = {}
 MAIN = J("kz_n200.json")          # the main arm IS n = 200 (the paper's own sample size)
 CE2 = J("kz_main_ce2.0.json")
 CAP = J("kz_cap30_ce1.0.json")
@@ -165,11 +166,22 @@ if MAIN:
                      hlines=[("oracle", "#111", RM["oracle_uncap"], "5 4"),
                              ("naive (infinite data)", MC["DoublyRobust-X-X"], RM["naive_uncap"], "2 3"),
                              ("never-treat", "#888", RM["never"], "2 3")], xticks=gl)
+    EVD["kzu"] = {"gammas": MAIN["gammas"], "Ls": MAIN["Lgrid"], "methods": MAIN["methods"],
+                  "surface": MAIN["surface"], "gstar": GSTAR,
+                  "hlines": {"oracle": RM["oracle_uncap"], "naive (infinite data)": RM["naive_uncap"],
+                             "never-treat": RM["never"]},
+                  "extra": {}}
+    if SH: EVD["kzu"]["extra"]["SharpIPW-O-X"] = {("%g" % g): v for g, v in zip(SH["gammas"], SH["arms"]["main"]["regimes"]["uncap"]["mean"]["SharpIPW-O-X"])}
+    if KAL: EVD["kzu"]["extra"]["Kallus"] = {("%g" % g): v for g, v in zip(KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"])}
     parts = [ch]
     if CAP:
         slc = [ser(m, gl, [CAP["surface"][m][g][LDEF] for g in CAP["gammas"]]) for m in CAP["methods"]]
         s = sharp_series("main", "cap")
         if s: slc.append(s)
+        EVD["kzc"] = {"gammas": CAP["gammas"], "Ls": CAP["Lgrid"], "methods": CAP["methods"],
+                      "surface": CAP["surface"], "gstar": GSTAR,
+                      "hlines": {"capped oracle": RM["oracle_cap30"], "capped naive": RM["naive_cap30"]},
+                      "extra": ({"SharpIPW-O-X": {("%g" % g): v for g, v in zip(SH["gammas"], SH["arms"]["main"]["regimes"]["cap"]["mean"]["SharpIPW-O-X"])}} if SH else {})}
         parts.append(vline_chart(slc, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", RM["oracle_cap30"], "5 4"),
                                          ("capped naive", MC["DoublyRobust-X-X"], RM["naive_cap30"], "2 3")],
@@ -277,6 +289,11 @@ numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {
 
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; matched &Gamma;* = 4.48 flagged)</h2>
+<p class="muted">Tick methods to overlay; the static pair below shows every series at L = 3.</p>
+{ev_widget_html("kzu", EVD["kzu"], defaults={"m": ["IPW-O-W", "IPW-O-X", "SharpIPW-O-X"], "l": "3"},
+                title="UNCAPPED &mdash; pick methods and L")}
+{ev_widget_html("kzc", EVD["kzc"], defaults={"m": ["IPW-O-W", "SharpIPW-O-X"], "l": "3"},
+                title="CAPPED 30% &mdash; pick methods and L") if "kzc" in EVD else ""}
 <div class="figrow">{parts[0]}{parts[1] if len(parts) > 1 else ''}</div>
 <div class="figrow">{''.join(hms)}</div>
 <h2>2. Every arm at the matched &Gamma;* = 4.48, L = 3</h2>
@@ -474,9 +491,11 @@ function showTab(id){{
 
 import json as _json
 data_js = ("<script>\nconst PD = " + _json.dumps(_r3(PD), separators=(",", ":")) + ";\n"
+           + "const EVD = " + _json.dumps(_r3(EVD), separators=(",", ":")) + ";\n"
            + (JS % {"MC": _json.dumps(MC),
                     "DASH": _json.dumps({m: mdash(m) for m in list(MC)}),
                     "MARK": _json.dumps({m: mmark(m) for m in list(MC)})})
+           + EV_JS
            + "\n</script>")
 
 page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'

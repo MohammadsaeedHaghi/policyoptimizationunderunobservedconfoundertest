@@ -200,3 +200,99 @@ def bars(cats, vals, cols, title, ylab, W=680, H=340, hlines=None):
     p.append(f'<text x="16" y="{(padT+H-padB)/2:.0f}" class="al" text-anchor="middle" transform="rotate(-90 16 {(padT+H-padB)/2:.0f})">{esc(ylab)}</text>')
     p.append('</svg>')
     return f'<figure class="fig">{"".join(p)}</figure>'
+
+
+# ============================ interactive E[Y]-vs-Gamma widget ============================
+# Static linechart() is fine for DGP figures, but the results charts carry 5-8 method series and
+# become unreadable. This is the same chip pattern the policy viewers use: checkboxes per method
+# (coloured by family), a Lipschitz-L selector, and optional flat baselines. Methods without an
+# L axis (Sharp-O-X, Kallus) are passed via `extra` and are drawn whenever their chip is on.
+def ev_widget_html(wid, data, defaults=None, title="", note=""):
+    """HTML for one interactive E[Y]-vs-Gamma widget. Pair with EV_JS and an `EVD[wid]` payload."""
+    df = defaults or {}
+    on = df.get("m") or list(data["methods"])[:2]
+    if isinstance(on, str): on = [on]
+    names = list(data["methods"]) + list((data.get("extra") or {}).keys())
+    chips = "".join(
+        '<label class="mchip"><input type="checkbox" data-m="%s"%s>'
+        '<span class="sw" style="background:%s"></span>%s</label>'
+        % (m, " checked" if m in on else "", MC.get(m, "#7f7f7f"), m) for m in names)
+    lsel = ""
+    if data.get("Ls"):
+        opts = "".join('<option value="%s"%s>%s</option>'
+                       % (l, " selected" if str(l) == str(df.get("l", "3")) else "", l)
+                       for l in data["Ls"])
+        lsel = f'<label>Lipschitz L <select id="ev-{wid}-l">{opts}</select></label>'
+    h = [f'<div class="evw" id="ev-{wid}">']
+    if title: h.append(f'<h3>{esc(title)}</h3>')
+    h.append(f'<div class="ctl"><span class="ctt">methods:</span><span class="mck" id="ev-{wid}-m">{chips}</span>'
+             f'<button type="button" class="mbtn" data-sel="all">all</button>'
+             f'<button type="button" class="mbtn" data-sel="none">none</button></div>')
+    h.append(f'<div class="ctl">{lsel}</div><div id="ev-{wid}-plot" class="fig"></div>')
+    if note: h.append(f'<p class="muted figcap">{note}</p>')
+    h.append('</div>')
+    return "".join(h)
+
+
+EV_JS = r"""
+function evDraw(wid){
+  const d = EVD[wid]; if(!d) return;
+  const lsel = document.getElementById('ev-'+wid+'-l');
+  const L = lsel ? lsel.value : null;
+  const on = Array.from(document.querySelectorAll('#ev-'+wid+'-m input:checked')).map(e=>e.dataset.m);
+  const gs = d.gammas.map(Number);
+  let series = [];
+  for (const m of on){
+    if (d.surface && d.surface[m]){
+      const ys = d.gammas.map(g => { const c = d.surface[m][g]; return (c && L!==null && c[L]!==undefined) ? c[L] : NaN; });
+      series.push({lab:m, col:(MCJS[m]||'#7f7f7f'), ys:ys, dash:(DASHJS[m]||''), mk:(MARKJS[m]||'c')});
+    } else if (d.extra && d.extra[m]){
+      series.push({lab:m, col:(MCJS[m]||'#7f7f7f'), ys:d.gammas.map(g=>{const v=d.extra[m][g]; return v===undefined?NaN:v;}),
+                   dash:(DASHJS[m]||''), mk:(MARKJS[m]||'c')});
+    }
+  }
+  const hl = d.hlines || {};
+  let vals = [];
+  series.forEach(s=>s.ys.forEach(v=>{ if(v===v) vals.push(v); }));
+  Object.values(hl).forEach(v=>{ if(v===v) vals.push(v); });
+  if(!vals.length){ document.getElementById('ev-'+wid+'-plot').innerHTML='<p class="muted">no series selected</p>'; return; }
+  const W=720,H=360,pL=58,pR=16,pT=24,pB=44;
+  let ylo=Math.min(...vals), yhi=Math.max(...vals); const pad=0.08*(yhi-ylo+1e-9); ylo-=pad; yhi+=pad;
+  const x0=Math.min(...gs), x1=Math.max(...gs);
+  const X=v=>pL+(v-x0)/(x1-x0+1e-12)*(W-pL-pR);
+  const Y=v=>H-pB-(v-ylo)/(yhi-ylo+1e-12)*(H-pT-pB);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
+  for(let t=0;t<=4;t++){ const yv=ylo+(yhi-ylo)*t/4;
+    s+='<line x1="'+pL+'" y1="'+Y(yv).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(yv).toFixed(1)+'" class="grid"/>';
+    s+='<text x="'+(pL-6)+'" y="'+(Y(yv)+4).toFixed(1)+'" class="tk" text-anchor="end">'+yv.toFixed(2)+'</text>'; }
+  for(const g of gs){ s+='<text x="'+X(g).toFixed(1)+'" y="'+(H-pB+16)+'" class="tk" text-anchor="middle">'+g+'</text>'; }
+  for(const [lab,v] of Object.entries(hl)){
+    if(v!==v) continue;
+    s+='<line x1="'+pL+'" y1="'+Y(v).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(v).toFixed(1)+'" style="stroke:#888" stroke-dasharray="4 4"/>';
+    s+='<text x="'+(W-pR-4)+'" y="'+(Y(v)-4).toFixed(1)+'" class="tk" text-anchor="end">'+lab+'</text>'; }
+  if(d.gstar!==undefined && d.gstar!==null){
+    s+='<line x1="'+X(d.gstar).toFixed(1)+'" y1="'+pT+'" x2="'+X(d.gstar).toFixed(1)+'" y2="'+(H-pB)+'" style="stroke:#0a7d33" stroke-dasharray="3 3"/>';
+    s+='<text x="'+(X(d.gstar)+4).toFixed(1)+'" y="'+(pT+12)+'" class="tk" style="fill:#0a7d33">matched G*</text>'; }
+  for(const se of series){
+    let pts=[];
+    for(let i=0;i<gs.length;i++) if(se.ys[i]===se.ys[i]) pts.push(X(gs[i]).toFixed(1)+','+Y(se.ys[i]).toFixed(1));
+    if(pts.length) s+='<polyline points="'+pts.join(' ')+'" fill="none" style="stroke:'+se.col+'" stroke-width="2.2"'+(se.dash?' stroke-dasharray="'+se.dash+'"':'')+'/>';
+    for(let i=0;i<gs.length;i++) if(se.ys[i]===se.ys[i]) s+=pwMark(X(gs[i]),Y(se.ys[i]),se.col,se.mk,2.6);
+  }
+  s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>';
+  s+='<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">Gamma</text>';
+  s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+((pT+H-pB)/2)+')">test E[Y]</text>';
+  s+='</svg>';
+  const leg='<div class="leg">'+series.map(se=>'<span class="li"><span class="sw" style="background:'+se.col+'"></span>'+se.lab+'</span>').join('')+'</div>';
+  document.getElementById('ev-'+wid+'-plot').innerHTML=s+leg;
+}
+document.addEventListener('change',e=>{const w=e.target.closest('.evw'); if(w) evDraw(w.id.slice(3));});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.mbtn'); if(!b) return;
+  const w=b.closest('.evw'); if(!w) return;
+  w.querySelectorAll('.mck input').forEach(i=>{i.checked=(b.dataset.sel==='all');});
+  evDraw(w.id.slice(3));
+});
+for (const k of Object.keys(typeof EVD!=='undefined'?EVD:{})) evDraw(k);
+"""

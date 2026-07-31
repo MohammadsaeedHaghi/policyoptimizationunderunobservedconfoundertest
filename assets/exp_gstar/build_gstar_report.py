@@ -11,7 +11,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
-from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, bars
+from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, bars, ev_widget_html, EV_JS
 from latex2mathml.converter import convert as l2m
 import importlib.util
 
@@ -311,6 +311,7 @@ def policy_2d_dataset(RJ):
     return dta
 
 SURFDS = {}
+EVD = {}
 if C0:
     Gk, Lk = C0["gammas"], C0["Lgrid"]
     gl = [float(g) for g in Gk]
@@ -369,12 +370,14 @@ if C0:
     sv_widgets = ""
     for wid, lab in (("uncap", "uncapped"), ("cap", "capped 30%")):
         if wid not in SURFDS: continue
-        opts = "".join('<option value="%s"%s>%s</option>' % (l, " selected" if l == "3" else "", l)
-                       for l in SURFDS[wid]["Ls"])
-        sv_widgets += (f'<h3>E[Y] vs &Gamma; with selectable L &mdash; {lab}</h3>'
-                       f'<div class="svw"><div class="ctl"><label>Lipschitz L '
-                       f'<select id="sv-{wid}-l" data-sv="{wid}">{opts}</select></label></div>'
-                       f'<div id="sv-{wid}-plot" class="fig"></div></div>')
+        D0 = SURFDS[wid]
+        EVD[wid] = {"gammas": D0["gammas"], "Ls": D0["Ls"], "methods": D0["methods"],
+                    "surface": D0["surface"], "gstar": 5.0,
+                    "hlines": {"oracle": D0["oracle"], "naive": D0["naive"], "never-treat": D0["never"]},
+                    "extra": {}}
+        sv_widgets += ev_widget_html(wid, EVD[wid],
+                                     defaults={"m": ["IPW-O-W", "IPW-O-X"], "l": "3"},
+                                     title="E[Y] vs Gamma -- tick methods, choose L (%s)" % lab)
     T3.append(f"""
 <h2>1. Average test outcome (5 seeds, N=400 train / 4000 test, Shapley deployment)</h2>
 <div class="figrow">{''.join(blocks)}</div>
@@ -589,10 +592,12 @@ function showTab(id){{
 
 import json as _json
 data_js = ("<script>\nconst PD = " + _json.dumps(_r3(PD), separators=(",", ":")) + ";\n"
+           + "const EVD = " + _json.dumps(_r3(EVD), separators=(",", ":")) + ";\n"
            + "const SURFDS = " + _json.dumps(_r3(SURFDS), separators=(",", ":")) + ";\n"
            + (JS % {"MC": _json.dumps(MC),
                     "DASH": _json.dumps({m: mdash(m) for m in MORDER + ["Kallus"]}),
                     "MARK": _json.dumps({m: mmark(m) for m in MORDER + ["Kallus"]})})
+           + EV_JS
            + "\n</script>")
 
 page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'

@@ -13,7 +13,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
-from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap
+from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS
 from latex2mathml.converter import convert as l2m
 import importlib.util
 
@@ -26,6 +26,7 @@ MC["SharpIPW-O-X"] = "#9467bd"
 def J(fn):
     try: return json.load(open(HERE / fn))
     except Exception: return None
+EVD = {}
 CM = {ce: J(f"kmz_main_ce{ce}.json") for ce in ("1.0", "1.5", "2.0")}
 CC = J("kmz_cap30_ce1.0.json")
 GST = {"05": J("kmz_g05.json"), "10": J("kmz_g10.json")}
@@ -98,6 +99,14 @@ if C0:
                      hlines=[("oracle", "#111", REFS["oracle_uncap"], "5 4"),
                              ("naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_uncap"], "2 3"),
                              ("never-treat", "#888", REFS["never"], "2 3")], xticks=gl)
+    EVD["kuncap"] = {"gammas": Gk, "Ls": Lk, "methods": C0["methods"], "surface": C0["surface"],
+                     "gstar": GSTAR,
+                     "hlines": {"oracle": REFS["oracle_uncap"],
+                                "naive (analytic)": REFS["by_gstar"]["g15"]["naive_uncap"],
+                                "never-treat": REFS["never"]},
+                     "extra": {}}
+    if SH: EVD["kuncap"]["extra"]["SharpIPW-O-X"] = {("%g" % g): v for g, v in zip(SH["gammas"], SH["regimes"]["uncap"]["mean"]["SharpIPW-O-X"])}
+    if KAL: EVD["kuncap"]["extra"]["Kallus"] = {("%g" % g): v for g, v in zip(KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"])}
     parts = [ch]
     if CC:
         sl_c = [ser(m, gl, [CC["surface"][m][g]["3"] for g in CC["gammas"]]) for m in CC["methods"]]
@@ -107,6 +116,11 @@ if C0:
                                  hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_cap30"], "2 3")],
                                  xticks=gl))
+        EVD["kcap"] = {"gammas": CC["gammas"], "Ls": CC["Lgrid"], "methods": CC["methods"],
+                       "surface": CC["surface"], "gstar": GSTAR,
+                       "hlines": {"capped oracle": REFS["oracle_cap30"],
+                                  "capped naive": REFS["by_gstar"]["g15"]["naive_cap30"]},
+                       "extra": ({"SharpIPW-O-X": {("%g" % g): v for g, v in zip(SH["gammas"], SH["regimes"]["cap"]["mean"]["SharpIPW-O-X"])}} if SH else {})}
     hms = [heatmap(["G=" + g for g in Gk], Lk, [[C0["surface"]["IPW-O-W"][g][l] for l in Lk] for g in Gk],
                    "UNCAPPED IPW-O-W surface (oracle %.2f)" % C0["oracle"], "Gamma", "Lipschitz L",
                    C0["never_treat"], C0["oracle"], W=560, H=280)]
@@ -149,6 +163,11 @@ if C0:
                        f"<td>{r['IPW-O-X']:.3f}</td><td>{r['DoublyRobust-O-X']:.3f}</td></tr>")
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; &Gamma; grid with the matched &Gamma;* flagged)</h2>
+<p class="muted">Tick methods to overlay; the static pair below shows every series at L = 3.</p>
+{ev_widget_html("kuncap", EVD["kuncap"], defaults={"m": ["IPW-O-W", "IPW-O-X", "SharpIPW-O-X"], "l": "3"},
+                title="UNCAPPED &mdash; pick methods and L")}
+{ev_widget_html("kcap", EVD["kcap"], defaults={"m": ["IPW-O-W", "SharpIPW-O-X"], "l": "3"},
+                title="CAPPED 30% &mdash; pick methods and L") if "kcap" in EVD else ""}
 <div class="figrow">{parts[0]}{parts[1] if len(parts) > 1 else ''}</div>
 <div class="figrow">{''.join(hms)}</div>
 <h2>2. The paper's own axis: confounding strength &Gamma;* (each at its matched &Gamma;, L = 3)</h2>
@@ -348,9 +367,11 @@ function showTab(id){{
 
 import json as _json
 data_js = ("<script>\nconst PD = " + _json.dumps(_r3(PD), separators=(",", ":")) + ";\n"
+           + "const EVD = " + _json.dumps(_r3(EVD), separators=(",", ":")) + ";\n"
            + (JS % {"MC": _json.dumps(MC),
                     "DASH": _json.dumps({m: mdash(m) for m in list(MC)}),
                     "MARK": _json.dumps({m: mmark(m) for m in list(MC)})})
+           + EV_JS
            + "\n</script>")
 
 page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
