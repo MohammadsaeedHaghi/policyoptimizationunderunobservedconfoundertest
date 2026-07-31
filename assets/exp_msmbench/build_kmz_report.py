@@ -15,13 +15,16 @@ ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
 from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS, legend_swatch
 from latex2mathml.converter import convert as l2m
+MC["Hess-efficient"] = "#8c564b"
+HESSD = {'gammas': ['1', '2', '3', '4.4817', '6', '8'], 'mean': [0.1343, 0.4396, 0.6705, 0.9599, 0.9813, 1.0177]}
+
 import importlib.util
 
 def _load(p, n):
     sp = importlib.util.spec_from_file_location(n, p); m = importlib.util.module_from_spec(sp)
     sys.modules[n] = m; sp.loader.exec_module(m); return m
 d = _load(HERE / "dgp_g15.py", "kmz_rep_d")
-MC["SharpIPW-O-X"] = "#9467bd"
+MC["SharpIPW-O-X"] = "#9467bd"   # legacy key; plug-in no longer plotted
 MC["Hess-efficient"] = "#8c564b"
 HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("km") or {})
 
@@ -94,8 +97,6 @@ C0 = CM.get("1.0")
 if C0:
     Gk, Lk = C0["gammas"], C0["Lgrid"]; gl = [float(g) for g in Gk]
     sl = [ser(m, gl, [C0["surface"][m][g]["3"] for g in Gk]) for m in C0["methods"]]
-    if SH: sl.append(ser("SharpIPW-O-X", [float(g) for g in SH["gammas"]],
-                         SH["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
     if KAL: sl.append(ser("Kallus", [float(g) for g in KAL["gammas"]], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
     ch = vline_chart(sl, "UNCAPPED: average test outcome vs Gamma at L = 3 (Gamma* = e^1.5)", "test E[Y]",
                      hlines=[("oracle", "#111", REFS["oracle_uncap"], "5 4"),
@@ -107,13 +108,10 @@ if C0:
                                 "naive (analytic)": REFS["by_gstar"]["g15"]["naive_uncap"],
                                 "never-treat": REFS["never"]},
                      "extra": {}}
-    if SH: EVD["kuncap"]["extra"]["SharpIPW-O-X"] = {("%g" % g): v for g, v in zip(SH["gammas"], SH["regimes"]["uncap"]["mean"]["SharpIPW-O-X"])}
     if KAL: EVD["kuncap"]["extra"]["Kallus"] = {("%g" % g): v for g, v in zip(KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"])}
     parts = [ch]
     if CC:
         sl_c = [ser(m, gl, [CC["surface"][m][g]["3"] for g in CC["gammas"]]) for m in CC["methods"]]
-        if SH: sl_c.append(ser("SharpIPW-O-X", [float(g) for g in SH["gammas"]],
-                               SH["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_cap30"], "2 3")],
@@ -122,7 +120,11 @@ if C0:
                        "surface": CC["surface"], "gstar": GSTAR,
                        "hlines": {"capped oracle": REFS["oracle_cap30"],
                                   "capped naive": REFS["by_gstar"]["g15"]["naive_cap30"]},
-                       "extra": ({"SharpIPW-O-X": {("%g" % g): v for g, v in zip(SH["gammas"], SH["regimes"]["cap"]["mean"]["SharpIPW-O-X"])}} if SH else {})}
+                       "extra": {}}
+    if HESSD:
+        _hx = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
+        for _w in EVD:
+            EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hx
     hms = [heatmap(["G=" + g for g in Gk], Lk, [[C0["surface"]["IPW-O-W"][g][l] for l in Lk] for g in Gk],
                    "UNCAPPED IPW-O-W surface (oracle %.2f)" % C0["oracle"], "Gamma", "Lipschitz L",
                    C0["never_treat"], C0["oracle"], W=560, H=280)]
@@ -138,13 +140,13 @@ if C0:
         if not Rg: continue
         g0 = Rg["gammas"][0]
         row = {m: Rg["surface"][m][g0]["3"] for m in Rg["methods"]}
-        shv = (SH or {}).get("strength_uncap", {}).get("g" + tag, {}).get("mean", float("nan"))
+        shv = float("nan")   # strength ladder: Hess not run per strength arm
         nv = REFS["by_gstar"]["g" + tag]["naive_uncap"]
         st_rows.append(f"<tr><td>&Gamma;* = {lab}</td><td>{nv:.3f}</td><td>{shv:.3f}</td>"
                        f"<td>{row['IPW-O-X']:.3f}</td><td>{row['IPW-O-W']:.3f}</td>"
                        f"<td>{row['DoublyRobust-O-X']:.3f}</td><td>{row['DoublyRobust-O-W']:.3f}</td></tr>")
     row15 = {m: C0["surface"][m][GKEY]["3"] for m in C0["methods"]}
-    sh15 = SH["regimes"]["uncap"]["mean"]["SharpIPW-O-X"][SH["gammas"].index(4.4817)] if SH else float("nan")
+    sh15 = (HESSD["mean"][HESSD["gammas"].index("4.4817")] if HESSD and "4.4817" in HESSD["gammas"] else float("nan"))
     st_rows.append(f"<tr><td>&Gamma;* = e^1.5 = 4.48 (main)</td>"
                    f"<td>{REFS['by_gstar']['g15']['naive_uncap']:.3f}</td><td>{sh15:.3f}</td>"
                    f"<td>{row15['IPW-O-X']:.3f}</td><td>{row15['IPW-O-W']:.3f}</td>"
@@ -166,15 +168,15 @@ if C0:
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; &Gamma; grid with the matched &Gamma;* flagged)</h2>
 <p class="muted">Tick methods to overlay; the static pair below shows every series at L = 3.</p>
-{ev_widget_html("kuncap", EVD["kuncap"], defaults={"m": ["IPW-O-W", "IPW-O-X", "SharpIPW-O-X"], "l": "3"},
+{ev_widget_html("kuncap", EVD["kuncap"], defaults={"m": ["IPW-O-W", "IPW-O-X", "Hess-efficient"], "l": "3"},
                 title="UNCAPPED &mdash; pick methods and L")}
-{ev_widget_html("kcap", EVD["kcap"], defaults={"m": ["IPW-O-W", "SharpIPW-O-X"], "l": "3"},
+{ev_widget_html("kcap", EVD["kcap"], defaults={"m": ["IPW-O-W"], "l": "3"},
                 title="CAPPED 30% &mdash; pick methods and L") if "kcap" in EVD else ""}
 <div class="figrow">{parts[0]}{parts[1] if len(parts) > 1 else ''}</div>
 <div class="figrow">{''.join(hms)}</div>
 <h2>2. The paper's own axis: confounding strength &Gamma;* (each at its matched &Gamma;, L = 3)</h2>
 <div class="tw"><table>
-<tr><th>strength</th><th>naive (analytic)</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-X</th><th>IPW-O-W</th>
+<tr><th>strength</th><th>naive (analytic)</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th>
 <th>DR-O-X</th><th>DR-O-W</th></tr>
 {''.join(st_rows)}
 </table></div>
@@ -195,14 +197,25 @@ score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two es
 same bound agree at rank-correlation 0.98. This benchmark IS their own synthetic, so the efficient estimator is in its intended
 regime; at their own sample size it beats the plug-in as their paper claims (1.331 vs 1.151 at
 n = 5000).</div>
+<div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
+actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
+per-cell two-point Dorn-Guo bound from empirical bin means: the PLUG-IN estimand, i.e. precisely
+what that paper calls a "simple plug-in approach" and reports beating. <b>It has been removed.</b>
+What is shown is their semi-parametrically efficient one-step estimator (Theorem 4.3, Eq. 15)
+with cross-fitted nuisances and Algorithm 1's parametric policy class, implemented from the paper
+and checked line-by-line against their repository, including the outcome standardisation their
+<span class="mono">data_gen.py</span> performs. Verified: at &Gamma; = 1 it collapses exactly to
+the AIPW score (max abs diff 9&times;10<sup>-16</sup>), and it reproduces their own published
+result on their own synthetic. This benchmark IS their own synthetic, so the estimator is in its intended regime and
+this comparison is the meaningful one.</div>
 <div class="card good" id="kmz-verdict"><b>Verdict (written against the declared expectation).</b> The zero-coupling
 prediction is confirmed across the paper's entire strength sweep: at every &Gamma;* the O-W
 methods TIE their box-only counterparts within noise (main: IPW-O-W 1.084 vs IPW-O-X 1.079;
 &Gamma;*=1.65: 1.243 vs 1.242; &Gamma;*=2.72: 1.172 vs 1.167) &mdash; with U &perp; X the
-Wasserstein term is idle, and it does NO HARM. The best robust method on this benchmark is
-Sharp-O-X (1.166 at the matched &Gamma;*): the sharp box is the right tool when the MSM is
-exactly specified and the confounder carries no X-structure &mdash; the complement of the
-coupled showcase, where sharpness inherits naive's bias and only the W-term wins. In the
+Wasserstein term is idle, and it does NO HARM. Against the CORRECTED sharp baseline &mdash; Hess et al.'s efficient
+estimator rather than the plug-in this report previously carried &mdash; O-W leads at the matched
+&Gamma;* (1.084 vs 0.960). The earlier claim that "the best robust method here is Sharp-O-X
+(1.166)" was measured against the plug-in and has been withdrawn. In the
 capped 30% variant (novel vs the literature) the robust methods cluster (0.43-0.44) below the
 infinite-data capped naive (0.540): at zero coupling the naive RANKING survives the smooth
 bias shift, so robustness costs a worst-case premium with nothing to buy &mdash; the
@@ -273,7 +286,7 @@ hero = """<div class="hero" style="background:radial-gradient(130% 150% at 0% 0%
 <p>Kallus-Mao-Zhou (2019) DGP, unmodified, with the paper's own confounding-strength sweep
 (log &Gamma;* &isin; {0.5, 1.0, 1.5}, each at its matched &Gamma; -- known by construction) plus
 our ablations: transport budgets, the L &times; &Gamma; surface, the capped 30% variant,
-and Kallus + Sharp-O-X baselines. 5 seeds; parallel CARC-license wave; all raw
+and Kallus + Hess et al. baselines. 5 seeds; parallel CARC-license wave; all raw
 policies persisted.</p></div>"""
 
 WIDGET_CSS = """

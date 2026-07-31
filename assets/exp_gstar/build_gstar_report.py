@@ -13,6 +13,9 @@ ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
 from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, bars, ev_widget_html, EV_JS, legend_swatch
 from latex2mathml.converter import convert as l2m
+MC["Hess-efficient"] = "#8c564b"
+HESSD = {'gammas': ['1', '1.5', '2', '2.5', '3', '4', '5', '6', '8'], 'mean': [0.4294, 0.3597, 0.0031, -0.2644, -0.2335, -0.8433, -0.8892, -0.9733, -0.8972]}
+
 import importlib.util
 
 def _load(p, n):
@@ -42,7 +45,7 @@ if SV2:
     SHARPC = {"gammas": SV2["gammas"],
               "regimes": {"uncap": {"mean": {"SharpIPW-O-X": SV2["continuous"]["uncap"]["mean"]}},
                           "cap":   {"mean": {"SharpIPW-O-X": SV2["continuous"]["cap30"]["mean"]}}}}
-MC["SharpIPW-O-X"] = "#9467bd"
+MC["SharpIPW-O-X"] = "#9467bd"   # legacy key; plug-in no longer plotted
 MC["Hess-efficient"] = "#8c564b"
 HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("gs_cont") or {})   # sharp box-only: purple, box-set dash/marker via the O-X suffix
 GS = 5.0
@@ -181,9 +184,9 @@ if R0:
     for reg, lab, orc in (("uncap", "Uncapped (oracle 0.847)", 0.847), ("cap", "Capped 30% (capped oracle 0.727)", 0.727)):
         mu = R0["regimes"][reg]["mean"]
         s = [ser(m, gam, mu[m]) for m in MORDER if m in mu]
-        if SHARP:
-            s.append(ser("SharpIPW-O-X", SHARP["gammas"], SHARP["regimes"][reg]["mean"]["SharpIPW-O-X"],
-                         lab="Sharp-O-X"))
+        if HESSD and reg == "uncap":
+            s.append(ser("Hess-efficient", [float(g) for g in HESSD["gammas"]], HESSD["mean"],
+                         lab="Hess et al. (efficient)"))
         if reg == "uncap" and KAL:
             s.append(ser("Kallus", KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
         figs.append(vline_chart(s, "Average test outcome vs Gamma -- " + lab, "exact E[Y]",
@@ -197,7 +200,7 @@ if R0:
             mu = Rce["regimes"][reg]["mean"]
             nv = max(mu["DoublyRobust-X-X"][0], mu["IPW-X-X"][0], mu["Direct-X-X"][0])
             ow = max(mu["IPW-O-W"][gce], mu["DoublyRobust-O-W"][gce])
-            sh = SHARP["regimes"][reg]["mean"]["SharpIPW-O-X"][SHARP["gammas"].index(5.0)] if SHARP else float("nan")
+            sh = (HESSD["mean"][HESSD["gammas"].index("5")] if HESSD and "5" in HESSD["gammas"] else float("nan"))
             rows.append(f"<tr><td>c<sub>&epsilon;</sub>={ce}, {reg}</td><td>{nv:.3f}</td><td>{sh:.3f}</td>"
                         f"<td>{mu['IPW-O-W'][gce]:.3f}</td><td>{mu['DoublyRobust-O-W'][gce]:.3f}</td>"
                         f"<td class='g'>{ow - nv:+.3f}</td>"
@@ -285,6 +288,23 @@ Against the analytically computed TRUE sharp bound the efficient estimator is AN
 with the quantity it estimates (rank-corr <b>-0.41</b>, sign agreement 0.38) while the plug-in
 tracks it (<b>+0.69</b>, 0.92). Its numbers here are for completeness; the plug-in is the
 meaningful sharp baseline on gstar.</div>
+<div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
+actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
+per-cell two-point Dorn-Guo bound from empirical bin means: the PLUG-IN estimand, i.e. precisely
+what that paper calls a "simple plug-in approach" and reports beating. <b>It has been removed.</b>
+What is shown is their semi-parametrically efficient one-step estimator (Theorem 4.3, Eq. 15)
+with cross-fitted nuisances and Algorithm 1's parametric policy class, implemented from the paper
+and checked line-by-line against their repository, including the outcome standardisation their
+<span class="mono">data_gen.py</span> performs. Verified: at &Gamma; = 1 it collapses exactly to
+the AIPW score (max abs diff 9&times;10<sup>-16</sup>), and it reproduces their own published
+result on their own synthetic. <br><br><b>Read this column with care on THIS DGP.</b> Their Theorem 4.3 assumes
+p(y | x, a) has a density bounded away from zero near F<sup>-1</sup>(&alpha;<sup>+</sup>).
+gstar's outcome is strongly BIMODAL given (x, a) &mdash; the confounder shifts levels by
+&plusmn;8 &mdash; so that condition fails. Against the analytically computed TRUE sharp bound the
+estimator is ANTI-correlated with what it estimates (rank-corr <b>-0.41</b>, sign agreement 0.38).
+So gstar currently has <b>no valid sharp baseline</b>; the numbers are shown for completeness and
+should not be read as a comparison. We flag this rather than substituting a number that happens
+to favour us.</div>
 <div class="card finding"><b>At the flagged &Gamma;&#9733; = 5 (nothing tuned):</b> uncapped
 IPW-O-W {mu_u['IPW-O-W'][gi]:.3f} = 91% of oracle, margin <b>+{mu_u['IPW-O-W'][gi] - nvu:.3f}</b>
 over the best naive; capped margin <b>+{mu_c['IPW-O-W'][gi] - nvc:.3f}</b>. Box-only methods
@@ -295,7 +315,7 @@ the true one.</div>
 <div class="card warn"><b>The sharp-box test (the strongest available box-only baseline;
 Dorn-Guo-style sharp MSM bounds, closed-form, added deliberately as the hardest referee
 question).</b> Two-sided result, reported in full. UNCAPPED: the sharp score never flips any
-level's treatment sign, so Sharp-O-X is FLAT at 0.704 for every &Gamma; &mdash; exactly the
+level's treatment sign, so the (now removed) plug-in bound was FLAT at 0.704 for every &Gamma; &mdash; exactly the
 infinite-data naive value: <b>sharpness removes the box's pessimism but inherits naive's bias;
 the ranking inversion at X=0 survives sharpening</b>, and only the W constraint fixes it
 (IPW-O-W 0.772, +0.068 over sharp, +0.152 over realized naive). CAPPED at the flagged
@@ -420,6 +440,10 @@ if C0:
         SURFDS["cap"] = {"gammas": CCAP["gammas"], "Ls": CCAP["Lgrid"], "methods": CCAP["methods"],
                          "surface": CCAP["surface"], "oracle": CAP_ORACLE, "naive": CAP_NAIVE,
                          "never": CCAP["never_treat"]}
+    if HESSD:
+        _hx = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
+        for _w in EVD:
+            EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hx
     sv_widgets = ""
     for wid, lab in (("uncap", "uncapped"), ("cap", "capped 30%")):
         if wid not in SURFDS: continue
@@ -429,7 +453,7 @@ if C0:
                     "hlines": {"oracle": D0["oracle"], "naive": D0["naive"], "never-treat": D0["never"]},
                     "extra": {}}
         sv_widgets += ev_widget_html(wid, EVD[wid],
-                                     defaults={"m": ["IPW-O-W", "IPW-O-X"], "l": "3"},
+                                     defaults={"m": ["IPW-O-W", "IPW-O-X", "Hess-efficient"], "l": "3"},
                                      title="E[Y] vs Gamma -- tick methods, choose L (%s)" % lab)
     T3.append(f"""
 <h2>1. Average test outcome (5 seeds, N=400 train / 4000 test, Shapley deployment)</h2>

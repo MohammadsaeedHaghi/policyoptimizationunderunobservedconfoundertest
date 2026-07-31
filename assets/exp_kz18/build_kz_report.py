@@ -5,7 +5,7 @@ Their binary-treatment synthetic (par.nsf.gov/servlets/purl/10168529), ported fr
 CODE, run through our full pipeline: matched Gamma* = e^1.5 known by construction, the L x Gamma
 surface, both scalar-index reductions (propensity index = main, CATE index = do-no-harm arm),
 the capped 30% variant, transport-budget and sample-size ablations (incl. the paper's own
-n = 200), and Kallus + Sharp-O-X baselines against high-precision references.
+n = 200), and Kallus + Hess et al. baselines against high-precision references.
 
 Three tabs: DGP / Results & ablations / Policies. The verdict paragraph is GENERATED from the
 landed numbers -- rerun after any new job lands and the text updates itself.
@@ -19,6 +19,9 @@ ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
 from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS, legend_swatch
 from latex2mathml.converter import convert as l2m
+MC["Hess-efficient"] = "#8c564b"
+HESSD = {'gammas': ['1', '2', '3', '4.4817', '6', '8'], 'mean': [-1.625, -1.7588, -2.0322, -2.0631, -2.1244, -2.0755]}
+
 import importlib.util
 
 def _load(p, n):
@@ -26,7 +29,7 @@ def _load(p, n):
     sys.modules[n] = m; sp.loader.exec_module(m); return m
 D = _load(HERE / "dgp.py", "kz_rep_main")
 DC = _load(HERE / "dgp_cidx.py", "kz_rep_cidx")
-MC["SharpIPW-O-X"] = "#9467bd"
+MC["SharpIPW-O-X"] = "#9467bd"   # legacy key; plug-in no longer plotted
 MC["Hess-efficient"] = "#8c564b"
 HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("kz") or {})
 
@@ -164,8 +167,7 @@ if MAIN:
     if HESSD:
         _hg = [float(g) for g in HESSD["gammas"]]
         sl.append(ser("Hess-efficient", _hg, HESSD["mean"], lab="Hess et al. (efficient)"))
-    s = sharp_series("main", "uncap")
-    if s: sl.append(s)
+    if HESSD: sl.append(ser("Hess-efficient", [float(g) for g in HESSD["gammas"]], HESSD["mean"], lab="Hess et al. (efficient)"))
     if KAL: sl.append(ser("Kallus", [float(g) for g in KAL["gammas"]], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
     ch = vline_chart(sl, "UNCAPPED: average test outcome vs Gamma at L = 3", "test E[Y]",
                      hlines=[("oracle", "#111", RM["oracle_uncap"], "5 4"),
@@ -176,7 +178,6 @@ if MAIN:
                   "hlines": {"oracle": RM["oracle_uncap"], "naive (infinite data)": RM["naive_uncap"],
                              "never-treat": RM["never"]},
                   "extra": {}}
-    if SH: EVD["kzu"]["extra"]["SharpIPW-O-X"] = {("%g" % g): v for g, v in zip(SH["gammas"], SH["arms"]["main"]["regimes"]["uncap"]["mean"]["SharpIPW-O-X"])}
     if KAL: EVD["kzu"]["extra"]["Kallus"] = {("%g" % g): v for g, v in zip(KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"])}
     parts = [ch]
     if CAP:
@@ -186,11 +187,15 @@ if MAIN:
         EVD["kzc"] = {"gammas": CAP["gammas"], "Ls": CAP["Lgrid"], "methods": CAP["methods"],
                       "surface": CAP["surface"], "gstar": GSTAR,
                       "hlines": {"capped oracle": RM["oracle_cap30"], "capped naive": RM["naive_cap30"]},
-                      "extra": ({"SharpIPW-O-X": {("%g" % g): v for g, v in zip(SH["gammas"], SH["arms"]["main"]["regimes"]["cap"]["mean"]["SharpIPW-O-X"])}} if SH else {})}
+                      "extra": {}}
         parts.append(vline_chart(slc, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", RM["oracle_cap30"], "5 4"),
                                          ("capped naive", MC["DoublyRobust-X-X"], RM["naive_cap30"], "2 3")],
                                  xticks=gl))
+    if HESSD:
+        _hx = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
+        for _w in EVD:
+            EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hx
     hms = [heatmap(["G=" + g for g in MAIN["gammas"]], MAIN["Lgrid"],
                    [[MAIN["surface"]["IPW-O-W"][g][l] for l in MAIN["Lgrid"]] for g in MAIN["gammas"]],
                    "UNCAPPED IPW-O-W surface (oracle %s)" % f3(RM["oracle_uncap"]),
@@ -205,8 +210,7 @@ if MAIN:
         gk = gk or (GKEY if GKEY in Rx["gammas"] else Rx["gammas"][0])
         r = {m: Rx["surface"][m][gk][lk] for m in Rx["methods"]}
         shv = float("nan")
-        if SH:
-            shv = SH["arms"][arm]["regimes"][reg]["mean"]["SharpIPW-O-X"][SH["gammas"].index(4.4817)]
+        shv = (HESSD["mean"][HESSD["gammas"].index("4.4817")] if HESSD and "4.4817" in HESSD["gammas"] else float("nan"))
         return (f"<tr><td>{tag}</td><td>{f3(refs[0])}</td><td>{f3(shv)}</td>"
                 f"<td>{f3(r['IPW-O-X'])}</td><td><b>{f3(r['IPW-O-W'])}</b></td>"
                 f"<td>{f3(r['DoublyRobust-O-X'])}</td><td>{f3(r['DoublyRobust-O-W'])}</td>"
@@ -235,7 +239,7 @@ if MAIN:
         ow, ox = r_main["IPW-O-W"], r_main["IPW-O-X"]
         dow, dox = r_main["DoublyRobust-O-W"], r_main["DoublyRobust-O-X"]
         nv, orc, nev = RM["naive_uncap"], RM["oracle_uncap"], RM["never"]
-        shv = SH["arms"]["main"]["regimes"]["uncap"]["mean"]["SharpIPW-O-X"][SH["gammas"].index(4.4817)] if SH else float("nan")
+        shv = (HESSD["mean"][HESSD["gammas"].index("4.4817")] if HESSD and "4.4817" in HESSD["gammas"] else float("nan"))
         gap_box = ow - ox; gap_nv = ow - nv; gap_sh = ow - shv
         frac = (ow - nv) / (orc - nv) if orc > nv else float("nan")
         if gap_box > 0.01 and gap_nv > 0.01:
@@ -284,7 +288,18 @@ work with. The honest conclusion is that this benchmark demands the regret-form 
 &mdash; same uncertainty set, same Wasserstein balance constraint, objective rewritten against a
 baseline &mdash; and that our current claims should be scoped to the value form until that
 exists."""
-        VERD = f"""<div class="card {cls}" id="kz-verdict"><b>Verdict (generated from the landed
+        VERD = f"""<div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
+actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
+per-cell two-point Dorn-Guo bound from empirical bin means: the PLUG-IN estimand, i.e. precisely
+what that paper calls a "simple plug-in approach" and reports beating. <b>It has been removed.</b>
+What is shown is their semi-parametrically efficient one-step estimator (Theorem 4.3, Eq. 15)
+with cross-fitted nuisances and Algorithm 1's parametric policy class, implemented from the paper
+and checked line-by-line against their repository, including the outcome standardisation their
+<span class="mono">data_gen.py</span> performs. Verified: at &Gamma; = 1 it collapses exactly to
+the AIPW score (max abs diff 9&times;10<sup>-16</sup>), and it reproduces their own published
+result on their own synthetic. On this benchmark every method sits near or below the never-treat floor, so this column
+is context rather than a live comparison.</div>
+<div class="card {cls}" id="kz-verdict"><b>Verdict (generated from the landed
 numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {f3(ox)}
 ({'+' if gap_box >= 0 else ''}{f3(gap_box)}), the infinite-data naive policy {f3(nv)}
 ({'+' if gap_nv >= 0 else ''}{f3(gap_nv)}) and Sharp-O-X {f3(shv)}
@@ -295,9 +310,9 @@ numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; matched &Gamma;* = 4.48 flagged)</h2>
 <p class="muted">Tick methods to overlay; the static pair below shows every series at L = 3.</p>
-{ev_widget_html("kzu", EVD["kzu"], defaults={"m": ["IPW-O-W", "IPW-O-X", "SharpIPW-O-X"], "l": "3"},
+{ev_widget_html("kzu", EVD["kzu"], defaults={"m": ["IPW-O-W", "IPW-O-X", "Hess-efficient"], "l": "3"},
                 title="UNCAPPED &mdash; pick methods and L")}
-{ev_widget_html("kzc", EVD["kzc"], defaults={"m": ["IPW-O-W", "SharpIPW-O-X"], "l": "3"},
+{ev_widget_html("kzc", EVD["kzc"], defaults={"m": ["IPW-O-W"], "l": "3"},
                 title="CAPPED 30% &mdash; pick methods and L") if "kzc" in EVD else ""}
 <div class="figrow">{parts[0]}{parts[1] if len(parts) > 1 else ''}</div>
 <div class="figrow">{''.join(hms)}</div>
@@ -399,7 +414,7 @@ hero = """<div class="hero" style="background:radial-gradient(130% 150% at 0% 0%
 Confounding</i> (Management Science), ported from the authors' own code: matched
 &Gamma;* = e<sup>1.5</sup> = 4.4817 known by construction, both scalar-index reductions, the
 L &times; &Gamma; surface, capped 30%, transport-budget and sample-size ablations (including the
-paper's own n = 200), and Kallus + Sharp-O-X baselines. 5 seeds, one parallel CARC-license job
+paper's own n = 200), and Kallus + Hess et al. baselines. 5 seeds, one parallel CARC-license job
 per arm at the paper's own n = 200, every raw policy persisted.</p></div>"""
 
 WIDGET_CSS = """
