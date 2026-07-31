@@ -31,11 +31,10 @@ MC["SharpIPW-O-X"] = "#9467bd"
 def J(fn):
     try: return json.load(open(HERE / fn))
     except Exception: return None
-MAIN = J("kz_main_ce1.0.json")
+MAIN = J("kz_n200.json")          # the main arm IS n = 200 (the paper's own sample size)
 CE2 = J("kz_main_ce2.0.json")
 CAP = J("kz_cap30_ce1.0.json")
 CIDX = J("kz_cidx_ce1.0.json")
-N200 = J("kz_n200.json")
 KAL = J("kz_kallus.json")
 SH = J("kz_sharp.json")
 REFS = J("kz_refs.json") or {}
@@ -149,7 +148,7 @@ already has without ever using X-structure.</div>
 {f3(RM.get("oracle_uncap"))} / naive {f3(RM.get("naive_uncap"))} / never-treat {f3(RM.get("never"))} /
 treat-all {f3(RM.get("all"))}; capped 30%: oracle {f3(RM.get("oracle_cap30"))}, naive
 {f3(RM.get("naive_cap30"))}. CATE-index arm: oracle {f3(RC.get("oracle_uncap"))}, naive
-{f3(RC.get("naive_uncap"))}. Protocol: 5 seeds, n = 400 train (n = 200 ablation = the paper's own),
+{f3(RC.get("naive_uncap"))}. Protocol: 5 seeds, n = 200 train (the paper's own sample size),
 4,000 test draws, Shapley deployment, every raw per-seed policy persisted.</p>
 """
 
@@ -199,9 +198,8 @@ if MAIN:
     rows = []
     r_main = None
     for tag, Rx, refs, reg, arm in (
-            ("<b>main</b> (propensity index, n = 400)", MAIN, (RM["naive_uncap"], RM["oracle_uncap"]), "uncap", "main"),
+            ("<b>main</b> (propensity index)", MAIN, (RM["naive_uncap"], RM["oracle_uncap"]), "uncap", "main"),
             ("CATE index (do-no-harm arm)", CIDX, (RC.get("naive_uncap"), RC.get("oracle_uncap")), "uncap", "cidx"),
-            ("n = 200 (the paper's own)", N200, (RM["naive_uncap"], RM["oracle_uncap"]), "uncap", "main"),
             ("c<sub>&epsilon;</sub> = 2.0 (wider transport budget)", CE2, (RM["naive_uncap"], RM["oracle_uncap"]), "uncap", "main"),
             ("capped 30%", CAP, (RM["naive_cap30"], RM["oracle_cap30"]), "cap", "main")):
         if not Rx: continue
@@ -258,10 +256,10 @@ benchmarks, opposite corners of the coupling diagnostic, each behaving as declar
 <th>DR-O-W</th><th>Hajek-O-X</th><th>oracle</th></tr>
 {''.join(rows)}
 </table></div>
-<p class="muted">Rows share the DGP and the protocol; they differ only in the stated dimension.
-The n = 200 row is the paper's own sample size; c<sub>&epsilon;</sub> is the transport budget
-multiplier; the capped row restricts treatment to 30% of units (novel vs their setup) and is
-scored against capped references.</p>
+<p class="muted">Rows share the DGP, the protocol and n = 200 &mdash; the paper's own sample
+size &mdash; and differ only in the stated dimension. c<sub>&epsilon;</sub> is the transport
+budget multiplier; the capped row restricts treatment to 30% of units (novel vs their setup)
+and is scored against capped references.</p>
 <h2>3. Best cell per method on the main arm (L and &Gamma; both free)</h2>
 <div class="tw"><table><tr><th>method</th><th>best test E[Y]</th><th>at</th><th></th></tr>
 {''.join(bestrows)}</table></div>
@@ -339,7 +337,7 @@ Confounding</i> (Management Science), ported from the authors' own code: matched
 &Gamma;* = e<sup>1.5</sup> = 4.4817 known by construction, both scalar-index reductions, the
 L &times; &Gamma; surface, capped 30%, transport-budget and sample-size ablations (including the
 paper's own n = 200), and Kallus + Sharp-O-X baselines. 5 seeds, one parallel CARC-license job
-per arm, every raw policy persisted.</p></div>"""
+per arm at the paper's own n = 200, every raw policy persisted.</p></div>"""
 
 WIDGET_CSS = """
 .tabpane{display:none}.tabpane.on{display:block}

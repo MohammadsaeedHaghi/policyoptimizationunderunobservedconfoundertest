@@ -14,6 +14,6 @@ echo "SBATCH START $(date) on $(hostname)  job=$SLURM_JOB_ID"
 module load gurobi/12.0.3
 echo "GRB_LICENSE_FILE=$GRB_LICENSE_FILE"
 cd "/home1/haghim/code 1.1"
-python3 assets/exp_owgap_alpha/run_kallus.py --dgp assets/exp_kz18/dgp.py --out assets/exp_kz18/kz_kallus.json --n 400 --seeds 5 --gammas 1,2,3,4.4817,6,8 --eval draws --n-test 4000 \
+python3 assets/exp_owgap_alpha/run_kallus.py --dgp assets/exp_kz18/dgp.py --out assets/exp_kz18/kz_kallus.json --n 200 --seeds 5 --gammas 1,2,3,4.4817,6,8 --eval draws --n-test 4000 \
   && echo "KZ18_kallus_DONE $(date)"
 echo "SBATCH END $(date)"

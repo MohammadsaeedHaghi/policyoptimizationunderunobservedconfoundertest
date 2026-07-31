@@ -59,11 +59,12 @@ def policies(score, mass, cap=None):
 GAMMAS = [1.0, 2.0, 3.0, 4.4817, 6.0, 8.0]
 SEEDS = list(range(5))
 BINS = 15
+NTRAIN = 200                                      # match the campaign: the paper's own n
 NTEST = 200000
 ARMS = (("main", "dgp.py"), ("cidx", "dgp_cidx.py"))
 
 out = {"method": "SharpIPW-O-X", "gammas": GAMMAS, "seeds": SEEDS, "bins": BINS,
-       "n_train": 400, "n_test": NTEST, "arms": {}}
+       "n_train": NTRAIN, "n_test": NTEST, "arms": {}}
 refs = {}
 
 for arm, fn in ARMS:
@@ -83,7 +84,7 @@ for arm, fn in ARMS:
     for reg, cap in (("uncap", None), ("cap", 0.3)):
         vals = {gi: [] for gi in range(len(GAMMAS))}; polS = {}
         for sd in SEEDS:
-            obs, _ = d.generate(400, sd)
+            obs, _ = d.generate(NTRAIN, sd)
             X, T, Y = obs["X"].ravel(), obs["T"], obs["Y"]
             ci = np.clip(np.digitize(X, edges) - 1, 0, BINS - 1)
             polS[str(sd)] = {}
