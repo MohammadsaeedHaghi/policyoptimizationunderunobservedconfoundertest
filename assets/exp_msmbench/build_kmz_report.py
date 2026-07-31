@@ -162,7 +162,21 @@ if C0:
 <tr><th>setting</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th></tr>
 {''.join(ab_rows)}
 </table></div>
-<div class="card good" id="kmz-verdict">VERDICT_PLACEHOLDER</div>
+<div class="card good" id="kmz-verdict"><b>Verdict (written against the declared expectation).</b> The zero-coupling
+prediction is confirmed across the paper's entire strength sweep: at every &Gamma;* the O-W
+methods TIE their box-only counterparts within noise (main: IPW-O-W 1.084 vs IPW-O-X 1.079;
+&Gamma;*=1.65: 1.243 vs 1.242; &Gamma;*=2.72: 1.172 vs 1.167) &mdash; with U &perp; X the
+Wasserstein term is idle, and it does NO HARM. The best robust method on this benchmark is
+Sharp-O-X (1.166 at the matched &Gamma;*): the sharp box is the right tool when the MSM is
+exactly specified and the confounder carries no X-structure &mdash; the complement of the
+coupled showcase, where sharpness inherits naive's bias and only the W-term wins. In the
+capped 30% variant (novel vs the literature) the robust methods cluster (0.43-0.44) below the
+infinite-data capped naive (0.540): at zero coupling the naive RANKING survives the smooth
+bias shift, so robustness costs a worst-case premium with nothing to buy &mdash; the
+"robustness unnecessary here" corner of the diagnostic, demonstrated on the literature's own
+benchmark. Together with the gstar campaign this completes the two-benchmark story: O-W wins
+where the confounder is X-trackable, ties harmlessly where it is not, and the coupling
+diagnostic tells the regimes apart.</div>
 """)
 else:
     T2.append('<p class="muted">Wave running; rerun this builder when jobs land.</p>')
