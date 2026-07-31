@@ -412,6 +412,14 @@ if MAIN:
     PD["kzu"] = policy_2d_dataset(MAIN)
     T3.append("""
 <h2>1. Learned policy vs x &mdash; main arm, uncapped</h2>
+<div class="card"><b>What the horizontal axis is.</b> This DGP's covariate is a 5-VECTOR
+X<sub>5</sub>, so there is no "&pi; vs X" plot to draw directly. Every method here &mdash; ours
+and the baselines alike &mdash; is given the same SCALAR INDEX, and that index is the axis:
+x = &theta;'X<sub>5</sub> / 4, the nominal-propensity direction (&theta; = [0, .75, -.5, 0, -1]).
+The CATE-index arm below uses x = &beta;<sub>treat</sub>'X<sub>5</sub> / 8 instead. This is a
+projection, so two units with the same index but different X<sub>5</sub> necessarily receive the
+same decision &mdash; a real restriction relative to Kallus-Zhou's own linear-in-X<sub>5</sub>
+policy class, and the reason both index choices are run and reported rather than one.</div>
 <p>Raw per-unit support policy (seed 0) on top; Shapley-deployed &pi;(x) below. The naive curve
 (blue dotted) crosses to "treat" too far left: it treats a wide band the oracle leaves alone.
 The question the plot answers is whether the robust policies pull that crossing back toward the
@@ -420,12 +428,12 @@ oracle's, or simply retreat to never-treat.</p>""")
     T3.append(pol_widget_html("kzu", PD["kzu"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": LDEF}))
     if CAP:
         PD["kzc"] = policy_2d_dataset(CAP)
-        T3.append("<h2>2. Learned policy vs x &mdash; main arm, capped 30%</h2>"
+        T3.append('<h2>2. Learned policy vs x &mdash; main arm, capped 30% <span class="muted">(x = &theta;&#39;X<sub>5</sub>/4)</span></h2>'
                   "<p>With only 30% of units treatable, the policy must rank rather than threshold.</p>")
         T3.append(pol_widget_html("kzc", PD["kzc"], defaults={"m": ["IPW-O-W"], "g": GKEY, "l": LDEF}))
     if CIDX:
         PD["kzi"] = policy_2d_dataset(CIDX)
-        T3.append("<h2>3. Learned policy vs x &mdash; CATE-index arm (do-no-harm)</h2>"
+        T3.append('<h2>3. Learned policy vs x &mdash; CATE-index arm <span class="muted">(x = &beta;<sub>treat</sub>&#39;X<sub>5</sub>/8)</span></h2>'
                   "<p>Here the naive policy is already near-oracle; a robust method passes this "
                   "check by tracking it rather than collapsing toward never-treat.</p>")
         T3.append(pol_widget_html("kzi", PD["kzi"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": LDEF}))
