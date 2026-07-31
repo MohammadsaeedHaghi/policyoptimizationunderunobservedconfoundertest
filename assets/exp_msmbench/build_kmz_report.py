@@ -123,8 +123,18 @@ if C0:
                        "extra": {}}
     if HESSD:
         _hx = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
+        # UNCAPPED numbers go ONLY in the uncapped widget. Applying them to the capped panel
+        # plotted an unconstrained policy against capped references, which is why it appeared to
+        # beat the capped oracle: it was not paying the 30% budget.
+        try:
+            _HCAP = json.load(open(ROOT / "assets/grand/hess_capped.json"))["km"]
+            _hxc = {g: v for g, v in zip(_HCAP["gammas"], _HCAP["mean"])}
+        except Exception:
+            _hxc = None
         for _w in EVD:
-            EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hx
+            _is_cap = "cap" in _w
+            if _is_cap and _hxc: EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hxc
+            elif not _is_cap:    EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hx
     hms = [heatmap(["G=" + g for g in Gk], Lk, [[C0["surface"]["IPW-O-W"][g][l] for l in Lk] for g in Gk],
                    "UNCAPPED IPW-O-W surface (oracle %.2f)" % C0["oracle"], "Gamma", "Lipschitz L",
                    C0["never_treat"], C0["oracle"], W=560, H=280)]
@@ -260,7 +270,12 @@ def _add_hess_curves(PD, key):
     for w in PD:
         if PD[w].get("kind") != "2d" or "Hess-efficient" in PD[w]["methods"]: continue
         PD[w]["methods"] = list(PD[w]["methods"]) + ["Hess-efficient"]
-        PD[w]["pol"]["Hess-efficient"] = {g: {l: HC.get(g, HC[sorted(HC)[0]]) for l in PD[w]["Ls"]}
+        _src = HC
+        if "cap" in w:
+            try: _src = json.load(open(ROOT / "assets/grand/hess_capped.json"))[key]["curves"]
+            except Exception: _src = None
+        if _src is None: continue
+        PD[w]["pol"]["Hess-efficient"] = {g: {l: _src.get(g, _src[sorted(_src)[0]]) for l in PD[w]["Ls"]}
                                           for g in PD[w]["gammas"]}
 
 
