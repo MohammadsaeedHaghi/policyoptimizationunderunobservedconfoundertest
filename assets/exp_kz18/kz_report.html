@@ -176,9 +176,16 @@ X<sub>5</sub>, so there is no "&pi; vs X" plot to draw directly. Every method he
 and the baselines alike &mdash; is given the same SCALAR INDEX, and that index is the axis:
 x = &theta;'X<sub>5</sub> / 4, the nominal-propensity direction (&theta; = [0, .75, -.5, 0, -1]).
 The CATE-index arm below uses x = &beta;<sub>treat</sub>'X<sub>5</sub> / 8 instead. This is a
-projection, so two units with the same index but different X<sub>5</sub> necessarily receive the
-same decision &mdash; a real restriction relative to Kallus-Zhou's own linear-in-X<sub>5</sub>
-policy class, and the reason both index choices are run and reported rather than one.</div>
+projection: two units sharing an index but differing in X<sub>5</sub> necessarily get the same
+decision. <br><br><b>Kallus-Zhou do NOT do this.</b> Their code
+(<span class="mono">logistic_pol_asgn</span>) optimises &pi;(1|x) = &sigma;(&theta;'x) with
+&theta; &isin; R<sup>6</sup> &mdash; five covariates plus an intercept &mdash; over the FULL
+vector. The two restrictions are different rather than nested: they can reach any halfspace
+DIRECTION in 5-D but only linear policies; we are fully flexible (Lipschitz, any shape) along ONE
+direction fixed in advance and blind to the rest. We lose where the informative direction is not
+the one we picked; they lose where the optimal policy is strongly nonlinear along it. Neither
+dominates, which is why BOTH index choices are run here rather than one being defended, and why
+absolute numbers in this report should not be read against the figures in their paper.</div>
 <p>Raw per-unit support policy (seed 0) on top; Shapley-deployed &pi;(x) below. The naive curve
 (blue dotted) crosses to "treat" too far left: it treats a wide band the oracle leaves alone.
 The question the plot answers is whether the robust policies pull that crossing back toward the
