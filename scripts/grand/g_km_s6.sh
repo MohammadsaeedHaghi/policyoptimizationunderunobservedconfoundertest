@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=kms6
+#SBATCH --partition=main
+#SBATCH --account=vayanou_651
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=6 --mem=16G --time=8:00:00
+#SBATCH --output=/home1/haghim/grand_kms6_%j.out
+echo "START $(date) on $(hostname) job=$SLURM_JOB_ID"
+module load gurobi/12.0.3
+echo "GRB_LICENSE_FILE=$GRB_LICENSE_FILE"
+cd "/home1/haghim/code 1.1"
+python3 assets/run_grid_seed.py --dgp assets/exp_msmbench/dgp_g15.py --out assets/grand/km_s6.json --seed 6 --n 200 --n-test 4000 --gammas 1,1.6487,2.7183,4.4817,7.3891,12,16,24,32 --ceps 0.5,1.0,2.0 --caps none,0.3,0.4,0.5 --workers 6 --deploy shapley \
+  && echo "GRAND_kms6_DONE $(date)"
+echo "END $(date)"
