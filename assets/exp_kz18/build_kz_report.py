@@ -225,26 +225,55 @@ if MAIN:
             head = ("The declared prediction holds. At the matched &Gamma;* = 4.48 the Wasserstein "
                     "term converts the paper's own confounding into a real gain")
             cls = "good"
+            tail = (f"""Sharp-O-X sits at {f3(shv)}: sharpening the MSM bound tightens the same
+one-dimensional interval the box already has, and this DGP's confounder is X-trackable, which
+only the transport term can exploit &mdash; the mirror image of the Kallus-Mao-Zhou benchmark,
+where U &perp; X and sharpness led instead.""")
         elif gap_nv > 0.01:
             head = ("Robustness pays here, but the Wasserstein term does not separate from the box "
                     "at the matched &Gamma;*")
             cls = "warn"
+            tail = f"Sharp-O-X sits at {f3(shv)} and the never-treat floor at {f3(nev)}."
         else:
-            head = ("The prediction does NOT hold on this arm &mdash; reported as measured")
+            head = ("<b>The declared prediction FAILS on this benchmark, and we report it as "
+                    "measured.</b> The Wasserstein term does not rescue the paper's confounding")
             cls = "bad"
+            hj = r_main.get("Hajek-O-X", float("nan"))
+            best_v = max(MAIN["best"][m]["value"] for m in MAIN["methods"])
+            best_m = max(MAIN["methods"], key=lambda m: MAIN["best"][m]["value"])
+            kal = KAL["regimes"]["uncap"]["mean"]["Kallus"][3] if KAL else float("nan")
+            tail = f"""Every robust variant except Hajek-O-X ({f3(hj)}) lands BELOW the
+never-treat floor of {f3(nev)}, and the best cell anywhere on the L &times; &Gamma; surface
+({best_m}, {f3(best_v)}) is still short of the naive policy. The comparison methods do not do
+this: Kallus ({f3(kal)}) and Sharp-O-X ({f3(shv)}) both hold the never-treat line rather than
+falling through it.
+<br><br><b>Diagnosis, stated plainly.</b> This is not a small-sample artifact &mdash; the same
+run at n = 400 is no better (IPW-O-W -1.943), so doubling the data does not close it. It is the
+objective. Our solvers maximise worst-case <i>value</i>, min<sub>W</sub> V&#770;<sub>W</sub>(&pi;),
+scoring each candidate against its own private adversary; Kallus-Zhou minimise worst-case
+<i>regret</i> against a baseline, max<sub>W</sub>[V&#770;<sub>W</sub>(&pi;<sub>0</sub>) -
+V&#770;<sub>W</sub>(&pi;)], where one and the same W scores both terms. In regret form
+&pi; = &pi;<sub>0</sub> scores exactly 0, so nothing returned can be certified worse than the
+baseline &mdash; a floor our value form structurally lacks. On this DGP (outcome sd 4.36 against
+CATE sd 2.79, true IPW weights reaching 168) that gap is wide enough to swallow the experiment:
+the never-treat baseline is scored by an adversary free to make control outcomes look terrible,
+so treating policies win the objective and lose the truth.
+<br><br><b>What this does and does not say.</b> It does not overturn the coupling diagnostic
+&mdash; corr(x, S) = {f3(RM.get("corr_xS"))} here and the transport term does behave differently
+than on the zero-coupling benchmark (a wider budget, c<sub>&epsilon;</sub> = 2.0, moves IPW-O-W
+from {f3(ow)} to -1.847). What it says is that coupling alone is not sufficient: when the
+estimator's variance and the absence of a baseline floor dominate, X-structure has nothing to
+work with. The honest conclusion is that this benchmark demands the regret-form variant of O-W
+&mdash; same uncertainty set, same Wasserstein balance constraint, objective rewritten against a
+baseline &mdash; and that our current claims should be scoped to the value form until that
+exists."""
         VERD = f"""<div class="card {cls}" id="kz-verdict"><b>Verdict (generated from the landed
 numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {f3(ox)}
 ({'+' if gap_box >= 0 else ''}{f3(gap_box)}), the infinite-data naive policy {f3(nv)}
 ({'+' if gap_nv >= 0 else ''}{f3(gap_nv)}) and Sharp-O-X {f3(shv)}
 ({'+' if gap_sh >= 0 else ''}{f3(gap_sh)}), on an oracle of {f3(orc)} and a never-treat floor of
-{f3(nev)} &mdash; i.e. it recovers {('%.0f%%' % (100 * frac)) if frac == frac else 'n/a'} of the
-gap the confounding costs the naive policy. Doubly-robust behaves the same way
-(DR-O-W {f3(dow)} vs DR-O-X {f3(dox)}). Sharp-O-X collapses to the never-treat floor here:
-sharpening the MSM bound tightens the same one-dimensional interval the box already has, and
-this DGP's confounder is X-trackable, which only the transport term can exploit &mdash; the exact
-mirror image of the KMZ'19 benchmark, where U &perp; X and sharpness led instead. Two published
-benchmarks, opposite corners of the coupling diagnostic, each behaving as declared in advance.
-</div>"""
+{f3(nev)}. Doubly-robust behaves the same way (DR-O-W {f3(dow)} vs DR-O-X {f3(dox)}).
+{tail}</div>"""
 
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; matched &Gamma;* = 4.48 flagged)</h2>
