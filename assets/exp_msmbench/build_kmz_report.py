@@ -4,7 +4,7 @@
 The literature's standard MSM synthetic, UNMODIFIED, run through our full pipeline: the paper's
 own Gamma*-strength sweep (log Gamma* in {0.5, 1.0, 1.5}, each at its matched Gamma -- known by
 construction), transport-budget and sample-size ablations, the capped 30% variant (novel vs the
-literature), the L x Gamma surface, Kallus + Sharp-O-X baselines, and analytic references.
+literature), the L x Gamma surface, Kallus + Hess et al. baselines, and analytic references.
 Three tabs: DGP / Results / Policies. Rerun: python3 assets/exp_msmbench/build_kmz_report.py
 """
 import json, sys
@@ -112,6 +112,12 @@ if C0:
     parts = [ch]
     if CC:
         sl_c = [ser(m, gl, [CC["surface"][m][g]["3"] for g in CC["gammas"]]) for m in CC["methods"]]
+        try:
+            _hc = json.load(open(HERE.parent / "grand/hess_capped.json"))["km"]
+            sl_c.append(ser("Hess-efficient", [float(g) for g in _hc["gammas"]], _hc["mean"],
+                            lab="Hess et al. (efficient, capped)"))
+        except Exception as _e:
+            print("capped Hess series unavailable:", _e)
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_cap30"], "2 3")],
@@ -195,18 +201,7 @@ if C0:
 <tr><th>setting</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th></tr>
 {''.join(ab_rows)}
 </table></div>
-<div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
-<b>Sharp-O-X (plug-in)</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
-the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
-approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
-efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
-policy class (Algorithm 1), implemented from the paper and checked line-by-line against their
-repository &mdash; including the outcome standardisation their <span class="mono">data_gen.py</span>
-performs, which we had initially missed. Verified: at &Gamma; = 1 it collapses exactly to the AIPW
-score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two estimators of the
-same bound agree at rank-correlation 0.98. This benchmark IS their own synthetic, so the efficient estimator is in its intended
-regime; at their own sample size it beats the plug-in as their paper claims (1.331 vs 1.151 at
-n = 5000).</div>
+
 <div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
 actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
 per-cell two-point Dorn-Guo bound from empirical bin means: the PLUG-IN estimand, i.e. precisely
@@ -224,8 +219,9 @@ methods TIE their box-only counterparts within noise (main: IPW-O-W 1.084 vs IPW
 &Gamma;*=1.65: 1.243 vs 1.242; &Gamma;*=2.72: 1.172 vs 1.167) &mdash; with U &perp; X the
 Wasserstein term is idle, and it does NO HARM. Against the CORRECTED sharp baseline &mdash; Hess et al.'s efficient
 estimator rather than the plug-in this report previously carried &mdash; O-W leads at the matched
-&Gamma;* (1.084 vs 0.960). The earlier claim that "the best robust method here is Sharp-O-X
-(1.166)" was measured against the plug-in and has been withdrawn. In the
+&Gamma;* (1.084 vs 0.960). An earlier version of this report concluded that the best robust method here was the
+plug-in bound at 1.166; that comparison used the plug-in rather than the published method and
+is WITHDRAWN. In the
 capped 30% variant (novel vs the literature) the robust methods cluster (0.43-0.44) below the
 infinite-data capped naive (0.540): at zero coupling the naive RANKING survives the smooth
 bias shift, so robustness costs a worst-case premium with nothing to buy &mdash; the

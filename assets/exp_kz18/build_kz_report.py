@@ -63,7 +63,7 @@ def vline_chart(series, title, ylab, hlines=None, W=680, xticks=None):
     return linechart(series + [marker], title=title, xlab="Gamma", ylab=ylab,
                      hlines=hlines, W=W, xticks=xticks)
 
-def sharp_series(arm, reg, lab="Sharp-O-X (plug-in)"):
+def sharp_series(arm, reg, lab="unused"):
     if not SH: return None
     a = SH["arms"][arm]["regimes"][reg]["mean"]["SharpIPW-O-X"]
     return ser("SharpIPW-O-X", [float(g) for g in SH["gammas"]], a, lab=lab)
@@ -182,8 +182,12 @@ if MAIN:
     parts = [ch]
     if CAP:
         slc = [ser(m, gl, [CAP["surface"][m][g][LDEF] for g in CAP["gammas"]]) for m in CAP["methods"]]
-        s = sharp_series("main", "cap")
-        if s: slc.append(s)
+        try:
+            _hc = json.load(open(HERE.parent / "grand/hess_capped.json"))["kz"]
+            slc.append(ser("Hess-efficient", [float(g) for g in _hc["gammas"]], _hc["mean"],
+                           lab="Hess et al. (efficient, capped)"))
+        except Exception as _e:
+            print("capped Hess series unavailable:", _e)
         EVD["kzc"] = {"gammas": CAP["gammas"], "Ls": CAP["Lgrid"], "methods": CAP["methods"],
                       "surface": CAP["surface"], "gstar": GSTAR,
                       "hlines": {"capped oracle": RM["oracle_cap30"], "capped naive": RM["naive_cap30"]},
@@ -256,7 +260,7 @@ if MAIN:
             head = ("The declared prediction holds. At the matched &Gamma;* = 4.48 the Wasserstein "
                     "term converts the paper's own confounding into a real gain")
             cls = "good"
-            tail = (f"""Sharp-O-X sits at {f3(shv)}: sharpening the MSM bound tightens the same
+            tail = (f"""Hess et al. sits at {f3(shv)}: sharpening the MSM bound tightens the same
 one-dimensional interval the box already has, and this DGP's confounder is X-trackable, which
 only the transport term can exploit &mdash; the mirror image of the Kallus-Mao-Zhou benchmark,
 where U &perp; X and sharpness led instead.""")
@@ -264,7 +268,7 @@ where U &perp; X and sharpness led instead.""")
             head = ("Robustness pays here, but the Wasserstein term does not separate from the box "
                     "at the matched &Gamma;*")
             cls = "warn"
-            tail = f"Sharp-O-X sits at {f3(shv)} and the never-treat floor at {f3(nev)}."
+            tail = f"Hess et al. sits at {f3(shv)} and the never-treat floor at {f3(nev)}."
         else:
             head = ("<b>The declared prediction FAILS on this benchmark, and we report it as "
                     "measured.</b> The Wasserstein term does not rescue the paper's confounding")
@@ -276,7 +280,7 @@ where U &perp; X and sharpness led instead.""")
             tail = f"""Every robust variant except Hajek-O-X ({f3(hj)}) lands BELOW the
 never-treat floor of {f3(nev)}, and the best cell anywhere on the L &times; &Gamma; surface
 ({best_m}, {f3(best_v)}) is still short of the naive policy. The comparison methods do not do
-this: Kallus ({f3(kal)}) and Sharp-O-X ({f3(shv)}) both hold the never-treat line rather than
+this: Kallus ({f3(kal)}) and Hess et al. ({f3(shv)}) both hold the never-treat line rather than
 falling through it.
 <br><br><b>Diagnosis, stated plainly.</b> This is not a small-sample artifact &mdash; the same
 run at n = 400 is no better (IPW-O-W -1.943), so doubling the data does not close it. It is the
@@ -312,7 +316,7 @@ is context rather than a live comparison.</div>
 <div class="card {cls}" id="kz-verdict"><b>Verdict (generated from the landed
 numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {f3(ox)}
 ({'+' if gap_box >= 0 else ''}{f3(gap_box)}), the infinite-data naive policy {f3(nv)}
-({'+' if gap_nv >= 0 else ''}{f3(gap_nv)}) and Sharp-O-X {f3(shv)}
+({'+' if gap_nv >= 0 else ''}{f3(gap_nv)}) and Hess et al. {f3(shv)}
 ({'+' if gap_sh >= 0 else ''}{f3(gap_sh)}), on an oracle of {f3(orc)} and a never-treat floor of
 {f3(nev)}. Doubly-robust behaves the same way (DR-O-W {f3(dow)} vs DR-O-X {f3(dox)}).
 {tail}</div>"""
@@ -326,20 +330,10 @@ numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {
                 title="CAPPED 30% &mdash; pick methods and L") if "kzc" in EVD else ""}
 <div class="figrow">{parts[0]}{parts[1] if len(parts) > 1 else ''}</div>
 <div class="figrow">{''.join(hms)}</div>
-<div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
-<b>Sharp-O-X (plug-in)</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
-the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
-approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
-efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
-policy class (Algorithm 1), implemented from the paper and checked line-by-line against their
-repository &mdash; including the outcome standardisation their <span class="mono">data_gen.py</span>
-performs, which we had initially missed. Verified: at &Gamma; = 1 it collapses exactly to the AIPW
-score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two estimators of the
-same bound agree at rank-correlation 0.98. On this benchmark every method sits near or below the never-treat floor, so the sharp
-rows are reported for completeness rather than as a live comparison.</div>
+
 <h2>2. Every arm at the matched &Gamma;* = 4.48, L = 3</h2>
 <div class="tw"><table>
-<tr><th>arm</th><th>naive</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th>
+<tr><th>arm</th><th>naive</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th>
 <th>DR-O-W</th><th>Hajek-O-X</th><th>oracle</th></tr>
 {''.join(rows)}
 </table></div>
