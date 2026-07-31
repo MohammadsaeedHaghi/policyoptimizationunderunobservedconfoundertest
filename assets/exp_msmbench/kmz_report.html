@@ -1,12 +1,14 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>KMZ benchmark campaign</title><style>
 :root{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
  --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
-@media (prefers-color-scheme: dark){:root{--bg:#0e1420;--surface:#161d2b;--fg:#e6eaf2;--muted:#93a0b4;
- --border:#263043;--accent:#9fb2c9;--accent-soft:#1d2636;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--sh:0 6px 18px rgba(0,0,0,.35);}}
-:root[data-theme="dark"]{--bg:#0e1420;--surface:#161d2b;--fg:#e6eaf2;--muted:#93a0b4;--border:#263043;
- --accent:#9fb2c9;--accent-soft:#1d2636;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--sh:0 6px 18px rgba(0,0,0,.35);}
-:root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
- --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+/* LIGHT ONLY, deliberately. These reports were rendering dark for anyone whose OS was in dark
+   mode (the old @media prefers-color-scheme block flipped every variable). The figures, chart
+   gridlines and chip swatches are tuned for a light background, so the theme is pinned: the
+   dark-mode media query and the [data-theme="dark"] override are both removed, and a viewer
+   theme toggle stamping data-theme="dark" now leaves the palette unchanged. */
+:root[data-theme="dark"], :root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;
+ --muted:#667085;--border:#e9ebf3;--accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;
+ --warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
 *{box-sizing:border-box}
 body{font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);
  color:var(--fg);margin:0 auto;max-width:980px;padding:0 22px 80px;line-height:1.6;}
