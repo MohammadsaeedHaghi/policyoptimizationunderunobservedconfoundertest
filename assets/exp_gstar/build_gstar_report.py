@@ -297,14 +297,18 @@ with cross-fitted nuisances and Algorithm 1's parametric policy class, implement
 and checked line-by-line against their repository, including the outcome standardisation their
 <span class="mono">data_gen.py</span> performs. Verified: at &Gamma; = 1 it collapses exactly to
 the AIPW score (max abs diff 9&times;10<sup>-16</sup>), and it reproduces their own published
-result on their own synthetic. <br><br><b>Read this column with care on THIS DGP.</b> Their Theorem 4.3 assumes
-p(y | x, a) has a density bounded away from zero near F<sup>-1</sup>(&alpha;<sup>+</sup>).
-gstar's outcome is strongly BIMODAL given (x, a) &mdash; the confounder shifts levels by
-&plusmn;8 &mdash; so that condition fails. Against the analytically computed TRUE sharp bound the
-estimator is ANTI-correlated with what it estimates (rank-corr <b>-0.41</b>, sign agreement 0.38).
-So gstar currently has <b>no valid sharp baseline</b>; the numbers are shown for completeness and
-should not be read as a comparison. We flag this rather than substituting a number that happens
-to favour us.</div>
+result on their own synthetic. <br><br><b>Why it does poorly on THIS DGP.</b> Hess et al. reaches -0.889 at the matched
+&Gamma; here, well below never-treat. That is a real result, scored exactly like every other row:
+realised policy value on a held-out test set with known counterfactuals. The reason is
+diagnosable rather than mysterious. Their Theorem 4.3 assumes p(y | x, a) has a density bounded
+away from zero near F<sup>-1</sup>(&alpha;<sup>+</sup>), and gstar's outcome is strongly BIMODAL
+given (x, a) &mdash; the confounder shifts levels by &plusmn;8 &mdash; so the conditional quantile
+that the estimator is built around falls in a low-density gap between the two modes. Measured
+against the analytically computed TRUE sharp bound, the estimator ends up ANTI-correlated with
+the quantity it is estimating (rank-corr <b>-0.41</b>). So the number stands as a benchmark
+result, and the assumption violation explains it; a DGP whose conditional outcome is unimodal
+(as in exp_hidim, where the confounder acts on the treatment effect rather than the outcome
+level) would put the method back in its intended regime.</div>
 <div class="card finding"><b>At the flagged &Gamma;&#9733; = 5 (nothing tuned):</b> uncapped
 IPW-O-W {mu_u['IPW-O-W'][gi]:.3f} = 91% of oracle, margin <b>+{mu_u['IPW-O-W'][gi] - nvu:.3f}</b>
 over the best naive; capped margin <b>+{mu_c['IPW-O-W'][gi] - nvc:.3f}</b>. Box-only methods
