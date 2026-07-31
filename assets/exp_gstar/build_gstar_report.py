@@ -33,6 +33,15 @@ CCAP = J("gstar_cont_cap30_ce1.0.json")
 KALC = J("gstar_kallus_cont.json")
 SHARP = J("gstar_sharp.json")
 SHARPC = J("gstar_sharp_cont.json")
+SV2 = J("gstar_sharp_v2.json")            # CORRECTED protocol (quantile bins from TRAIN, test-draw eval)
+if SV2:
+    # The old continuous sharp used EQUALLY SPACED bins and analytic bin-mean evaluation, which
+    # cost it ~0.07: re-measured at the same n=400/5 seeds it is 0.567, not 0.502 -- i.e. ahead
+    # of IPW-O-W's 0.549, where this report previously showed it losing. Discrete is unaffected
+    # (its cells ARE the 7 levels, no binning choice) and is unchanged at 0.704 / 0.479.
+    SHARPC = {"gammas": SV2["gammas"],
+              "regimes": {"uncap": {"mean": {"SharpIPW-O-X": SV2["continuous"]["uncap"]["mean"]}},
+                          "cap":   {"mean": {"SharpIPW-O-X": SV2["continuous"]["cap30"]["mean"]}}}}
 MC["SharpIPW-O-X"] = "#9467bd"   # sharp box-only: purple, box-set dash/marker via the O-X suffix
 GS = 5.0
 MORDER = ["IPW-O-W", "DoublyRobust-O-W", "DoublyRobust-X-X", "DoublyRobust-O-X",
@@ -57,7 +66,17 @@ _e1 = dc.propensity(_xg, 1.0); _e0 = dc.propensity(_xg, -1.0)
 _pt = _ps * _e1 + (1 - _ps) * _e0
 _hat = (9 * (2 * (_ps * _e1 / _pt) - 1) + 3 * _xg - 1) - 8 * (2 * (_ps * (1 - _e1) / (1 - _pt)) - 1)
 _pn = (_hat >= float(np.quantile(_hat, 0.70))).astype(float)
-CAP_NAIVE = float(np.mean(_pn * _eY1 + (1 - _pn) * _eY0))             # 0.171
+CAP_NAIVE = float(np.mean(_pn * _eY1 + (1 - _pn) * _eY0))             # 0.171 (analytic, kept for provenance)
+# Cap-RESPECTING naive, measured on the solver protocol (rank on train, cap there, deploy).
+# Two model classes, because they disagree by a lot and the stronger one is the honest comparator:
+# the LINEAR naive is well specified on gstar (its ranking correlates 0.988 with the true CATE --
+# better than a perfectly estimated CONFOUNDED naive at 0.736, i.e. its misspecification cancels
+# the confounding), while the BINNED naive is the honest confounded baseline.
+NV = (SV2 or {}).get("naive_cont", {})
+CAP_NAIVE_LIN = NV.get("cap30", {}).get("naive_linear")
+CAP_NAIVE_NP = NV.get("cap30", {}).get("naive_binned")
+UNC_NAIVE_LIN = NV.get("uncap", {}).get("naive_linear")
+UNC_NAIVE_NP = NV.get("uncap", {}).get("naive_binned")
 
 # ================================ TAB 1: DGP ================================
 xg = np.linspace(-1, 1, 241); sig = _sig
@@ -362,6 +381,17 @@ if C0:
                        f"<td>{bo['method']}@G{bo['gamma']},L{bo['L']}={bo['value']:.3f}</td></tr>")
     PD["cont"] = policy_2d_dataset(C0)
     if CCAP: PD["contcap"] = policy_2d_dataset(CCAP)
+    # overlay Sharp-O-X on the continuous pi(x) viewers: its policy is per-bin, so it is constant
+    # across L -- replicate the same curve under every L key so the selector keeps working.
+    if SV2:
+        for wid, regkey, RJ in (("cont", "uncap", C0), ("contcap", "cap30", CCAP)):
+            if wid not in PD or not RJ: continue
+            pg = SV2["continuous"][regkey].get("policy_grid_seed0", {})
+            if not pg: continue
+            PD[wid]["methods"] = list(PD[wid]["methods"]) + ["SharpIPW-O-X"]
+            PD[wid]["pol"]["SharpIPW-O-X"] = {
+                g: {l: pg.get(g, pg.get(sorted(pg)[0])) for l in PD[wid]["Ls"]}
+                for g in PD[wid]["gammas"]}
     SURFDS["uncap"] = {"gammas": Gk, "Ls": Lk, "methods": C0["methods"], "surface": C0["surface"],
                        "oracle": C0["oracle"], "naive": C0["naive_dr"], "never": C0["never_treat"]}
     if CCAP:
@@ -390,18 +420,27 @@ if C0:
 <th>O-W margin</th><th>best overall</th></tr>
 {''.join(ct_rows)}
 </table></div>
-<div class="card finding"><b>Continuous verdict.</b> Uncapped at &Gamma;&#9733; = 5, L = 3:
-O-W 0.549&ndash;0.553 vs naive 0.311 (<b>+0.24</b>) and vs box-only 0.383 (+0.17), stable
-across all three transport budgets. Capped 30% (the new capped-continuous cell, enabled by the
-Lipschitz port to the capped solvers): against the HONEST capped references &mdash; capped
-naive {CAP_NAIVE:.3f}, capped oracle {CAP_ORACLE:.3f} &mdash; the best capped O-W cell reaches
-{(CCAP or {}).get('best_overall', {}).get('value', float('nan')):.3f}
-(IPW-O-W @ &Gamma;8, L1), i.e. +{(CCAP or {}).get('best_overall', {}).get('value', 0) - CAP_NAIVE:.2f}
-over budgeted naive and 67% of the capped oracle. Against the SHARP box baseline (binned, closed-form): O-W leads in both continuous regimes
-&mdash; uncapped 0.549 vs sharp 0.502 at &Gamma;&#9733;, capped 0.420 (best cell) vs sharp
-0.238 (best) &mdash; the smooth-policy setting is where the W term is clearly indispensable
-even against sharp bounds. L behaves as in every experiment: L = &infin; is &Gamma;-inert and
-poor, L &asymp; 2&ndash;3 is the sweet spot, L &le; 1 over-smooths.</div>
+<div class="card warn"><b>Continuous verdict &mdash; CORRECTED baselines (this supersedes an
+earlier version of this report).</b> The sharp column here was previously measured with EQUALLY
+SPACED bin edges and analytic bin-mean evaluation, while every other method was scored on test
+draws. Re-measured at this report's own n = 400 and 5 seeds with quantile bins from the TRAINING
+sample, Sharp-O-X is <b>{(SV2['continuous']['uncap']['mean'][SV2['gammas'].index(5.0)] if SV2 else float('nan')):.3f}</b> uncapped, not 0.502 &mdash; so it is <b>ahead of</b>
+IPW-O-W's {C0['surface']['IPW-O-W']['5']['3']:.3f}, where this report previously showed it losing. The discrete arm is
+unaffected (its cells ARE the 7 levels, so there was no binning choice) and stands at 0.704.
+<br><br>What survives, and what does not. <b>Survives:</b> the transport term's contribution,
+which is measured against O-X under identical conditions &mdash; uncapped O-W {C0['surface']['IPW-O-W']['5']['3']:.3f} vs
+box-only 0.383 (<b>+0.17</b>), and in the capped 30% cell O-W's best {(CCAP or {}).get('best_overall', {}).get('value', float('nan')):.3f} vs sharp
+{(SV2['continuous']['cap30']['mean'][SV2['gammas'].index(5.0)] if SV2 else float('nan')):.3f}, where the smooth-policy setting genuinely favours the W term. <b>Does not
+survive:</b> "O-W leads sharp in both continuous regimes" &mdash; it leads only in the capped
+one. <br><br>The naive references are also corrected to RESPECT THE CAP (the old ones did not,
+so one uncapped number was printed against every capped row) and are reported in two model
+classes, because they disagree sharply: capped naive is {(CAP_NAIVE_LIN if CAP_NAIVE_LIN is not None else float('nan')):.3f} with a LINEAR outcome model
+but {(CAP_NAIVE_NP if CAP_NAIVE_NP is not None else float('nan')):.3f} with a binned one. The linear model is not a neutral baseline on gstar &mdash; its
+ranking correlates 0.988 with the true CATE, better than a PERFECTLY ESTIMATED confounded naive
+(0.736), i.e. its misspecification happens to cancel this DGP's confounding. Quoting it alone
+understates our margin; quoting only the binned one overstates it. Both are shown.
+<br><br>L behaves as in every experiment: L = &infin; is &Gamma;-inert and poor,
+L &asymp; 2&ndash;3 is the sweet spot, L &le; 1 over-smooths.</div>
 <h2>2. The learned policy vs X (uncapped)</h2>
 <p>First panel: the solver's RAW per-unit policy at the 400 support points (seed 0). Second:
 the Shapley-deployed &pi;(x). Exact at support &mdash; the curve must thread the dots.</p>
