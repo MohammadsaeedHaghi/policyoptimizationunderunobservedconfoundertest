@@ -22,6 +22,8 @@ def _load(p, n):
     sys.modules[n] = m; sp.loader.exec_module(m); return m
 d = _load(HERE / "dgp_g15.py", "kmz_rep_d")
 MC["SharpIPW-O-X"] = "#9467bd"
+MC["Hess-efficient"] = "#8c564b"
+HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("km") or {})
 
 def J(fn):
     try: return json.load(open(HERE / fn))
@@ -93,7 +95,7 @@ if C0:
     Gk, Lk = C0["gammas"], C0["Lgrid"]; gl = [float(g) for g in Gk]
     sl = [ser(m, gl, [C0["surface"][m][g]["3"] for g in Gk]) for m in C0["methods"]]
     if SH: sl.append(ser("SharpIPW-O-X", [float(g) for g in SH["gammas"]],
-                         SH["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (binned)"))
+                         SH["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
     if KAL: sl.append(ser("Kallus", [float(g) for g in KAL["gammas"]], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
     ch = vline_chart(sl, "UNCAPPED: average test outcome vs Gamma at L = 3 (Gamma* = e^1.5)", "test E[Y]",
                      hlines=[("oracle", "#111", REFS["oracle_uncap"], "5 4"),
@@ -111,7 +113,7 @@ if C0:
     if CC:
         sl_c = [ser(m, gl, [CC["surface"][m][g]["3"] for g in CC["gammas"]]) for m in CC["methods"]]
         if SH: sl_c.append(ser("SharpIPW-O-X", [float(g) for g in SH["gammas"]],
-                               SH["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (binned)"))
+                               SH["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_cap30"], "2 3")],
@@ -172,7 +174,7 @@ if C0:
 <div class="figrow">{''.join(hms)}</div>
 <h2>2. The paper's own axis: confounding strength &Gamma;* (each at its matched &Gamma;, L = 3)</h2>
 <div class="tw"><table>
-<tr><th>strength</th><th>naive (analytic)</th><th>Sharp-O-X</th><th>IPW-O-X</th><th>IPW-O-W</th>
+<tr><th>strength</th><th>naive (analytic)</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-X</th><th>IPW-O-W</th>
 <th>DR-O-X</th><th>DR-O-W</th></tr>
 {''.join(st_rows)}
 </table></div>
@@ -181,6 +183,18 @@ if C0:
 <tr><th>setting</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th></tr>
 {''.join(ab_rows)}
 </table></div>
+<div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
+<b>Sharp-O-X (plug-in)</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
+the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
+approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
+efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
+policy class (Algorithm 1), implemented from the paper and checked line-by-line against their
+repository &mdash; including the outcome standardisation their <span class="mono">data_gen.py</span>
+performs, which we had initially missed. Verified: at &Gamma; = 1 it collapses exactly to the AIPW
+score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two estimators of the
+same bound agree at rank-correlation 0.98. This benchmark IS their own synthetic, so the efficient estimator is in its intended
+regime; at their own sample size it beats the plug-in as their paper claims (1.331 vs 1.151 at
+n = 5000).</div>
 <div class="card good" id="kmz-verdict"><b>Verdict (written against the declared expectation).</b> The zero-coupling
 prediction is confirmed across the paper's entire strength sweep: at every &Gamma;* the O-W
 methods TIE their box-only counterparts within noise (main: IPW-O-W 1.084 vs IPW-O-X 1.079;

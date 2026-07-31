@@ -78,6 +78,7 @@ def solve_ipw_o_w_capped(
     rounding_digits: int = 6,
     debug: bool = False,
     lipschitz=None,
+    lipschitz_k: int = 10,
     sharp_cells=None,
 ) -> ROWResult:
     """Solve the CAPPED R-OW dual LP and return the optimal policy + duals.
@@ -193,12 +194,27 @@ def solve_ipw_o_w_capped(
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- policy constraints: simplex, tie, CAPACITY ---
-    if lipschitz is not None:                              # L-Lipschitz policy class (1-D: consecutive sorted pairs)
-        _o = np.argsort(np.asarray(support_X).ravel()); _xs = np.asarray(support_X).ravel()[_o]
-        for _a in range(n - 1):
-            _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
-            m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
-            m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+    if lipschitz is not None:                              # L-Lipschitz policy class
+        _Xs = np.asarray(support_X, float)
+        if _Xs.ndim == 1:
+            _Xs = _Xs.reshape(-1, 1)
+        if _Xs.shape[1] == 1:                             # 1-D: consecutive sorted pairs (exact)
+            _o = np.argsort(_Xs.ravel()); _xs = _Xs.ravel()[_o]
+            for _a in range(n - 1):
+                _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
+                m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+                m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+        else:                                             # d > 1: k-NN pairs (a relaxation; see
+            _DL = np.sqrt(((_Xs[:, None, :] - _Xs[None, :, :]) ** 2).sum(-1))   # patch_lip_md.py)
+            _kk = int(min(max(1, lipschitz_k), n - 1))
+            for _i in range(n):
+                for _jj in np.argsort(_DL[_i])[1:_kk + 1]:
+                    _j = int(_jj)
+                    if _j <= _i:
+                        continue
+                    _dx = float(_DL[_i, _j])
+                    m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+                    m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
     for i in range(n):                                        # each unit's policy is a distribution
         m.addConstr(gp.quicksum(pi[k, i] for k in range(K)) == 1.0, name=f"simplex_{i}")
     for g in groups:                                         # tie the policy across same-cell units

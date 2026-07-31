@@ -27,6 +27,8 @@ def _load(p, n):
 D = _load(HERE / "dgp.py", "kz_rep_main")
 DC = _load(HERE / "dgp_cidx.py", "kz_rep_cidx")
 MC["SharpIPW-O-X"] = "#9467bd"
+MC["Hess-efficient"] = "#8c564b"
+HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("kz") or {})
 
 def J(fn):
     try: return json.load(open(HERE / fn))
@@ -58,7 +60,7 @@ def vline_chart(series, title, ylab, hlines=None, W=680, xticks=None):
     return linechart(series + [marker], title=title, xlab="Gamma", ylab=ylab,
                      hlines=hlines, W=W, xticks=xticks)
 
-def sharp_series(arm, reg, lab="Sharp-O-X (binned)"):
+def sharp_series(arm, reg, lab="Sharp-O-X (plug-in)"):
     if not SH: return None
     a = SH["arms"][arm]["regimes"][reg]["mean"]["SharpIPW-O-X"]
     return ser("SharpIPW-O-X", [float(g) for g in SH["gammas"]], a, lab=lab)
@@ -159,6 +161,9 @@ VERD = ""
 if MAIN:
     gl = [float(g) for g in MAIN["gammas"]]
     sl = [ser(m, gl, [MAIN["surface"][m][g][LDEF] for g in MAIN["gammas"]]) for m in MAIN["methods"]]
+    if HESSD:
+        _hg = [float(g) for g in HESSD["gammas"]]
+        sl.append(ser("Hess-efficient", _hg, HESSD["mean"], lab="Hess et al. (efficient)"))
     s = sharp_series("main", "uncap")
     if s: sl.append(s)
     if KAL: sl.append(ser("Kallus", [float(g) for g in KAL["gammas"]], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
@@ -296,9 +301,20 @@ numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {
                 title="CAPPED 30% &mdash; pick methods and L") if "kzc" in EVD else ""}
 <div class="figrow">{parts[0]}{parts[1] if len(parts) > 1 else ''}</div>
 <div class="figrow">{''.join(hms)}</div>
+<div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
+<b>Sharp-O-X (plug-in)</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
+the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
+approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
+efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
+policy class (Algorithm 1), implemented from the paper and checked line-by-line against their
+repository &mdash; including the outcome standardisation their <span class="mono">data_gen.py</span>
+performs, which we had initially missed. Verified: at &Gamma; = 1 it collapses exactly to the AIPW
+score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two estimators of the
+same bound agree at rank-correlation 0.98. On this benchmark every method sits near or below the never-treat floor, so the sharp
+rows are reported for completeness rather than as a live comparison.</div>
 <h2>2. Every arm at the matched &Gamma;* = 4.48, L = 3</h2>
 <div class="tw"><table>
-<tr><th>arm</th><th>naive</th><th>Sharp-O-X</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th>
+<tr><th>arm</th><th>naive</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th>
 <th>DR-O-W</th><th>Hajek-O-X</th><th>oracle</th></tr>
 {''.join(rows)}
 </table></div>

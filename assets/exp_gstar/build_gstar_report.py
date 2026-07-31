@@ -42,7 +42,9 @@ if SV2:
     SHARPC = {"gammas": SV2["gammas"],
               "regimes": {"uncap": {"mean": {"SharpIPW-O-X": SV2["continuous"]["uncap"]["mean"]}},
                           "cap":   {"mean": {"SharpIPW-O-X": SV2["continuous"]["cap30"]["mean"]}}}}
-MC["SharpIPW-O-X"] = "#9467bd"   # sharp box-only: purple, box-set dash/marker via the O-X suffix
+MC["SharpIPW-O-X"] = "#9467bd"
+MC["Hess-efficient"] = "#8c564b"
+HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("gs_cont") or {})   # sharp box-only: purple, box-set dash/marker via the O-X suffix
 GS = 5.0
 MORDER = ["IPW-O-W", "DoublyRobust-O-W", "DoublyRobust-X-X", "DoublyRobust-O-X",
           "IPW-X-X", "IPW-O-X", "Hajek-O-X", "Direct-X-X"]
@@ -266,6 +268,23 @@ if R0:
     T2.append(f"""
 <h2>1. Average test outcome: E[Y] vs &Gamma; (5 seeds, N=600, exact evaluation)</h2>
 <div class="figrow">{figs[0]}{figs[1]}</div>
+<div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
+<b>Sharp-O-X (plug-in)</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
+the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
+approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
+efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
+policy class (Algorithm 1), implemented from the paper and checked line-by-line against their
+repository &mdash; including the outcome standardisation their <span class="mono">data_gen.py</span>
+performs, which we had initially missed. Verified: at &Gamma; = 1 it collapses exactly to the AIPW
+score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two estimators of the
+same bound agree at rank-correlation 0.98. <br><br><b>On THIS DGP the efficient estimator is not trustworthy, and we say so rather
+than quoting whichever number flatters us.</b> Theorem 4.3 assumes p(y | x, a) has a density
+bounded away from zero near F<sup>-1</sup>(&alpha;<sup>+</sup>). gstar's outcome is strongly
+BIMODAL given (x, a) &mdash; the confounder shifts levels by &plusmn;8 &mdash; violating it.
+Against the analytically computed TRUE sharp bound the efficient estimator is ANTI-correlated
+with the quantity it estimates (rank-corr <b>-0.41</b>, sign agreement 0.38) while the plug-in
+tracks it (<b>+0.69</b>, 0.92). Its numbers here are for completeness; the plug-in is the
+meaningful sharp baseline on gstar.</div>
 <div class="card finding"><b>At the flagged &Gamma;&#9733; = 5 (nothing tuned):</b> uncapped
 IPW-O-W {mu_u['IPW-O-W'][gi]:.3f} = 91% of oracle, margin <b>+{mu_u['IPW-O-W'][gi] - nvu:.3f}</b>
 over the best naive; capped margin <b>+{mu_c['IPW-O-W'][gi] - nvc:.3f}</b>. Box-only methods
@@ -288,7 +307,7 @@ weights and can be added to the O-W program; we flag Sharp-O-W as the natural ex
 <h3>Values at &Gamma;&#9733; = 5, all transport budgets (Sharp-O-X is &epsilon;-free; its
 column repeats across budgets)</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>best naive</th><th>Sharp-O-X</th><th>IPW-O-W</th><th>DR-O-W</th>
+<tr><th>setting</th><th>best naive</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-W</th><th>DR-O-W</th>
 <th>O-W vs naive</th><th>O-W vs Sharp</th></tr>
 {''.join(rows)}
 </table></div>
@@ -345,9 +364,12 @@ if C0:
                               "CAPPED 30%% IPW-O-W: test E[Y] over Gamma x L (capped oracle %.2f)" % CAP_ORACLE,
                               "Gamma", "Lipschitz L", min(CCAP["never_treat"], -0.5), CAP_ORACLE, W=560, H=280))
     sl_u = [ser(m, gl, [C0["surface"][m][g]["3"] for g in Gk]) for m in C0["methods"]]
+    if HESSD:
+        _hg = [float(g) for g in HESSD["gammas"]]
+        sl_u.append(ser("Hess-efficient", _hg, HESSD["mean"], lab="Hess et al. (efficient)"))
     if SHARPC:
         sl_u.append(ser("SharpIPW-O-X", [float(g) for g in SHARPC["gammas"]],
-                        SHARPC["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (binned)"))
+                        SHARPC["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
     if KALC:
         sl_u.append(ser("Kallus", [float(g) for g in KALC["gammas"]], KALC["regimes"]["uncap"]["mean"]["Kallus"]))
     ch_u = vline_chart(sl_u, "UNCAPPED: average test outcome vs Gamma at L = 3", "test E[Y]",
@@ -359,7 +381,7 @@ if C0:
         sl_c = [ser(m, gl, [CCAP["surface"][m][g]["3"] for g in CCAP["gammas"]]) for m in CCAP["methods"]]
         if SHARPC:
             sl_c.append(ser("SharpIPW-O-X", [float(g) for g in SHARPC["gammas"]],
-                            SHARPC["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (binned)"))
+                            SHARPC["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", CAP_ORACLE, "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], CAP_NAIVE, "2 3")],
@@ -416,7 +438,7 @@ if C0:
 {sv_widgets}
 <h3>At &Gamma;&#9733; = 5, L = 3; margins vs the honest reference per regime</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>naive ref</th><th>Sharp-O-X</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
+<tr><th>setting</th><th>naive ref</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
 <th>O-W margin</th><th>best overall</th></tr>
 {''.join(ct_rows)}
 </table></div>

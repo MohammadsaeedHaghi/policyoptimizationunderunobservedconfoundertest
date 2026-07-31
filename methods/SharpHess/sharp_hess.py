@@ -127,7 +127,7 @@ def scores(Y, T, eta, Gamma):
     return g
 
 
-def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0):
+def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0, standardize=True):
     """Cross-fitted Eq.-15 scores (Algorithm 1, with cross-fitting rather than a single split).
 
     maximize=True (our pipeline's convention, higher Y better): the paper's estimator is applied
@@ -138,6 +138,17 @@ def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0):
     if X.shape[0] == 1: X = X.T
     T = np.asarray(T).astype(int).ravel()
     Ypaper = -np.asarray(Y, float).ravel() if maximize else np.asarray(Y, float).ravel()
+    # THE AUTHORS STANDARDISE THE OUTCOME (their src/data_gen.py: Y = (Y - Y.mean())/Y.std()).
+    # The sharp bound is equivariant under an affine rescaling of Y, because the weights satisfy
+    # c^- alpha^+ + c^+ (1 - alpha^+) = 1, so Q^{+,*} -> (Q^{+,*} - m)/s and the OPTIMAL POLICY is
+    # unchanged. What changes is the estimator's finite-sample variance: the one-step correction
+    # carries Y/e, so an outcome on a large scale (gstar reaches |Y| = 14.5 against a CATE of ~1)
+    # makes that term swamp the signal. Standardising is therefore part of their method, not a
+    # cosmetic step, and omitting it was the single biggest discrepancy with their code.
+    ysd = float(np.std(Ypaper)) if standardize else 1.0
+    ymu = float(np.mean(Ypaper)) if standardize else 0.0
+    if ysd <= 0: ysd = 1.0
+    Ypaper = (Ypaper - ymu) / ysd
     n = X.shape[0]
     a_plus = float(Gamma) / (1.0 + float(Gamma))
     rng = np.random.default_rng(seed)
@@ -150,14 +161,14 @@ def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0):
     return -g if maximize else g
 
 
-def sharp_hess_policy(X, T, Y, Gamma, k=50, n_folds=2, cap=None, maximize=True, seed=0):
+def sharp_hess_policy(X, T, Y, Gamma, k=50, n_folds=2, cap=None, maximize=True, seed=0, standardize=True):
     """The policy that optimises the paper's objective.
 
     Eq. 15 is linear in pi, so over ALL measurable policies the optimum is the pointwise rule
     (treat iff the treated-arm score beats the control-arm score); with a capacity constraint it
     is the greedy top-cap by score gap, which is exact for a linear objective under a mass budget.
     """
-    g = fit_scores(X, T, Y, Gamma, k=k, n_folds=n_folds, maximize=maximize, seed=seed)
+    g = fit_scores(X, T, Y, Gamma, k=k, n_folds=n_folds, maximize=maximize, seed=seed, standardize=standardize)
     gap = g[:, 1] - g[:, 0]                            # >0 => treating is better (maximise)
     if cap is None:
         return (gap > 0).astype(float), g

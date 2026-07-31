@@ -72,6 +72,10 @@ def solve_ipw_o_w_uncapped(
     rounding_digits: int = 6,
     debug: bool = False,
     lipschitz=None,
+    linear_policy: bool = False,
+    linear_M: float = 20.0,
+    linear_time_limit: float = 60.0,
+    lipschitz_k: int = 10,
     sharp_cells=None,
 ) -> ROWResult:
     """Solve the UNCAPPED R-OW dual LP and return the optimal policy + duals.
@@ -164,12 +168,48 @@ def solve_ipw_o_w_uncapped(
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- policy constraints: simplex + tie ONLY (NO capacity) ---
-    if lipschitz is not None:                              # L-Lipschitz policy class (1-D: consecutive sorted pairs)
-        _o = np.argsort(np.asarray(support_X).ravel()); _xs = np.asarray(support_X).ravel()[_o]
-        for _a in range(n - 1):
-            _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
-            m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
-            m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+    if lipschitz is not None:                              # L-Lipschitz policy class
+        _Xs = np.asarray(support_X, float)
+        if _Xs.ndim == 1:
+            _Xs = _Xs.reshape(-1, 1)
+        if _Xs.shape[1] == 1:                             # 1-D: consecutive sorted pairs (exact)
+            _o = np.argsort(_Xs.ravel()); _xs = _Xs.ravel()[_o]
+            for _a in range(n - 1):
+                _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
+                m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+                m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+        else:                                             # d > 1: k-NN pairs (a relaxation; see
+            _DL = np.sqrt(((_Xs[:, None, :] - _Xs[None, :, :]) ** 2).sum(-1))   # patch_lip_md.py)
+            _kk = int(min(max(1, lipschitz_k), n - 1))
+            for _i in range(n):
+                for _jj in np.argsort(_DL[_i])[1:_kk + 1]:
+                    _j = int(_jj)
+                    if _j <= _i:
+                        continue
+                    _dx = float(_DL[_i, _j])
+                    m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+                    m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+
+    # ---- LINEAR (halfspace) POLICY CLASS: pi(x) = 1{beta'x + b0 >= 0} -- see patch_linear_policy.py
+    if linear_policy:
+        # A halfspace class turns this into a MILP with n binaries. Proving optimality is
+        # impractical (>15 min for a single n=200 solve), so cap the search and take the best
+        # incumbent -- standard MILP practice, and the incumbent is a valid feasible policy.
+        m.Params.TimeLimit = float(linear_time_limit)
+        m.Params.MIPGap = 0.01
+        _Xl = np.asarray(support_X, float)
+        if _Xl.ndim == 1:
+            _Xl = _Xl.reshape(-1, 1)
+        _dl = _Xl.shape[1]
+        _beta = m.addVars(_dl, lb=-1.0, ub=1.0, name="lbeta")
+        _b0 = m.addVar(lb=-1.0, ub=1.0, name="lbeta0")
+        _z = m.addVars(n, vtype=GRB.BINARY, name="lz")
+        _Ml = float(linear_M)
+        for _i in range(n):
+            _lin = gp.quicksum(_beta[_j] * float(_Xl[_i, _j]) for _j in range(_dl)) + _b0
+            m.addConstr(_lin >= 1e-4 - _Ml * (1 - _z[_i]), name="lin_hi_%d" % _i)
+            m.addConstr(_lin <= -1e-4 + _Ml * _z[_i], name="lin_lo_%d" % _i)
+            m.addConstr(pi[1, _i] == _z[_i], name="lin_pi_%d" % _i)
     for i in range(n):                                        # each unit's policy is a distribution
         m.addConstr(gp.quicksum(pi[k, i] for k in range(K)) == 1.0, name=f"simplex_{i}")
     for g in groups:                                         # tie policy across same-cell units
@@ -196,7 +236,7 @@ def solve_ipw_o_w_uncapped(
 
     # ---- 6. SOLVE -------------------------------------------------------------------------------
     m.optimize()
-    if m.Status != GRB.OPTIMAL:
+    if m.Status != GRB.OPTIMAL and not (linear_policy and m.SolCount > 0):
         raise RuntimeError(f"R-OW-uncapped non-optimal (status={m.Status}), Gamma={Gamma}, eps={epsilon}.")
 
     # ---- 7. EXTRACT the optimal policy + dual certificate ---------------------------------------
