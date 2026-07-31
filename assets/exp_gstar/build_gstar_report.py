@@ -36,6 +36,7 @@ CCAP = J("gstar_cont_cap30_ce1.0.json")
 KALC = J("gstar_kallus_cont.json")
 SHARP = J("gstar_sharp.json")
 HDISC = J("../grand/hess_gstar_discrete.json") or {}
+XXC = J("../grand/xx_gstar_cont.json") or {}
 SHARPC = J("gstar_sharp_cont.json")
 SV2 = J("gstar_sharp_v2.json")            # CORRECTED protocol (quantile bins from TRAIN, test-draw eval)
 if SV2:
@@ -453,6 +454,13 @@ if C0:
     PD["cont"] = policy_2d_dataset(C0)
     if CCAP: PD["contcap"] = policy_2d_dataset(CCAP)
     _add_hess_curves(PD)
+    if XXC and XXC.get("curves"):
+        for _w in PD:
+            if PD[_w].get("kind") != "2d": continue
+            for _m, _c in XXC["curves"].items():
+                if _m in PD[_w]["methods"]: continue
+                PD[_w]["methods"] = list(PD[_w]["methods"]) + [_m]
+                PD[_w]["pol"][_m] = {g: {l: _c for l in PD[_w]["Ls"]} for g in PD[_w]["gammas"]}
     SURFDS["uncap"] = {"gammas": Gk, "Ls": Lk, "methods": C0["methods"], "surface": C0["surface"],
                        "oracle": C0["oracle"], "naive": C0["naive_dr"], "never": C0["never_treat"]}
     if CCAP:
@@ -479,6 +487,10 @@ if C0:
             else:
                 _src = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
             if _src: EVD[wid].setdefault("extra", {})["Hess-efficient"] = _src
+        if XXC:
+            # X-X assume unconfoundedness -> no Gamma -> flat lines
+            for _m in XXC["methods"]:
+                EVD[wid].setdefault("extra", {})[_m] = {g: XXC["mean"][_m] for g in EVD[wid]["gammas"]}
         sv_widgets += ev_widget_html(wid, EVD[wid],
                                      defaults={"m": ["IPW-O-W", "IPW-O-X", "Hess-efficient"], "l": "3"},
                                      title="E[Y] vs Gamma -- tick methods, choose L (%s)" % lab)
