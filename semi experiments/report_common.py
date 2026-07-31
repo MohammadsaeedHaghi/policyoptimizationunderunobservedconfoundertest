@@ -13,6 +13,32 @@ def mdash(m): return {"O-W": "", "O-X": "7 3", "X-X": "2 3"}.get(m[-3:], "")
 def mmark(m): return {"O-W": "c", "O-X": "s", "X-X": "t"}.get(m[-3:], "c")
 def ser(m, xs, ys, lab=None): return (lab or m, MC.get(m, "#7f7f7f"), xs, ys, mdash(m), mmark(m))
 
+
+def legend_swatch(col, dash="", mk="c", w=30, h=12):
+    """Legend key that shows the LINE STYLE and MARKER, not just the colour.
+
+    The palette encodes the estimator family as colour, so DoublyRobust-O-W and
+    DoublyRobust-O-X are both blue and a plain colour block made them indistinguishable in the
+    legend even though their plotted lines differ. This draws the actual dash pattern with the
+    method's marker on top, so the legend key matches what is on the chart.
+    """
+    cy = h / 2.0
+    da = f' stroke-dasharray="{dash}"' if dash else ""
+    p = [f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" style="vertical-align:middle;flex:none">',
+         f'<line x1="1" y1="{cy}" x2="{w-1}" y2="{cy}" style="stroke:{col}" stroke-width="2.2"{da}/>']
+    cx, r = w / 2.0, 3.0
+    if mk == "s":
+        p.append(f'<rect x="{cx-r}" y="{cy-r}" width="{2*r}" height="{2*r}" style="fill:{col}"/>')
+    elif mk == "t":
+        p.append(f'<polygon points="{cx},{cy-1.3*r} {cx-1.2*r},{cy+r} {cx+1.2*r},{cy+r}" style="fill:{col}"/>')
+    elif mk == "d":
+        p.append(f'<polygon points="{cx},{cy-r} {cx+r},{cy} {cx},{cy+r} {cx-r},{cy}" style="fill:{col}"/>')
+    else:
+        p.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" style="fill:{col}"/>')
+    p.append('</svg>')
+    return "".join(p)
+
+
 def esc(s): return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 CSS = """
@@ -99,7 +125,10 @@ def linechart(series, W=560, H=330, xlab="", ylab="", title="", hlines=None, leg
     p.append('</svg>')
     leg = ""
     if legend:
-        items = "".join(f'<span class="li"><span class="sw" style="background:{c}"></span>{esc(l)}</span>' for l, c, *_ in series)
+        items = "".join(
+            '<span class="li">%s%s</span>'
+            % (legend_swatch(it[1], it[4] if len(it) > 4 else "", it[5] if len(it) > 5 else "c"), esc(it[0]))
+            for it in series)
         leg = f'<div class="leg">{items}</div>'
     return f'<figure class="fig">{"".join(p)}{leg}</figure>'
 
@@ -216,9 +245,9 @@ def ev_widget_html(wid, data, defaults=None, title="", note=""):
     if isinstance(on, str): on = [on]
     names = list(data["methods"]) + list((data.get("extra") or {}).keys())
     chips = "".join(
-        '<label class="mchip"><input type="checkbox" data-m="%s"%s>'
-        '<span class="sw" style="background:%s"></span>%s</label>'
-        % (m, " checked" if m in on else "", MC.get(m, "#7f7f7f"), m) for m in names)
+        '<label class="mchip"><input type="checkbox" data-m="%s"%s>%s%s</label>'
+        % (m, " checked" if m in on else "",
+           legend_swatch(MC.get(m, "#7f7f7f"), mdash(m), mmark(m), w=24, h=10), m) for m in names)
     lsel = ""
     if data.get("Ls"):
         opts = "".join('<option value="%s"%s>%s</option>'
@@ -237,6 +266,17 @@ def ev_widget_html(wid, data, defaults=None, title="", note=""):
 
 
 EV_JS = r"""
+function evSwatch(col, dash, mk){
+  const w=30,h=12,cy=h/2,cx=w/2,r=3;
+  let s='<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" style="vertical-align:middle;flex:none">';
+  s+='<line x1="1" y1="'+cy+'" x2="'+(w-1)+'" y2="'+cy+'" style="stroke:'+col+'" stroke-width="2.2"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/>';
+  if(mk==='s') s+='<rect x="'+(cx-r)+'" y="'+(cy-r)+'" width="'+(2*r)+'" height="'+(2*r)+'" style="fill:'+col+'"/>';
+  else if(mk==='t') s+='<polygon points="'+cx+','+(cy-1.3*r)+' '+(cx-1.2*r)+','+(cy+r)+' '+(cx+1.2*r)+','+(cy+r)+'" style="fill:'+col+'"/>';
+  else if(mk==='d') s+='<polygon points="'+cx+','+(cy-r)+' '+(cx+r)+','+cy+' '+cx+','+(cy+r)+' '+(cx-r)+','+cy+'" style="fill:'+col+'"/>';
+  else s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" style="fill:'+col+'"/>';
+  return s+'</svg>';
+}
+
 function evDraw(wid){
   const d = EVD[wid]; if(!d) return;
   const lsel = document.getElementById('ev-'+wid+'-l');
@@ -286,7 +326,7 @@ function evDraw(wid){
   s+='<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">Gamma</text>';
   s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+((pT+H-pB)/2)+')">test E[Y]</text>';
   s+='</svg>';
-  const leg='<div class="leg">'+series.map(se=>'<span class="li"><span class="sw" style="background:'+se.col+'"></span>'+se.lab+'</span>').join('')+'</div>';
+  const leg='<div class="leg">'+series.map(se=>'<span class="li">'+evSwatch(se.col,se.dash||'',se.mk||'c')+se.lab+'</span>').join('')+'</div>';
   document.getElementById('ev-'+wid+'-plot').innerHTML=s+leg;
 }
 document.addEventListener('change',e=>{const w=e.target.closest('.evw'); if(w) evDraw(w.id.slice(3));});

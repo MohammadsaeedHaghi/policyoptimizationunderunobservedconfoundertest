@@ -17,7 +17,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
-from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS
+from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS, legend_swatch
 from latex2mathml.converter import convert as l2m
 import importlib.util
 
@@ -321,9 +321,10 @@ def pol_widget_html(wid, dta, defaults=None):
     dm = df.get("m", [dta["methods"][0]]); dm = [dm] if isinstance(dm, str) else dm
     def opts(vals, dv):
         return "".join('<option value="%s"%s>%s</option>' % (v, " selected" if str(v) == str(dv) else "", v) for v in vals)
-    chips = "".join('<label class="mchip"><input type="checkbox" data-m="%s"%s>'
-                    '<span class="sw" style="background:%s"></span>%s</label>'
-                    % (m, " checked" if m in dm else "", MC.get(m, "#7f7f7f"), m) for m in dta["methods"])
+    chips = "".join('<label class="mchip"><input type="checkbox" data-m="%s"%s>%s%s</label>'
+                    % (m, " checked" if m in dm else "",
+                       legend_swatch(MC.get(m, "#7f7f7f"), mdash(m), mmark(m), w=24, h=10), m)
+                    for m in dta["methods"])
     c = [f'<div class="polw" id="pw-{wid}">']
     c.append(f'<div class="ctl"><span class="ctt">overlay methods:</span>'
              f'<span class="mck" id="pw-{wid}-m">{chips}</span>'
@@ -457,7 +458,16 @@ function pwDraw(wid){
     for (const mm of ms) if (d.sup[mm]&&d.sup[mm][g]&&d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l], mk:MARKJS[mm]||'c'});
     head=pwScat(d.supX, ss, d.supNaive||null);
   }
-  const leg='<div class="leg">'+series.map(se=>'<span class="li"><span class="sw" style="background:'+se.col+'"></span>'+se.lab+'</span>').join('')+'</div>';
+  const leg='<div class="leg">'+series.map(se=>{
+    const c=se.col, dd=se.dash||'', mk=se.mk||'c';
+    let sw='<svg width="30" height="12" viewBox="0 0 30 12" style="vertical-align:middle;flex:none">'
+         +'<line x1="1" y1="6" x2="29" y2="6" style="stroke:'+c+'" stroke-width="2.2"'+(dd?' stroke-dasharray="'+dd+'"':'')+'/>';
+    if(mk==='s') sw+='<rect x="12" y="3" width="6" height="6" style="fill:'+c+'"/>';
+    else if(mk==='t') sw+='<polygon points="15,2.1 11.4,9 18.6,9" style="fill:'+c+'"/>';
+    else if(mk==='d') sw+='<polygon points="15,3 18,6 15,9 12,6" style="fill:'+c+'"/>';
+    else sw+='<circle cx="15" cy="6" r="3" style="fill:'+c+'"/>';
+    return '<span class="li">'+sw+'</svg>'+se.lab+'</span>';
+  }).join('')+'</div>';
   document.getElementById('pw-'+wid+'-plot').innerHTML=head+pwSvg(d.grid,series)+leg;
 }
 document.addEventListener('change',e=>{const w=e.target.closest('.polw'); if(w) pwDraw(w.id.slice(3));});
