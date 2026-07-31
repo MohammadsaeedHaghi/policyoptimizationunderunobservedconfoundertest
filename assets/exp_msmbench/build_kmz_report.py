@@ -32,6 +32,7 @@ def J(fn):
     try: return json.load(open(HERE / fn))
     except Exception: return None
 EVD = {}
+XX = J("../grand/xx_kmz.json") or {}
 CM = {ce: J(f"kmz_main_ce{ce}.json") for ce in ("1.0", "1.5", "2.0")}
 CC = J("kmz_cap30_ce1.0.json")
 GST = {"05": J("kmz_g05.json"), "10": J("kmz_g10.json")}
@@ -127,6 +128,10 @@ if C0:
                        "hlines": {"capped oracle": REFS["oracle_cap30"],
                                   "capped naive": REFS["by_gstar"]["g15"]["naive_cap30"]},
                        "extra": {}}
+    if XX:
+        # X-X methods assume unconfoundedness, so they carry no Gamma: each is a FLAT line.
+        for _m in XX["methods"]:
+            EVD["kuncap"].setdefault("extra", {})[_m] = {g: XX["mean"][_m] for g in Gk}
     if HESSD:
         _hx = {g: v for g, v in zip(HESSD["gammas"], HESSD["mean"])}
         # UNCAPPED numbers go ONLY in the uncapped widget. Applying them to the capped panel
@@ -181,6 +186,9 @@ if C0:
         ab_rows.append(f"<tr><td>c<sub>&epsilon;</sub> = 1.0, n = 1000</td>"
                        f"<td>{r['IPW-O-W']:.3f}</td><td>{r['DoublyRobust-O-W']:.3f}</td>"
                        f"<td>{r['IPW-O-X']:.3f}</td><td>{r['DoublyRobust-O-X']:.3f}</td></tr>")
+    xx_rows = []
+    for _m in (XX.get("methods") or []):
+        xx_rows.append(f"<tr><td>{_m}</td><td>{XX['mean'][_m]:.3f}</td><td>{XX['sd'][_m]:.3f}</td></tr>")
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; &Gamma; grid with the matched &Gamma;* flagged)</h2>
 <p class="muted">Tick methods to overlay; the static pair below shows every series at L = 3.</p>
@@ -201,6 +209,12 @@ if C0:
 <tr><th>setting</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th></tr>
 {''.join(ab_rows)}
 </table></div>
+<h3>The unconfoundedness-assuming (X&ndash;X) methods</h3>
+<p class="muted">These assume no unobserved confounding, so they have no &Gamma; and are a single
+number each &mdash; the baselines the whole premise is about. Same protocol, same seeds, same
+Shapley deployment.</p>
+<div class="tw"><table><tr><th>method</th><th>test E[Y]</th><th>sd over seeds</th></tr>
+{''.join(xx_rows)}</table></div>
 
 <div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
 actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
@@ -299,6 +313,13 @@ if C0:
 <p>Raw per-unit support policy (seed 0) above; Shapley-deployed pi(x) below. The oracle's
 oscillating interior structure is the test: naive under-treats the positive regions.</p>""")
     _add_hess_curves(PD, "km")
+    if XX and XX.get("curves"):
+        for _w in PD:
+            if PD[_w].get("kind") != "2d": continue
+            for _m, _c in XX["curves"].items():
+                if _m in PD[_w]["methods"]: continue
+                PD[_w]["methods"] = list(PD[_w]["methods"]) + [_m]
+                PD[_w]["pol"][_m] = {g: {l: _c for l in PD[_w]["Ls"]} for g in PD[_w]["gammas"]}
     T3.append(pol_widget_html("kuncap", PD["kuncap"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": "3"}))
     if CC:
         PD["kcap"] = policy_2d_dataset(CC)
@@ -415,14 +436,12 @@ TABS = f"""
 <div class="tabs" role="tablist" style="position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:6px;padding:10px 0;margin:0 0 6px">
 <button id="tb-dgp" class="on" onclick="showTab('dgp')">DGP</button>
 <button id="tb-res" onclick="showTab('res')">Results &amp; ablations</button>
-<button id="tb-pol" onclick="showTab('pol')">Policies</button>
 </div>
 <div id="tab-dgp" class="tabpane on">{T1}</div>
-<div id="tab-res" class="tabpane">{''.join(T2)}</div>
-<div id="tab-pol" class="tabpane">{''.join(T3)}</div>
+<div id="tab-res" class="tabpane">{''.join(T2)}{''.join(T3)}</div>
 <script>
 function showTab(id){{
-  for (const t of ['dgp','res','pol']){{
+  for (const t of ['dgp','res']){{
     document.getElementById('tab-'+t).classList.toggle('on', t===id);
     document.getElementById('tb-'+t).classList.toggle('on', t===id);
   }}
