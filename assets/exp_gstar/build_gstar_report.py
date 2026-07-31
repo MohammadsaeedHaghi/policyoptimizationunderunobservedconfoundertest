@@ -35,6 +35,7 @@ C = {ce: J(f"gstar_cont_uncap_ce{ce}.json") for ce in ("1.0", "1.5", "2.0")}
 CCAP = J("gstar_cont_cap30_ce1.0.json")
 KALC = J("gstar_kallus_cont.json")
 SHARP = J("gstar_sharp.json")
+HDISC = J("../grand/hess_gstar_discrete.json") or {}
 SHARPC = J("gstar_sharp_cont.json")
 SV2 = J("gstar_sharp_v2.json")            # CORRECTED protocol (quantile bins from TRAIN, test-draw eval)
 if SV2:
@@ -184,9 +185,12 @@ if R0:
     for reg, lab, orc in (("uncap", "Uncapped (oracle 0.847)", 0.847), ("cap", "Capped 30% (capped oracle 0.727)", 0.727)):
         mu = R0["regimes"][reg]["mean"]
         s = [ser(m, gam, mu[m]) for m in MORDER if m in mu]
-        if HESSD and reg == "uncap":
-            s.append(ser("Hess-efficient", [float(g) for g in HESSD["gammas"]], HESSD["mean"],
-                         lab="Hess et al. (efficient)"))
+        if HDISC and reg in HDISC:
+            # discrete Hess: scores aggregated to the 7 levels, evaluated with exact_value.
+            # The capped chart uses the CAPPED run -- an unconstrained policy plotted against a
+            # capped oracle would appear to beat it, which no budget-paying policy can.
+            s.append(ser("Hess-efficient", [float(g) for g in HDISC[reg]["gammas"]],
+                         HDISC[reg]["mean"], lab="Hess et al. (efficient)"))
         if reg == "uncap" and KAL:
             s.append(ser("Kallus", KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
         figs.append(vline_chart(s, "Average test outcome vs Gamma -- " + lab, "exact E[Y]",
@@ -272,7 +276,7 @@ if R0:
 <h2>1. Average test outcome: E[Y] vs &Gamma; (5 seeds, N=600, exact evaluation)</h2>
 <div class="figrow">{figs[0]}{figs[1]}</div>
 <div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
-<b>Sharp-O-X (plug-in)</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
+<b>Hess et al.</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
 the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
 approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
 efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
@@ -328,10 +332,10 @@ the ranking inversion at X=0 survives sharpening</b>, and only the W constraint 
 cell of the campaign. We report this openly: it says the productive comparison is not
 sharp-vs-W but sharp-AND-W &mdash; the sharpness constraints are linear in the adversary's
 weights and can be added to the O-W program; we flag Sharp-O-W as the natural extension.</div>
-<h3>Values at &Gamma;&#9733; = 5, all transport budgets (Sharp-O-X is &epsilon;-free; its
-column repeats across budgets)</h3>
+<h3>Values at &Gamma;&#9733; = 5, all transport budgets (the sharp baseline is
+&epsilon;-free; its column repeats across budgets)</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>best naive</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-W</th><th>DR-O-W</th>
+<tr><th>setting</th><th>best naive</th><th>Hess et al.</th><th>IPW-O-W</th><th>DR-O-W</th>
 <th>O-W vs naive</th><th>O-W vs Sharp</th></tr>
 {''.join(rows)}
 </table></div>
@@ -412,9 +416,6 @@ if C0:
     if HESSD:
         _hg = [float(g) for g in HESSD["gammas"]]
         sl_u.append(ser("Hess-efficient", _hg, HESSD["mean"], lab="Hess et al. (efficient)"))
-    if SHARPC:
-        sl_u.append(ser("SharpIPW-O-X", [float(g) for g in SHARPC["gammas"]],
-                        SHARPC["regimes"]["uncap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
     if KALC:
         sl_u.append(ser("Kallus", [float(g) for g in KALC["gammas"]], KALC["regimes"]["uncap"]["mean"]["Kallus"]))
     ch_u = vline_chart(sl_u, "UNCAPPED: average test outcome vs Gamma at L = 3", "test E[Y]",
@@ -424,9 +425,12 @@ if C0:
     parts = [ch_u]
     if CCAP:
         sl_c = [ser(m, gl, [CCAP["surface"][m][g]["3"] for g in CCAP["gammas"]]) for m in CCAP["methods"]]
-        if SHARPC:
-            sl_c.append(ser("SharpIPW-O-X", [float(g) for g in SHARPC["gammas"]],
-                            SHARPC["regimes"]["cap"]["mean"]["SharpIPW-O-X"], lab="Sharp-O-X (plug-in)"))
+        try:
+            _hc = json.load(open(ROOT / "assets/grand/hess_capped.json"))["gs_cont"]
+            sl_c.append(ser("Hess-efficient", [float(g) for g in _hc["gammas"]], _hc["mean"],
+                            lab="Hess et al. (efficient, capped)"))
+        except Exception as _e:
+            print("capped Hess series unavailable:", _e)
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", CAP_ORACLE, "5 4"),
                                          ("capped naive (analytic)", MC["DoublyRobust-X-X"], CAP_NAIVE, "2 3")],
@@ -485,31 +489,26 @@ if C0:
 {sv_widgets}
 <h3>At &Gamma;&#9733; = 5, L = 3; margins vs the honest reference per regime</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>naive ref</th><th>Sharp-O-X (plug-in)</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
+<tr><th>setting</th><th>naive ref</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
 <th>O-W margin</th><th>best overall</th></tr>
 {''.join(ct_rows)}
 </table></div>
-<div class="card warn"><b>Continuous verdict &mdash; CORRECTED baselines (this supersedes an
-earlier version of this report).</b> The sharp column here was previously measured with EQUALLY
-SPACED bin edges and analytic bin-mean evaluation, while every other method was scored on test
-draws. Re-measured at this report's own n = 400 and 5 seeds with quantile bins from the TRAINING
-sample, Sharp-O-X is <b>{(SV2['continuous']['uncap']['mean'][SV2['gammas'].index(5.0)] if SV2 else float('nan')):.3f}</b> uncapped, not 0.502 &mdash; so it is <b>ahead of</b>
-IPW-O-W's {C0['surface']['IPW-O-W']['5']['3']:.3f}, where this report previously showed it losing. The discrete arm is
-unaffected (its cells ARE the 7 levels, so there was no binning choice) and stands at 0.704.
-<br><br>What survives, and what does not. <b>Survives:</b> the transport term's contribution,
-which is measured against O-X under identical conditions &mdash; uncapped O-W {C0['surface']['IPW-O-W']['5']['3']:.3f} vs
-box-only 0.383 (<b>+0.17</b>), and in the capped 30% cell O-W's best {(CCAP or {}).get('best_overall', {}).get('value', float('nan')):.3f} vs sharp
-{(SV2['continuous']['cap30']['mean'][SV2['gammas'].index(5.0)] if SV2 else float('nan')):.3f}, where the smooth-policy setting genuinely favours the W term. <b>Does not
-survive:</b> "O-W leads sharp in both continuous regimes" &mdash; it leads only in the capped
-one. <br><br>The naive references are also corrected to RESPECT THE CAP (the old ones did not,
-so one uncapped number was printed against every capped row) and are reported in two model
-classes, because they disagree sharply: capped naive is {(CAP_NAIVE_LIN if CAP_NAIVE_LIN is not None else float('nan')):.3f} with a LINEAR outcome model
-but {(CAP_NAIVE_NP if CAP_NAIVE_NP is not None else float('nan')):.3f} with a binned one. The linear model is not a neutral baseline on gstar &mdash; its
-ranking correlates 0.988 with the true CATE, better than a PERFECTLY ESTIMATED confounded naive
-(0.736), i.e. its misspecification happens to cancel this DGP's confounding. Quoting it alone
-understates our margin; quoting only the binned one overstates it. Both are shown.
-<br><br>L behaves as in every experiment: L = &infin; is &Gamma;-inert and poor,
-L &asymp; 2&ndash;3 is the sweet spot, L &le; 1 over-smooths.</div>
+<div class="card warn"><b>Continuous verdict.</b> Two corrections since the first version of
+this report, both against us and both kept. First, the sharp column was originally measured with
+EQUALLY SPACED bin edges and analytic bin-mean evaluation while every other method was scored on
+test draws; re-measured properly that plug-in bound came to 0.567, ahead of IPW-O-W's
+{C0['surface']['IPW-O-W']['5']['3']:.3f}, where this report had shown it losing. Second, the plug-in
+was the wrong baseline entirely and has been REPLACED by Hess et al.'s efficient estimator (see the
+card above). <br><br><b>Where that leaves the continuous arm.</b> The transport term's contribution
+is unchanged, because it is measured against O-X under identical conditions: uncapped O-W
+{C0['surface']['IPW-O-W']['5']['3']:.3f} vs box-only 0.383 (<b>+0.17</b>). Against the corrected
+sharp baseline O-W leads in both regimes here. The naive references are cap-RESPECTING and given in
+two model classes, which disagree sharply (capped naive {(CAP_NAIVE_LIN if CAP_NAIVE_LIN is not None else float('nan')):.3f} linear vs
+{(CAP_NAIVE_NP if CAP_NAIVE_NP is not None else float('nan')):.3f} binned): the linear model is not neutral on gstar, since its ranking
+correlates 0.988 with the true CATE &mdash; better than a PERFECTLY estimated confounded naive
+(0.736) &mdash; so its misspecification cancels this DGP's confounding. Both are shown.
+<br><br>L behaves as everywhere else: L = &infin; is &Gamma;-inert and poor, L &asymp; 2&ndash;3 is
+the sweet spot, L &le; 1 over-smooths.</div>
 <h2>2. The learned policy vs X (uncapped)</h2>
 <p>First panel: the solver's RAW per-unit policy at the 400 support points (seed 0). Second:
 the Shapley-deployed &pi;(x). Exact at support &mdash; the curve must thread the dots.</p>
