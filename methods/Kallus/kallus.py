@@ -157,11 +157,13 @@ def fit_kallus(
     wasserstein: bool = False,
     epsilon: Optional[Sequence[float]] = None,
     basis: Sequence = ("affine",),
-    n_iters: int = 12,
-    n_restarts: int = 2,
-    eta0: float = 1.0,
+    n_iters: int = 200,
+    n_restarts: int = 6,
+    eta0: float = 2.0,
     kappa: float = 0.5,
     init_scale: float = 0.25,
+    normalize_grad: bool = True,
+    select: str = "best",
     D: Optional[np.ndarray] = None,
     seed: int = 0,
 ) -> KallusResult:
@@ -181,9 +183,23 @@ def fit_kallus(
         ∂R/∂θ = −Σ_i Yᵢ w*ᵢ ∇_θ π_θ(Tᵢ|Xᵢ),   ∇_θ π_θ(Tᵢ|Xᵢ) = π_θ(Tᵢ|Xᵢ)·(onehotᵢ − π_θ(·|Xᵢ))·φ(Xᵢ),
     i.e. grad = [ (Y⊙w*/n) ⊙ π_θ(T|X) · (onehot − π) ]ᵀ φ(X),   θ ← θ + (eta0/(k+1)^κ)·grad (ascend value ⇒
     descend regret). Note the per-unit π_θ(Tᵢ|Xᵢ) factor — this is ∇π (the paper), NOT the score-function ∇log π.
-    Per restart we return the Polyak ITERATE-AVERAGE θ̄=(1/n_iters)Σ_k θ_k; across restarts we keep the θ̄ with the
-    smallest worst-case regret.
+    Per restart we form the Polyak ITERATE-AVERAGE θ̄=(1/n_iters)Σ_k θ_k, and (``select="best"``, the default)
+    also consider every iterate visited; across restarts we keep whichever θ attains the smallest worst-case
+    regret. ``select="polyak"`` restores the average-only rule.
+
+    OPTIMISER FIX (2026-08-04) — the defaults changed, so results move.
+    ``n_iters`` 12→200, ``n_restarts`` 2→6, ``eta0`` 1.0→2.0, plus ``normalize_grad`` and ``select="best"``.
+    The old settings returned a near-uniform softmax: measured on the semi-synthetic campaign at **Γ = 1**,
+    where the MSM box is a single point and this reduces to ordinary IPW policy learning, a 1845-point brute
+    force over the two effective parameters found regret 3–500× lower and recovered 93–98% of the available
+    headroom, while the shipped fit recovered ≈ 0. Three compounding causes, all addressed above: a raw
+    ∇π step that vanishes as the policy sharpens, a fixed small init that cannot reach the ‖θ‖ a decisive
+    boundary needs, and Polyak-averaging iterates that never left the random init. At Γ ≫ 1 the fit was
+    already near-optimal — the regret floor genuinely pins the answer to the baseline there, which is the
+    method behaving as designed, not a defect.
     """
+    if select not in ("best", "polyak"):
+        raise ValueError("select must be 'best' or 'polyak'.")
     configure_gurobi_license()
     rng = np.random.default_rng(seed)
     X = np.asarray(X, dtype=float)
@@ -207,34 +223,51 @@ def fit_kallus(
                                           wasserstein=wasserstein, epsilon=eps, D=D)
 
     best_theta, best_regret = None, np.inf                    # MINIMISE regret ⇒ track the smallest
-    for _ in range(n_restarts):
-        theta = rng.standard_normal((n_arms, p_feat)) * init_scale   # random restart
-        theta_acc = np.zeros_like(theta)                     # accumulator for the Polyak iterate-average
-        feasible = True
+    # Restart scales spread over two orders of magnitude. A DECISIVE policy needs a large ‖θ‖ (for
+    # the 2-arm affine case the boundary is π₁ = sigmoid(s·x + b), and a sharp threshold means
+    # s ≈ 40); a small fixed init plus a decaying raw-gradient step provably cannot get there,
+    # since Σ_k η₀/√k · ‖grad‖ ≈ 2η₀√n_iters·O(0.1) stays O(1). That is the whole reason this
+    # optimiser used to return a near-uniform softmax and score ≈ 0 even at Γ = 1.
+    scales = (np.geomspace(init_scale, init_scale * 100.0, n_restarts) if n_restarts > 1
+              else np.array([init_scale], dtype=float))
+    for rs in range(n_restarts):
+        theta = rng.standard_normal((n_arms, p_feat)) * float(scales[rs])   # random restart
+        theta_acc = np.zeros_like(theta); n_acc = 0          # accumulator for the Polyak iterate-average
         for k in range(n_iters):
             pi = _softmax(Phi @ theta.T)                     # (n, K) current policy
             pi_t = pi[np.arange(n), T]                        # observed-arm probabilities π_θ(T_i|X_i)
             try:
-                w_star, _ = inner(pi_t)                       # regret-worst-case weighting
+                w_star, regret_k = inner(pi_t)                # regret-worst-case weighting
             except RuntimeError:
-                feasible = False; break
+                break
+            # The inner solve ALREADY returns the worst-case regret at this θ, so tracking the best
+            # iterate is free. Subgradient descent does not decrease the objective monotonically, and
+            # the Polyak average of iterates that never left the neighbourhood of a random init is a
+            # near-uniform softmax — much worse than the best point actually visited.
+            if select == "best" and regret_k < best_regret:
+                best_regret, best_theta = float(regret_k), theta.copy()
             # EXACT policy gradient ∇_θ π_θ(T_i|X_i) = π_θ(T_i|X_i)·(onehot − π)·φ — the per-unit π_t factor is
             # essential: this is ∇π (Kallus & Zhou Algorithm 1), NOT the score-function ∇log π.
             # w_star is the per-arm SELF-NORMALISED worst-case weight (Σ_{I_t}=1), so no 1/n factor here.
             g = (Yc * w_star * pi_t)[:, None] * (onehot - pi)   # (n, K)
             grad = g.T @ Phi                                  # (K, p): ∂V(π_θ,w*)/∂θ
-            theta = theta + (eta0 / (k + 1) ** kappa) * grad  # ASCEND value ⇒ DESCEND regret
-            theta_acc += theta                               # accumulate the iterate for Polyak averaging
-        if not feasible:
+            gn = float(np.linalg.norm(grad))
+            if gn < 1e-12:                                    # saturated softmax ⇒ ∇π vanishes
+                break
+            # Normalise the step. ∇π (unlike ∇log π) carries a π_t·(1−π) factor that collapses as the
+            # policy sharpens, so a raw-gradient step stalls exactly where it needs to keep moving.
+            theta = theta + (eta0 / (k + 1) ** kappa) * (grad / gn if normalize_grad else grad)
+            theta_acc += theta; n_acc += 1                    # accumulate the iterate for Polyak averaging
+        if n_acc == 0:
             continue
-        theta_bar = theta_acc / n_iters                      # Polyak ITERATE-AVERAGE (Algorithm 1, line 7)
+        theta_bar = theta_acc / n_acc                        # Polyak ITERATE-AVERAGE (Algorithm 1, line 7)
         pi = _softmax(Phi @ theta_bar.T); pi_t = pi[np.arange(n), T]
         try:
             _, regret = inner(pi_t)                           # worst-case regret AT the averaged θ
         except RuntimeError:
             continue
         if regret < best_regret:                             # keep the lowest-regret averaged θ across restarts
-            best_regret, best_theta = regret, theta_bar.copy()
+            best_regret, best_theta = float(regret), theta_bar.copy()
     if best_theta is None:
         raise RuntimeError("Kallus parametric: no feasible restart.")
     return KallusResult(
