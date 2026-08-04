@@ -1,0 +1,40 @@
+{
+ "data": "bank_marketing",
+ "gamma": 2.0,
+ "Gamma": 54.598150033144236,
+ "seed": 0,
+ "never": -0.544,
+ "all": -0.6386359695404391,
+ "oracle": -0.37692412779740664,
+ "theta_gap": 0.0,
+ "rows": {
+  "Y, maximize=True  (as shipped)": {
+   "value": -0.5440000000000007,
+   "norm": -3.987013839840089e-15,
+   "corr_cate": NaN,
+   "regret": 1.2007437499628752e-12,
+   "pe_mean": 3.541119158624787e-13
+  },
+  "-Y, maximize=False (equivalent)": {
+   "value": -0.5440000000000007,
+   "norm": -3.987013839840089e-15,
+   "corr_cate": NaN,
+   "regret": 1.2007437499628752e-12,
+   "pe_mean": 3.541119158624787e-13
+  },
+  "-Y, maximize=True  (WRONG on purpose)": {
+   "value": -0.544000000001005,
+   "norm": -6.015074879705415e-12,
+   "corr_cate": -0.1761772865798046,
+   "regret": -8.612461294093403e-13,
+   "pe_mean": 1.6687572085721876e-12
+  },
+  "arms swapped (baseline=all-treat)": {
+   "value": -0.6386359695394341,
+   "norm": -0.5664251114887499,
+   "corr_cate": 0.17617737342024173,
+   "regret": -8.612568876136676e-13,
+   "pe_mean": 0.9999999999983313
+  }
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "data": "german_credit",
+ "gamma": 2.0,
+ "Gamma": 54.598150033144236,
+ "seed": 0,
+ "never": -0.4057142857142857,
+ "all": -0.5109075093107294,
+ "oracle": -0.24710914230580547,
+ "theta_gap": 0.0,
+ "rows": {
+  "Y, maximize=True  (as shipped)": {
+   "value": -0.40571428571430146,
+   "norm": -9.939883796249131e-14,
+   "corr_cate": NaN,
+   "regret": 9.99526506358379e-13,
+   "pe_mean": 3.0565884245832135e-13
+  },
+  "-Y, maximize=False (equivalent)": {
+   "value": -0.40571428571430146,
+   "norm": -9.939883796249131e-14,
+   "corr_cate": NaN,
+   "regret": 9.99526506358379e-13,
+   "pe_mean": 3.0565884245832135e-13
+  },
+  "-Y, maximize=True  (WRONG on purpose)": {
+   "value": -0.4057142857154088,
+   "norm": -7.08111721710255e-12,
+   "corr_cate": -0.17625262263780125,
+   "regret": -5.798834409453146e-13,
+   "pe_mean": 2.067513480855093e-12
+  },
+  "arms swapped (baseline=all-treat)": {
+   "value": -0.5109075093096064,
+   "norm": -0.6632396739139814,
+   "corr_cate": 0.1762527739622469,
+   "regret": -5.798810857174945e-13,
+   "pe_mean": 0.9999999999979325
+  }
+ }
+}
