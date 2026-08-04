@@ -8,6 +8,10 @@ import json, sys
 from pathlib import Path
 import numpy as np
 
+GAMMA_ALL = (0.0, 1.0, 1.5, 2.0, 3.0, 4.0)   # 3.0 and 4.0 added 2026-08-04
+GAM = [1.0, 1.5, 2.0, 3.0, 4.0]        # confounded cells only; gamma=0 is the correctness check
+GCOL = {1.0: "#0a7d33", 1.5: "#5b8c1a", 2.0: "#b07105", 3.0: "#c0392b", 4.0: "#7d1f6a"}
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
@@ -233,7 +237,7 @@ semi_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>&nbsp;</th
 
 POOL, PHEAD = COLS, CHEAD
 pool = []
-for g in (0.0, 1.0, 1.5, 2.0):
+for g in GAMMA_ALL:
     agg = {}
     for c in POOL:
         vs = []
@@ -269,7 +273,7 @@ tm_tbl = ("<div class='scrollx'><table class='dt'>"
 SPREAD = []
 for d in SEMI:
     row = ["<tr><td class='l'>%s</td>" % esc(d)]
-    for g in (1.0, 1.5, 2.0):
+    for g in GAM:
         s_ = [x for x in SEMI[d] if abs(x["gamma"] - g) < 1e-12]
         v = ([q["IPW-O-W"]["mean"] for q in s_[0].get("per_dgp", {}).values()
               if "IPW-O-W" in q] if s_ else [])
@@ -277,7 +281,7 @@ for d in SEMI:
                    if v else "<td>&mdash;</td>")
     SPREAD.append("".join(row) + "</tr>")
 spread_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>dataset</th>"
-              "<th>&gamma; = 1.0</th><th>&gamma; = 1.5</th><th>&gamma; = 2.0</th></tr>"
+              + "".join("<th>&gamma; = %g</th>" % g for g in GAM) + "</tr>"
               + "".join(SPREAD) + "</table></div>")
 
 
@@ -290,8 +294,6 @@ BAR_METHODS = ["IPW-O-W", "DoublyRobust-O-W", "Hajek-O-W",
 BAR_SHORT = {"DoublyRobust-O-W": "DR-O-W", "DoublyRobust-O-X": "DR-O-X",
              "DoublyRobust-X-X": "DR-X-X", "SharpHess": "Hess", "Hajek-O-W": "Haj-O-W",
              "Hajek-O-X": "Haj-O-X", "Direct-X-X": "Dir-X-X"}
-GAM = [1.0, 1.5, 2.0]
-GCOL = {1.0: "#0a7d33", 1.5: "#b07105", 2.0: "#c0392b"}
 
 
 def barchart(stats, title, W=940, H=330):
@@ -362,6 +364,21 @@ def _stats_for(dsets):
     return st
 
 
+
+# --------------------------------------------- SharpHess under the two nuisance estimators
+HROWS = []
+for g in GAMMA_ALL:
+    cells_ = []
+    for key in ("SharpHess", "SharpHess-kNN"):
+        vs = [norm(x["rows"][key]["mean"], x["refs"]) for d in SEMI for x in SEMI[d]
+              if abs(x["gamma"] - g) < 1e-12 and key in x["rows"]]
+        cells_.append("<td>%.3f</td>" % np.mean(vs) if vs else "<td>&mdash;</td>")
+    HROWS.append("<tr><td class='l'>&gamma; = %g</td><td class='ref'>%.2f</td>%s</tr>"
+                 % (g, float(np.exp(2 * g)), "".join(cells_)))
+hess_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>&nbsp;</th><th>&Gamma;</th>"
+            "<th>neural {64,64,32} (paper)</th><th>k-NN k=15</th></tr>"
+            + "".join(HROWS) + "</table></div>")
+
 CHARTS = barchart(_stats_for(list(SEMI)),
                   "ALL FIVE DATASETS POOLED -- normalised value by method and gamma")
 CHARTS += "".join(barchart(_stats_for([d]), "%s -- normalised value by method and gamma" % d)
@@ -412,11 +429,17 @@ rct_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>benchmark</
            + "".join("<th>%s</th>" % esc(SHORT.get(m, m)) for m in RCT_ORDER)
            + "<th>best const</th><th>oracle</th></tr>" + "".join(rct_rows) + "</table></div>")
 
+NOTECSS = (".note{border-left:3px solid #b07105;background:rgba(176,113,5,.07);"
+           "padding:.7rem .9rem;margin:1rem 0;font-size:.88rem;line-height:1.5;"
+           "border-radius:0 4px 4px 0}"
+           "@media (prefers-color-scheme:dark){.note{background:rgba(176,113,5,.14)}}"
+           ":root[data-theme=\"dark\"] .note{background:rgba(176,113,5,.14)}"
+           ":root[data-theme=\"light\"] .note{background:rgba(176,113,5,.07)}")
 nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Semi-synthetic policy-learning experiments</title>
-<style>{CSS}{EXTRA}</style></head><body>
+<style>{CSS}{EXTRA}{NOTECSS}</style></head><body>
 <div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
 <h1>Semi-synthetic policy-learning experiments</h1>
 <p>Two constructions, both giving real covariates a synthetic confounded assignment with a KNOWN
@@ -447,6 +470,31 @@ rather than the interval the paper settles for. Every dataset below passes the p
 <th>headroom (&plusmn; across draws)</th><th>corr(x,u)</th><th>frac &tau;&gt;0</th>
 <th>DGP draws</th></tr>
 {cons}</table></div>
+
+<div class="note"><b>Baselines re-optimised, nuisances made neural, &gamma; extended to 4
+&mdash; 2026-08-04.</b> Both parametric baselines were mis-optimised: their policy learners used a
+raw &nabla;&pi; step whose <i>p</i>(1&minus;<i>p</i>) factor collapses as the policy sharpens, so
+both returned near-uniform policies, losing up to 0.96 normalised value against a brute-force grid
+over their own two-parameter class. The estimators were <b>not</b> touched and were correct
+throughout &mdash; Hess's Eq.&nbsp;15 reproduces the AIPW score at &Gamma;&nbsp;=&nbsp;1 to
+9e&minus;16 on both nuisance paths, and Kallus's sign convention is exact
+(|&Delta;&theta;|&nbsp;=&nbsp;0).
+<br><br>
+SharpHess now uses the paper's Table-5 nuisances: every head is a {{64,64,32}} ReLU net trained with
+Adam at lr&nbsp;1e&minus;3, 300 epochs, batch&nbsp;64, early-stopping patience&nbsp;10. Checked
+against population ground truth, the net is the <i>most accurate</i> propensity estimator
+(RMSE&nbsp;0.037 vs k-NN's 0.070 and 0.125) &mdash; but its <i>truncated-mean</i> regressions are
+10&ndash;17&times; worse (0.708 vs 0.041 at &gamma;&nbsp;=&nbsp;2), because the target
+Y&middot;1{{Y&nbsp;&le;&nbsp;q(x)}} is discontinuous and Y&sup0; here is two-valued, so a smooth
+regression averages away what an empirical k-NN quantile reproduces exactly. Those terms carry the
+c&plusmn; weights that grow with &Gamma;, which is why the neural nuisances help at
+&gamma;&nbsp;=&nbsp;0 and hurt when confounding is strong. Both arms are reported below; neither is
+tuned to the outcome.
+<br><br>
+<b>Caveat on the high-&gamma; rows:</b> &alpha;<sup>+</sup>&nbsp;=&nbsp;&Gamma;/(1+&Gamma;) reaches
+0.982 at &gamma;&nbsp;=&nbsp;2 and 0.9997 at &gamma;&nbsp;=&nbsp;4, so the conditional quantile
+there is an extreme tail that n&nbsp;=&nbsp;300 cannot resolve on any estimator. Read SharpHess's
+&gamma;&nbsp;&ge;&nbsp;2 entries as sample-limited rather than as a verdict on the method.</div>
 
 <h2>O-W family against the published baselines
 <span class="hsub">&mdash; matched &Gamma; = e<sup>2&gamma;</sup>, best (c<sub>&epsilon;</sub>, L)
@@ -479,6 +527,10 @@ the across-split one.</div>
 means the method is worse than not learning a policy at all. The whisker is the spread across the
 five independent CATE draws, which is the dominant source of uncertainty here.</p>
 {CHARTS}
+
+<h2>Nuisance estimator for SharpHess
+<span class="hsub">&mdash; the paper's neural instantiation vs the k-NN one used before</span></h2>
+{hess_tbl}
 
 <h2>Which method wins <span class="hsub">&mdash; confounded cells only (&gamma; &gt; 0)</span></h2>
 {win_tbl}

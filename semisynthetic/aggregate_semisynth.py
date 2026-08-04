@@ -28,6 +28,7 @@ def summarise(gamma):
     if not files:
         return None
     acc, objacc, xxacc, hess, kal = {}, {}, {}, [], []
+    hessk = []          # the k-NN-nuisance arm, kept alongside the paper-aligned neural one
     refs, meta, G, Ls, ceps = {}, None, None, None, None
     cellacc = {}          # (dgp_seed, method, c_eps, L) -> per-split values
     dgp_bc, dgp_or = {}, {}   # dgp_seed -> per-split best-constant / oracle references
@@ -53,6 +54,7 @@ def summarise(gamma):
             for L, o in byL.items():
                 if o["value"] == o["value"]: cellacc.setdefault((_ds, m, "-", L), []).append(o["value"])
         for _g, o in d.get("hess", {}).items(): cellacc.setdefault((_ds, "SharpHess", "-", "-"), []).append(o["value"])
+        for _g, o in d.get("hess_knn", {}).items(): cellacc.setdefault((_ds, "SharpHess-kNN", "-", "-"), []).append(o["value"])
         for _g, o in d.get("kallus", {}).items(): cellacc.setdefault((_ds, "Kallus", "-", "-"), []).append(o["value"])
         dgp_bc.setdefault(_ds, []).append(max(_R["never_treat"], _R["all_treat"]))
         dgp_or.setdefault(_ds, []).append(_R["oracle"])
@@ -69,6 +71,7 @@ def summarise(gamma):
             for L, o in byL.items():
                 xxacc.setdefault((m, L), []).append(o["value"])
         for _g, o in d.get("hess", {}).items(): hess.append(o["value"])
+        for _g, o in d.get("hess_knn", {}).items(): hessk.append(o["value"])
         for _g, o in d.get("kallus", {}).items(): kal.append(o["value"])
 
     R = {k: float(np.mean(v)) for k, v in refs.items()}
@@ -96,6 +99,7 @@ def summarise(gamma):
             L, s = max(cand, key=lambda t: t[1]["mean"]); s = dict(s); s.update(c_eps="-", L=L)
             out["rows"][m] = s
     if hess: out["rows"]["SharpHess"] = dict(st(hess), c_eps="-", L="-")
+    if hessk: out["rows"]["SharpHess-kNN"] = dict(st(hessk), c_eps="-", L="-")
     if kal: out["rows"]["Kallus"] = dict(st(kal), c_eps="-", L="-")
 
     # transport margin: O-W minus its O-X twin at IDENTICAL L (O-X is c_eps-free -> use its cell)
@@ -151,7 +155,7 @@ def summarise(gamma):
 import argparse
 _ap = argparse.ArgumentParser(); _ap.add_argument("--dataset", default="bank_marketing")
 DS = _ap.parse_args().dataset
-S = [x for x in (summarise(g) for g in (0.0, 1.0, 1.5, 2.0)) if x]
+S = [x for x in (summarise(g) for g in (0.0, 1.0, 1.5, 2.0, 3.0, 4.0)) if x]
 for _s in S: _s["dataset"] = DS
 json.dump(S, open(HERE / ("summary_%s.json" % DS), "w"), indent=1)
 print("\n=== %s ===" % DS)

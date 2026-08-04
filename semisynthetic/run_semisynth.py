@@ -176,13 +176,17 @@ def main():
                 print("FAIL %s L=%s: %s" % (m, lk, str(ex)[:90]), flush=True)
     hess = {}
     try:
-        # k=50 is the module default. Note the ceiling this runs into: the paper's alpha^+ is
-        # Gamma/(1+Gamma), so at Gamma=54.6 the nuisance is the 0.982 conditional quantile, which
-        # needs on the order of 1/(1-alpha^+) ~ 55 points PER ARM NEIGHBOURHOOD to resolve at all --
-        # more than the ~75 available at n_train=300. Read Hess's gamma=2 row as sample-limited.
-        # The optimiser call now takes the fixed defaults (see methods/SharpHess/sharp_hess.py);
-        # the previous n_iter=300, lr=0.05, restarts=3 was weaker than that module's own defaults.
-        sc = _W["hess"].fit_scores(X, T, Y, Gamma=G, k=50, n_folds=2, maximize=True, seed=a.seed)
+        # NEURAL NUISANCES, per the paper's Table 5: every nuisance (propensity, conditional
+        # quantile at alpha^+, and both truncated outcome regressions) is the same {64,64,32} ReLU
+        # net trained with Adam at lr 1e-3, 300 epochs, batch 64, early-stopping patience 10.
+        # This replaces the k-NN nuisances the pre-2026-08-04 results used; that path is still
+        # available as nuisance="knn". Verified: the Gamma=1 AIPW identity holds on the neural
+        # path to 9e-16, and on a synthetic check the quantile net recovers the TRUE conditional
+        # quantile (1.262 vs 1.287 analytic) rather than the pooled one.
+        # Ceiling to keep in mind: alpha^+ = Gamma/(1+Gamma) reaches 0.9997 at gamma=4, so the
+        # conditional quantile there is an extreme tail the sample cannot resolve at n_train=300.
+        sc = _W["hess"].fit_scores(X, T, Y, Gamma=G, n_folds=2, maximize=True, seed=a.seed,
+                                   nuisance="nn")
         th = _W["hess"].learn_policy_parametric(X, sc, seed=a.seed, maximize=True)
         pe = _W["hess"].apply_policy(th, Xte.reshape(-1, 1))
         hess["%g" % G] = {"value": float(np.mean(pe * Y1t + (1 - pe) * Y0t))}

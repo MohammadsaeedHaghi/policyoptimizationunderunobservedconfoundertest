@@ -48,7 +48,8 @@ robust score Q(a,x) + 1{A=a}/e (Y - Q(A,X)). That identity is checked numericall
 """
 import numpy as np
 
-__all__ = ["fit_scores", "sharp_hess_policy", "nuisances_knn"]
+__all__ = ["fit_scores", "sharp_hess_policy", "nuisances_knn", "nuisances_nn",
+           "learn_policy_parametric", "apply_policy"]
 
 
 def _knn_idx(x_tr, x_ev, k):
@@ -127,7 +128,8 @@ def scores(Y, T, eta, Gamma):
     return g
 
 
-def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0, standardize=True):
+def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0, standardize=True,
+               nuisance="knn", nn_hp=None):
     """Cross-fitted Eq.-15 scores (Algorithm 1, with cross-fitting rather than a single split).
 
     maximize=True (our pipeline's convention, higher Y better): the paper's estimator is applied
@@ -156,7 +158,12 @@ def fit_scores(X, T, Y, Gamma, k=50, n_folds=2, maximize=True, seed=0, standardi
     g = np.zeros((n, 2))
     for f in folds:                                   # nuisances on the OTHER folds only
         tr = np.setdiff1d(np.arange(n), f)
-        eta = nuisances_knn(X[tr], T[tr], Ypaper[tr], X[f], a_plus, k=k)
+        if nuisance == "nn":
+            eta = nuisances_nn(X[tr], T[tr], Ypaper[tr], X[f], a_plus, seed=seed, **(nn_hp or {}))
+        elif nuisance == "knn":
+            eta = nuisances_knn(X[tr], T[tr], Ypaper[tr], X[f], a_plus, k=k)
+        else:
+            raise ValueError("nuisance must be 'nn' or 'knn'")
         g[f] = scores(Ypaper[f], T[f], eta, Gamma)
     return -g if maximize else g
 
@@ -293,3 +300,164 @@ def apply_policy(params_hidden, Xnew):
         H = np.tanh(Zn @ W1)
         return sig(np.hstack([H, np.ones((H.shape[0], 1))]) @ W2)
     return sig(Zn @ params)
+
+
+# --------------------------------------------------------------------------- neural nuisances
+# The paper's Table 5 instantiates EVERY nuisance as the same network: 3 hidden layers
+# {64, 64, 32}, ReLU, Adam at lr 1e-3, 300 epochs, batch size 64, early-stopping patience 10.
+# sklearn's MLPRegressor cannot express the pinball loss the conditional quantile needs, so one
+# small numpy MLP is used for all three heads instead -- that keeps the architecture and optimiser
+# IDENTICAL across nuisances, which is what their table actually specifies. k-NN remains available
+# via nuisance="knn" and is what the pre-2026-08-04 results used.
+class _MLP:
+    """{64,64,32} ReLU net trained with Adam + early stopping. loss in {bce, mse, pinball}."""
+
+    def __init__(self, loss, alpha=None, hidden=(64, 64, 32), lr=1e-3, epochs=300, batch=64,
+                 patience=10, val_frac=0.2, seed=0):
+        self.loss, self.alpha, self.hidden = loss, alpha, tuple(hidden)
+        self.lr, self.epochs, self.batch = lr, epochs, batch
+        self.patience, self.val_frac, self.seed = patience, val_frac, seed
+
+    def _init(self, d):
+        rng = np.random.default_rng(self.seed)
+        dims = (d,) + self.hidden + (1,)
+        # He initialisation, appropriate for ReLU
+        self.W = [rng.normal(0, np.sqrt(2.0 / dims[i]), size=(dims[i], dims[i + 1]))
+                  for i in range(len(dims) - 1)]
+        self.b = [np.zeros(dims[i + 1]) for i in range(len(dims) - 1)]
+        self._m = [np.zeros_like(w) for w in self.W] + [np.zeros_like(v) for v in self.b]
+        self._v = [np.zeros_like(w) for w in self.W] + [np.zeros_like(v) for v in self.b]
+        self._t = 0
+
+    def _fwd(self, X):
+        A = [X]
+        for i in range(len(self.W) - 1):
+            A.append(np.maximum(A[-1] @ self.W[i] + self.b[i], 0.0))
+        out = (A[-1] @ self.W[-1] + self.b[-1]).ravel()
+        return A, out
+
+    def _dout(self, out, y):
+        n = len(y)
+        if self.loss == "bce":
+            return (1.0 / (1.0 + np.exp(-np.clip(out, -40, 40))) - y) / n
+        if self.loss == "mse":
+            return 2.0 * (out - y) / n
+        r = y - out                                    # pinball at level alpha
+        return np.where(r > 0, -self.alpha, 1.0 - self.alpha) / n
+
+    def _lossval(self, out, y):
+        if self.loss == "bce":
+            p = 1.0 / (1.0 + np.exp(-np.clip(out, -40, 40)))
+            p = np.clip(p, 1e-9, 1 - 1e-9)
+            return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+        if self.loss == "mse":
+            return float(np.mean((out - y) ** 2))
+        r = y - out
+        return float(np.mean(np.maximum(self.alpha * r, (self.alpha - 1.0) * r)))
+
+    def _step(self, X, y):
+        A, out = self._fwd(X)
+        d = self._dout(out, y)[:, None]
+        gW, gb = [None] * len(self.W), [None] * len(self.b)
+        gW[-1] = A[-1].T @ d; gb[-1] = d.sum(axis=0)
+        for i in range(len(self.W) - 2, -1, -1):
+            d = (d @ self.W[i + 1].T) * (A[i + 1] > 0)
+            gW[i] = A[i].T @ d; gb[i] = d.sum(axis=0)
+        self._t += 1
+        b1, b2, eps = 0.9, 0.999, 1e-8
+        for j, (par, g) in enumerate(list(zip(self.W, gW)) + list(zip(self.b, gb))):
+            self._m[j] = b1 * self._m[j] + (1 - b1) * g
+            self._v[j] = b2 * self._v[j] + (1 - b2) * g * g
+            mh = self._m[j] / (1 - b1 ** self._t); vh = self._v[j] / (1 - b2 ** self._t)
+            par -= self.lr * mh / (np.sqrt(vh) + eps)
+
+    def fit(self, X, y):
+        X = np.atleast_2d(np.asarray(X, float)); y = np.asarray(y, float).ravel()
+        if X.shape[0] == 1 and X.shape[1] != len(y): X = X.T
+        self.mu_, self.sd_ = X.mean(0), X.std(0) + 1e-9
+        Xs = (X - self.mu_) / self.sd_
+        n = len(y); self._init(Xs.shape[1])
+        rng = np.random.default_rng(self.seed + 991)
+        nv = int(max(1, round(self.val_frac * n))) if n >= 10 else 0
+        perm = rng.permutation(n)
+        vi, ti = perm[:nv], perm[nv:]
+        if len(ti) == 0: ti, vi = perm, perm[:0]
+        best, bad, bestW = np.inf, 0, None
+        for _ in range(self.epochs):
+            order = rng.permutation(len(ti))
+            for s in range(0, len(ti), self.batch):
+                idx = ti[order[s:s + self.batch]]
+                if len(idx) < 2: continue
+                self._step(Xs[idx], y[idx])
+            if nv:                                     # early stopping on a held-out split
+                _, ov = self._fwd(Xs[vi]); L = self._lossval(ov, y[vi])
+                if L < best - 1e-7:
+                    best, bad = L, 0
+                    bestW = ([w.copy() for w in self.W], [v.copy() for v in self.b])
+                else:
+                    bad += 1
+                    if bad >= self.patience: break
+        if bestW is not None:
+            self.W, self.b = bestW
+        return self
+
+    def predict(self, X):
+        X = np.atleast_2d(np.asarray(X, float))
+        if X.shape[1] != len(self.mu_): X = X.T
+        _, out = self._fwd((X - self.mu_) / self.sd_)
+        return out
+
+    def predict_proba(self, X):
+        return 1.0 / (1.0 + np.exp(-np.clip(self.predict(X), -40, 40)))
+
+
+def nuisances_nn(X_tr, T_tr, Y_tr, X_ev, alpha_plus, clip=0.02, seed=0, **hp):
+    """The paper's neural instantiation of eta = {e, F^-1(alpha+), mu^+, mubar^+}.
+
+    Same estimands as `nuisances_knn`. The truncated means are fitted as REGRESSIONS of the
+    truncated target Y*1{Y<=q(x,a)} (resp. Y*1{Y>=q(x,a)}) on x, with the threshold taken from
+    the fitted conditional-quantile net at that unit's own x -- which is the definition of
+    mu^+(a,x) = E[Y Delta^+ | X=x, A=a], not a global truncation.
+    """
+    X_tr = np.atleast_2d(np.asarray(X_tr, float))
+    if X_tr.shape[0] == 1: X_tr = X_tr.T
+    X_ev = np.atleast_2d(np.asarray(X_ev, float))
+    if X_ev.shape[0] == 1: X_ev = X_ev.T
+    T_tr = np.asarray(T_tr).astype(int).ravel(); Y_tr = np.asarray(Y_tr, float).ravel()
+    n_ev = X_ev.shape[0]
+    e = np.zeros((n_ev, 2)); q = np.zeros((n_ev, 2))
+    mu_lo = np.zeros((n_ev, 2)); mu_hi = np.zeros((n_ev, 2))
+
+    e1 = _MLP("bce", seed=seed, **hp).fit(X_tr, (T_tr == 1).astype(float)).predict_proba(X_ev)
+    e[:, 1] = np.clip(e1, clip, 1 - clip); e[:, 0] = 1.0 - e[:, 1]
+
+    for a in (0, 1):
+        m = np.where(T_tr == a)[0]
+        if len(m) < 5:                                  # too few to fit anything sensible
+            continue
+        qn = _MLP("pinball", alpha=float(alpha_plus), seed=seed + 17 * (a + 1), **hp).fit(X_tr[m], Y_tr[m])
+        q[:, a] = qn.predict(X_ev)
+        qt = qn.predict(X_tr[m])
+        lo_t = Y_tr[m] * (Y_tr[m] <= qt)
+        hi_t = Y_tr[m] * (Y_tr[m] >= qt)
+        mu_lo[:, a] = _MLP("mse", seed=seed + 31 * (a + 1), **hp).fit(X_tr[m], lo_t).predict(X_ev)
+        mu_hi[:, a] = _MLP("mse", seed=seed + 53 * (a + 1), **hp).fit(X_tr[m], hi_t).predict(X_ev)
+    return {"e": e, "q": q, "mu_lo": mu_lo, "mu_hi": mu_hi}
+
+
+def test_gamma1_is_aipw_nn(n=1500, seed=0, tol=1e-8):
+    """The Gamma=1 AIPW identity is ALGEBRAIC in eta, so it must hold for the neural nuisances
+    exactly as it does for k-NN. Running it on the nn path guards the wiring, not the formulas."""
+    rng = np.random.default_rng(seed)
+    X = rng.uniform(-1, 1, size=(n, 1))
+    T = (rng.uniform(size=n) < 1 / (1 + np.exp(-(0.8 * X[:, 0])))).astype(int)
+    Y = X[:, 0] + 0.7 * T + rng.normal(0, 0.5, n)
+    eta = nuisances_nn(X, T, Y, X, 0.5, seed=seed)
+    g = scores(Y, T, eta, 1.0)
+    Q = eta["mu_lo"] + eta["mu_hi"]
+    rows = np.arange(n)
+    aipw = Q.copy(); aipw[rows, T] += (Y - Q[rows, T]) / eta["e"][rows, T]
+    err = float(np.abs(g - aipw).max())
+    print("Gamma=1 vs AIPW (nn nuisances): max abs diff = %.3e -> %s"
+          % (err, "PASS" if err < tol else "FAIL"))
+    return err < tol
