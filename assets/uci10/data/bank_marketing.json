@@ -1,0 +1,43 @@
+{
+ "name": "bank_marketing",
+ "uci_id": 222,
+ "outcome": "y",
+ "outcome_kind": "binary",
+ "pseudo_treatment_col": "duration",
+ "treatment_search_headroom": 0.247,
+ "n_total": 7842,
+ "cols_X": [
+  "month",
+  "housing",
+  "previous",
+  "education",
+  "loan",
+  "contact",
+  "pdays"
+ ],
+ "cols_U": [
+  "job",
+  "marital",
+  "day_of_week",
+  "age",
+  "campaign",
+  "default",
+  "poutcome",
+  "balance"
+ ],
+ "LAM_declared": 4.0,
+ "LAM_realised": 4.0,
+ "CX": 1.2,
+ "corr_x_u": -0.39214665634610646,
+ "corr_x_S": -0.3327195139353277,
+ "P_T1": 0.5006375924509053,
+ "e_min": 0.13088604618987007,
+ "e_max": 0.8691139538101299,
+ "oracle_test": 0.356,
+ "never_test": 0.09925,
+ "all_test": 0.3535,
+ "cate_sd": 0.14241747353238268,
+ "outcome_sd": 0.41829829904370625,
+ "n_train": 300,
+ "n_test": 4000
+}

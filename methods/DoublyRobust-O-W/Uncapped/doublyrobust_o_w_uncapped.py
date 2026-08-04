@@ -71,6 +71,7 @@ def solve_doublyrobust_o_w_uncapped(
     epsilon: Optional[Sequence[float]] = None,
     rounding_digits: int = 6,
     debug: bool = False,
+    rationality: bool = False,      # C4: sum_{N0} Y_i w_i >= sum_{N0} Y_i w_hat_i
     lipschitz=None,
     linear_policy: bool = False,
     linear_M: float = 20.0,
@@ -148,6 +149,18 @@ def solve_doublyrobust_o_w_uncapped(
         obj += (1.0 / n) * gp.quicksum(gd[k, i] for i in range(n))   # transport-demand term
     for i in range(n):
         obj += mu[i] * float(a_box[i]) - nu[i] * float(b_box[i])     # MSM-box interval term
+
+    # --- C4 "historical rationality" (see semisynthetic/patch_rationality.py) ---
+    # One primal inequality on the adversary's weights over the UNTREATED arm becomes one dual
+    # variable kappa >= 0: + R*kappa in this MAXIMISE objective, and -kappa*Y_i in the dual
+    # feasibility row of every untreated unit. R is the nominal value of the same functional, so
+    # w = w_hat is always feasible and the set is never empty.
+    _kappa = None
+    if rationality:
+        _N0 = [int(i) for i in range(n) if int(T[i]) == 0]
+        _R = float(sum(float(Y[i]) * float(w_hat[i]) for i in _N0))
+        _kappa = m.addVar(lb=0.0, name="kappa_rationality")
+        obj += _R * _kappa
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- policy constraints: simplex + tie ONLY (NO capacity) ---
@@ -204,8 +217,9 @@ def solve_doublyrobust_o_w_uncapped(
     # --- dual feasibility on factual rows (links π·RESIDUAL to the box + transport duals) ---
     for k in range(K):
         for i in i_by_t[k]:
+            _rc = (_kappa * float(Y[i])) if (rationality and k == 0) else 0.0
             m.addConstr((1.0 / n) * pi[k, i] * float(resid[i]) + (1.0 / n) * theta[k, i]
-                        - mu[i] + nu[i] >= 0.0, name=f"feas_{k}_{i}")
+                        - mu[i] + nu[i] - _rc >= 0.0, name=f"feas_{k}_{i}")
 
     # --- transport-metric constraints (Wasserstein ball geometry) ---
     for k in range(K):

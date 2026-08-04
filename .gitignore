@@ -19,3 +19,8 @@ env/
 gurobi.env
 nohup.out
 *.log
+
+# SLURM job stdout/stderr -- regenerable, and thousands of tiny files against the inode quota
+logs/
+*.out
+*.err

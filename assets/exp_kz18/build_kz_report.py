@@ -104,16 +104,14 @@ if RM.get("cate_bins") and SH:
     ed = SH["arms"]["main"]["bin_edges"]; ctr = [(ed[i] + ed[i + 1]) / 2 for i in range(len(ed) - 1)]
     figs2 = '<div class="figrow">' + figcap(
         linechart([("true CATE", "#111111", ctr, RM["cate_bins"], ""),
-                   ("naive contrast E[Y|T=1,x] - E[Y|T=0,x]", MC["DoublyRobust-X-X"], ctr,
+                   ("observed contrast E[Y|T=1,x] - E[Y|T=0,x]", MC["DoublyRobust-X-X"], ctr,
                     RM["naive_hat_bins"], "2 3")],
                   title="The paper's phenomenon, on our scalar: confounding inflates the contrast",
                   xlab="x", ylab="reward-scale contrast", hlines=[("0", "#888", 0.0, "4 3")]),
         "Doctors treat the treatment-favorable, so the observed contrast sits ABOVE the truth and "
-        "crosses zero too far right: the naive policy treats %s of units where the oracle treats "
-        "%s, and gives back %s of the %s available between never-treat and oracle."
-        % (f3(RM.get("naive_treat_frac")), f3(RM.get("oracle_treat_frac")),
-           f3(RM.get("oracle_uncap", 0) - RM.get("naive_uncap", 0)),
-           f3(RM.get("oracle_uncap", 0) - RM.get("never", 0)))) + '</div>'
+        "crosses zero too far right: a policy that trusts it treats %s of units where the oracle "
+        "treats %s."
+        % (f3(RM.get("naive_treat_frac")), f3(RM.get("oracle_treat_frac")))) + '</div>'
 
 T1 = f"""
 <h2>1. The DGP (Kallus &amp; Zhou, <i>Minimax-Optimal Policy Learning Under Unobserved
@@ -140,22 +138,20 @@ baselines alike &mdash; sees the SAME scalar index. We run both natural choices 
 <b>main arm</b> = the nominal-propensity index x = &theta;'X<sub>5</sub>/4, and the
 <b>CATE-index arm</b> x = &beta;<sub>treat</sub>'X<sub>5</sub>/8. The propensity index is the
 headline because the paper's phenomenon &mdash; unconfoundedness-assuming methods DO HARM &mdash;
-survives the reduction there (naive gives back {f3(RM.get("oracle_uncap", 0) - RM.get("naive_uncap", 0))} of the
-{f3(RM.get("oracle_uncap", 0) - RM.get("never", 0))} available gain); on the CATE index the naive policy is already
-within {f3(RC.get("oracle_uncap", 0) - RC.get("naive_uncap", 0))} of the oracle, so that arm is reported as a
+survives the reduction there; on the CATE index an unconfoundedness-assuming policy is already
+close to the oracle, so that arm is reported as a
 DO-NO-HARM check rather than as a win condition. Nothing else about the DGP is touched.</div>
 {figs1}{figs2}
 <div class="card good"><b>Declared expectation (written before the wave).</b> This is the
 X-TRACKABLE corner of our diagnostic map: corr(x, S) = {f3(RM.get("corr_xS"))} on the main arm
 (versus &asymp; 0 on the KMZ'19 benchmark). The prediction is therefore that the Wasserstein
-term HELPS here &mdash; O-W should beat box-only O-X and beat the naive policy it is correcting,
+term HELPS here &mdash; O-W should beat box-only O-X and beat the unconfounded policies,
 and the sharp box should NOT, because sharpness tightens the same one-dimensional bound the box
 already has without ever using X-structure.</div>
 <p class="muted">References (200k-unit evaluation draw, 15 quantile bins): oracle
-{f3(RM.get("oracle_uncap"))} / naive {f3(RM.get("naive_uncap"))} / never-treat {f3(RM.get("never"))} /
-treat-all {f3(RM.get("all"))}; capped 30%: oracle {f3(RM.get("oracle_cap30"))}, naive
-{f3(RM.get("naive_cap30"))}. CATE-index arm: oracle {f3(RC.get("oracle_uncap"))}, naive
-{f3(RC.get("naive_uncap"))}. Protocol: 5 seeds, n = 200 train (the paper's own sample size),
+{f3(RM.get("oracle_uncap"))} / never-treat {f3(RM.get("never"))} /
+treat-all {f3(RM.get("all"))}; capped 30%: oracle {f3(RM.get("oracle_cap30"))}.
+CATE-index arm: oracle {f3(RC.get("oracle_uncap"))}. Protocol: 5 seeds, n = 200 train (the paper's own sample size),
 4,000 test draws, Shapley deployment, every raw per-seed policy persisted.</p>
 """
 
@@ -172,12 +168,10 @@ if MAIN:
     if KAL: sl.append(ser("Kallus", [float(g) for g in KAL["gammas"]], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
     ch = vline_chart(sl, "UNCAPPED: average test outcome vs Gamma at L = 3", "test E[Y]",
                      hlines=[("oracle", "#111", RM["oracle_uncap"], "5 4"),
-                             ("naive (infinite data)", MC["DoublyRobust-X-X"], RM["naive_uncap"], "2 3"),
                              ("never-treat", "#888", RM["never"], "2 3")], xticks=gl)
     EVD["kzu"] = {"gammas": MAIN["gammas"], "Ls": MAIN["Lgrid"], "methods": MAIN["methods"],
                   "surface": MAIN["surface"], "gstar": GSTAR,
-                  "hlines": {"oracle": RM["oracle_uncap"], "naive (infinite data)": RM["naive_uncap"],
-                             "never-treat": RM["never"]},
+                  "hlines": {"oracle": RM["oracle_uncap"], "never-treat": RM["never"]},
                   "extra": {}}
     if KAL: EVD["kzu"]["extra"]["Kallus"] = {("%g" % g): v for g, v in zip(KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"])}
     parts = [ch]
@@ -191,11 +185,10 @@ if MAIN:
             print("capped Hess series unavailable:", _e)
         EVD["kzc"] = {"gammas": CAP["gammas"], "Ls": CAP["Lgrid"], "methods": CAP["methods"],
                       "surface": CAP["surface"], "gstar": GSTAR,
-                      "hlines": {"capped oracle": RM["oracle_cap30"], "capped naive": RM["naive_cap30"]},
+                      "hlines": {"capped oracle": RM["oracle_cap30"]},
                       "extra": {}}
         parts.append(vline_chart(slc, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
-                                 hlines=[("capped oracle", "#111", RM["oracle_cap30"], "5 4"),
-                                         ("capped naive", MC["DoublyRobust-X-X"], RM["naive_cap30"], "2 3")],
+                                 hlines=[("capped oracle", "#111", RM["oracle_cap30"], "5 4")],
                                  xticks=gl))
     if XX:
         # X-X assume unconfoundedness -> no Gamma -> flat reference lines
@@ -231,7 +224,7 @@ if MAIN:
         r = {m: Rx["surface"][m][gk][lk] for m in Rx["methods"]}
         shv = float("nan")
         shv = (HESSD["mean"][HESSD["gammas"].index("4.4817")] if HESSD and "4.4817" in HESSD["gammas"] else float("nan"))
-        return (f"<tr><td>{tag}</td><td>{f3(refs[0])}</td><td>{f3(shv)}</td>"
+        return (f"<tr><td>{tag}</td><td>{f3(shv)}</td>"
                 f"<td>{f3(r['IPW-O-X'])}</td><td><b>{f3(r['IPW-O-W'])}</b></td>"
                 f"<td>{f3(r['DoublyRobust-O-X'])}</td><td>{f3(r['DoublyRobust-O-W'])}</td>"
                 f"<td>{f3(r['Hajek-O-X'])}</td><td>{f3(refs[1])}</td></tr>"), r
@@ -239,10 +232,10 @@ if MAIN:
     rows = []
     r_main = None
     for tag, Rx, refs, reg, arm in (
-            ("<b>main</b> (propensity index)", MAIN, (RM["naive_uncap"], RM["oracle_uncap"]), "uncap", "main"),
-            ("CATE index (do-no-harm arm)", CIDX, (RC.get("naive_uncap"), RC.get("oracle_uncap")), "uncap", "cidx"),
-            ("c<sub>&epsilon;</sub> = 2.0 (wider transport budget)", CE2, (RM["naive_uncap"], RM["oracle_uncap"]), "uncap", "main"),
-            ("capped 30%", CAP, (RM["naive_cap30"], RM["oracle_cap30"]), "cap", "main")):
+            ("<b>main</b> (propensity index)", MAIN, (None, RM["oracle_uncap"]), "uncap", "main"),
+            ("CATE index (do-no-harm arm)", CIDX, (None, RC.get("oracle_uncap")), "uncap", "cidx"),
+            ("c<sub>&epsilon;</sub> = 2.0 (wider transport budget)", CE2, (None, RM["oracle_uncap"]), "uncap", "main"),
+            ("capped 30%", CAP, (None, RM["oracle_cap30"]), "cap", "main")):
         if not Rx: continue
         h, r = row(tag, Rx, refs, reg, arm)
         rows.append(h)
@@ -258,11 +251,11 @@ if MAIN:
     if r_main:
         ow, ox = r_main["IPW-O-W"], r_main["IPW-O-X"]
         dow, dox = r_main["DoublyRobust-O-W"], r_main["DoublyRobust-O-X"]
-        nv, orc, nev = RM["naive_uncap"], RM["oracle_uncap"], RM["never"]
+        orc, nev = RM["oracle_uncap"], RM["never"]
         shv = (HESSD["mean"][HESSD["gammas"].index("4.4817")] if HESSD and "4.4817" in HESSD["gammas"] else float("nan"))
-        gap_box = ow - ox; gap_nv = ow - nv; gap_sh = ow - shv
-        frac = (ow - nv) / (orc - nv) if orc > nv else float("nan")
-        if gap_box > 0.01 and gap_nv > 0.01:
+        gap_box = ow - ox; gap_sh = ow - shv
+        frac = (ow - nev) / (orc - nev) if orc > nev else float("nan")
+        if gap_box > 0.01 and gap_sh > 0.01:
             head = ("The declared prediction holds. At the matched &Gamma;* = 4.48 the Wasserstein "
                     "term converts the paper's own confounding into a real gain")
             cls = "good"
@@ -270,7 +263,7 @@ if MAIN:
 one-dimensional interval the box already has, and this DGP's confounder is X-trackable, which
 only the transport term can exploit &mdash; the mirror image of the Kallus-Mao-Zhou benchmark,
 where U &perp; X and sharpness led instead.""")
-        elif gap_nv > 0.01:
+        elif ow - nev > 0.01:
             head = ("Robustness pays here, but the Wasserstein term does not separate from the box "
                     "at the matched &Gamma;*")
             cls = "warn"
@@ -285,7 +278,7 @@ where U &perp; X and sharpness led instead.""")
             kal = KAL["regimes"]["uncap"]["mean"]["Kallus"][3] if KAL else float("nan")
             tail = f"""Every robust variant except Hajek-O-X ({f3(hj)}) lands BELOW the
 never-treat floor of {f3(nev)}, and the best cell anywhere on the L &times; &Gamma; surface
-({best_m}, {f3(best_v)}) is still short of the naive policy. The comparison methods do not do
+({best_m}, {f3(best_v)}) is still below it. The comparison methods do not do
 this: Kallus ({f3(kal)}) and Hess et al. ({f3(shv)}) both hold the never-treat line rather than
 falling through it.
 <br><br><b>Diagnosis, stated plainly.</b> This is not a small-sample artifact &mdash; the same
@@ -321,8 +314,7 @@ result on their own synthetic. On this benchmark every method sits near or below
 is context rather than a live comparison.</div>
 <div class="card {cls}" id="kz-verdict"><b>Verdict (generated from the landed
 numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {f3(ox)}
-({'+' if gap_box >= 0 else ''}{f3(gap_box)}), the infinite-data naive policy {f3(nv)}
-({'+' if gap_nv >= 0 else ''}{f3(gap_nv)}) and Hess et al. {f3(shv)}
+({'+' if gap_box >= 0 else ''}{f3(gap_box)}) and Hess et al. {f3(shv)}
 ({'+' if gap_sh >= 0 else ''}{f3(gap_sh)}), on an oracle of {f3(orc)} and a never-treat floor of
 {f3(nev)}. Doubly-robust behaves the same way (DR-O-W {f3(dow)} vs DR-O-X {f3(dox)}).
 {tail}</div>"""
@@ -341,7 +333,7 @@ numbers).</b> {head}: IPW-O-W reaches <b>{f3(ow)}</b> against box-only IPW-O-X {
 
 <h2>2. Every arm at the matched &Gamma;* = 4.48, L = 3</h2>
 <div class="tw"><table>
-<tr><th>arm</th><th>naive</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th>
+<tr><th>arm</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th>
 <th>DR-O-W</th><th>Hajek-O-X</th><th>oracle</th></tr>
 {''.join(rows)}
 </table></div>
@@ -409,15 +401,13 @@ def policy_2d_dataset(RJ):
     dta = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
            "gammas": RJ["gammas"], "Ls": RJ["Lgrid"], "methods": RJ["methods"],
            "pol": {m: ps[m] for m in RJ["methods"]},
-           "refs": {"oracle": ps["_refs"]["oracle"], "naive": ps["_refs"]["naive_dr"]}}
+           "refs": {"oracle": ps["_refs"]["oracle"]}}
     sup = RJ.get("policies_support_seed0") or (RJ.get("policies_support_by_seed") or {}).get("0")
     if sup and "_X" in sup:
         dta["supX"] = [round(float(x), 3) for x in sup["_X"]]
         dta["sup"] = {m: {g: {l: [int(round(float(v) * 100)) for v in sup[m][g][l]]
                               for l in RJ["Lgrid"] if l in sup[m][g]} for g in RJ["gammas"]}
                       for m in RJ["methods"]}
-        if "_naive_dr" in sup:
-            dta["supNaive"] = [int(round(float(v) * 100)) for v in sup["_naive_dr"]]
     return dta
 
 T3 = []
@@ -440,10 +430,9 @@ direction fixed in advance and blind to the rest. We lose where the informative 
 the one we picked; they lose where the optimal policy is strongly nonlinear along it. Neither
 dominates, which is why BOTH index choices are run here rather than one being defended, and why
 absolute numbers in this report should not be read against the figures in their paper.</div>
-<p>Raw per-unit support policy (seed 0) on top; Shapley-deployed &pi;(x) below. The naive curve
-(blue dotted) crosses to "treat" too far left: it treats a wide band the oracle leaves alone.
-The question the plot answers is whether the robust policies pull that crossing back toward the
-oracle's, or simply retreat to never-treat.</p>""")
+<p>Raw per-unit support policy (seed 0) on top; Shapley-deployed &pi;(x) below. The question
+the plot answers is whether the robust policies pull their crossing point toward the oracle's, or
+simply retreat to never-treat.</p>""")
     _add_hess_curves(PD, "kz")
     if XX and XX.get("curves"):
         for _w in PD:
@@ -461,7 +450,7 @@ oracle's, or simply retreat to never-treat.</p>""")
     if CIDX:
         PD["kzi"] = policy_2d_dataset(CIDX)
         T3.append('<h2>3. Learned policy vs x &mdash; CATE-index arm <span class="muted">(x = &beta;<sub>treat</sub>&#39;X<sub>5</sub>/8)</span></h2>'
-                  "<p>Here the naive policy is already near-oracle; a robust method passes this "
+                  "<p>Here an unconfounded policy is already near-oracle; a robust method passes this "
                   "check by tracking it rather than collapsing toward never-treat.</p>")
         T3.append(pol_widget_html("kzi", PD["kzi"], defaults={"m": ["IPW-O-W", "IPW-O-X"], "g": GKEY, "l": LDEF}))
 else:
@@ -524,14 +513,14 @@ function pwSvg(xs, series){
   s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+((pT+H-pB)/2)+')">pi(x)</text>';
   return s+'</svg>';
 }
-function pwScat(xs, series, naive){
+function pwScat(xs, series, ref){
   const W=760,H=300,pL=52,pR=14,pT=24,pB=42;
   const x0=Math.min(...xs),x1=Math.max(...xs),ylo=-0.06,yhi=1.06;
   const X=v=>pL+(v-x0)/(x1-x0)*(W-pL-pR);
   const Y=v=>H-pB-(v-ylo)/(yhi-ylo)*(H-pT-pB);
   let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
   s+='<text x="'+pL+'" y="14" class="ct">Raw pointwise policy at the support points (seed 0)</text>';
-  if (naive) for (let i=0;i<xs.length;i++) s+='<g opacity="0.25">'+pwMark(X(xs[i]),Y(naive[i]/100),MCJS['DoublyRobust-X-X'],'t',1.7)+'</g>';
+  if (ref) for (let i=0;i<xs.length;i++) s+='<g opacity="0.25">'+pwMark(X(xs[i]),Y(ref[i]/100),MCJS['DoublyRobust-X-X'],'t',1.7)+'</g>';
   for (const se of series) for (let i=0;i<xs.length;i++) s+='<g opacity="0.8">'+pwMark(X(xs[i]),Y(se.ys[i]/100),se.col,se.mk||'c',1.9)+'</g>';
   s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
   return s+'</svg>';
@@ -542,13 +531,13 @@ function pwDraw(wid){
   const g=gv('g'), l=gv('l');
   const ms=Array.from(document.querySelectorAll('#pw-'+wid+'-m input:checked')).map(e=>e.dataset.m);
   let series=[{lab:'oracle', col:'var(--fg)', ys:d.refs.oracle, dash:'6 4'},
-              {lab:'naive DR', col:MCJS['DoublyRobust-X-X'], ys:d.refs.naive, dash:'2 3'}];
+              ];
   for (const mm of ms) series.push({lab:mm+' (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:DASHJS[mm]||'', mk:MARKJS[mm]||'c'});
   let head='';
   if (d.sup){
     const ss=[];
     for (const mm of ms) if (d.sup[mm]&&d.sup[mm][g]&&d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l], mk:MARKJS[mm]||'c'});
-    head=pwScat(d.supX, ss, d.supNaive||null);
+    head=pwScat(d.supX, ss, null);
   }
   const leg='<div class="leg">'+series.map(se=>{
     const c=se.col, dd=se.dash||'', mk=se.mk||'c';

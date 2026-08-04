@@ -1,0 +1,41 @@
+{
+ "name": "adult",
+ "uci_id": 2,
+ "outcome": "income",
+ "outcome_kind": "binary",
+ "pseudo_treatment_col": "education-num",
+ "treatment_search_headroom": 0.0796,
+ "n_total": 47621,
+ "cols_X": [
+  "capital-loss",
+  "fnlwgt",
+  "marital-status",
+  "age",
+  "hours-per-week",
+  "capital-gain"
+ ],
+ "cols_U": [
+  "workclass",
+  "occupation",
+  "sex",
+  "native-country",
+  "relationship",
+  "education",
+  "race"
+ ],
+ "LAM_declared": 4.0,
+ "LAM_realised": 4.0,
+ "CX": 1.2,
+ "corr_x_u": -0.23944762293774408,
+ "corr_x_S": -0.3030178908623945,
+ "P_T1": 0.4941097415005985,
+ "e_min": 0.13194043745109582,
+ "e_max": 0.8691139538101299,
+ "oracle_test": 0.56725,
+ "never_test": 0.435,
+ "all_test": 0.5585,
+ "cate_sd": 0.09826296135078805,
+ "outcome_sd": 0.4999990870937764,
+ "n_train": 300,
+ "n_test": 4000
+}

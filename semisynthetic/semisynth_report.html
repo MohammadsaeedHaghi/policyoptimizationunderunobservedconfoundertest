@@ -1,0 +1,121 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Risk-score-paper semi-synthetic construction, run for policy learning</title>
+<style>
+:root{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+/* LIGHT ONLY, deliberately. These reports were rendering dark for anyone whose OS was in dark
+   mode (the old @media prefers-color-scheme block flipped every variable). The figures, chart
+   gridlines and chip swatches are tuned for a light background, so the theme is pinned: the
+   dark-mode media query and the [data-theme="dark"] override are both removed, and a viewer
+   theme toggle stamping data-theme="dark" now leaves the palette unchanged. */
+:root[data-theme="dark"], :root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;
+ --muted:#667085;--border:#e9ebf3;--accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;
+ --warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);
+ color:var(--fg);margin:0 auto;max-width:980px;padding:0 22px 80px;line-height:1.6;}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;}
+.hero{color:#fff;border-radius:20px;padding:26px 30px;margin:18px 0 20px;box-shadow:var(--sh);}
+.hero h1{margin:0;font-weight:800;letter-spacing:-.03em;font-size:1.6rem;}
+.hero p{margin:.5rem 0 0;color:#e3e8f0;max-width:840px;}
+h2{font-size:1.28rem;font-weight:750;margin:34px 0 6px;} h3{font-size:1.0rem;font-weight:700;margin:18px 0 4px;}
+p{margin:.5rem 0;} .muted{color:var(--muted);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 18px;margin:12px 0;box-shadow:var(--sh);}
+.good{border-left:4px solid var(--good);} .warn{border-left:4px solid var(--warn);} .bad{border-left:4px solid var(--bad);}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-variant-numeric:tabular-nums;font-size:.88rem;}
+.tw{overflow-x:auto;}
+th{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 9px;border-bottom:2px solid var(--border);}
+th:first-child,td:first-child{text-align:left;} td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right;}
+td.g{color:var(--good);font-weight:700;} td.b{color:var(--bad);font-weight:700;}
+.fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 4px;}
+.figrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;}
+svg.chart{width:100%;height:auto;display:block;}
+.ct{font-size:12.5px;font-weight:700;fill:var(--fg);} .tk{font-size:10px;fill:var(--muted);}
+.al{font-size:11px;fill:var(--muted);font-weight:600;} .hm{font-size:8.6px;font-weight:600;}
+.grid{stroke:var(--border);stroke-width:1;} .ax{stroke:var(--muted);stroke-width:1.2;}
+.figcap{font-size:.8rem;line-height:1.5;margin:4px 4px 14px;}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
+.li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
+
+table.dt{border-collapse:collapse;font-size:12.5px;margin:10px 0;width:100%}
+table.dt th,table.dt td{border:1px solid #e3e6ea;padding:5px 8px;text-align:right;
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+table.dt th{background:#f4f6f8;font-weight:600}
+table.dt td.l,table.dt th.l{text-align:left}
+table.dt td.ref{color:#111}
+table.dt .sd{font-size:10.5px;opacity:.65;font-weight:400}
+table.dt tr.sumrow td{border-top:2px solid #b9c0c8;background:#f7f9fb}
+.scrollx{overflow-x:auto;max-width:100%}
+.hsub{font-weight:400;font-size:.82rem;color:#667085}
+</style></head><body>
+<div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
+<h1>The risk-score paper's semi-synthetic construction &mdash; run for policy learning</h1>
+<p>Their DGP on <b>bank_marketing</b>, extended with a heterogeneous CATE so both potential
+outcomes exist. Solved only at the <b>matched &Gamma; = e<sup>2&gamma;</sup></b>, with and without
+their C4 "historical rationality" constraint. n<sub>train</sub> = 300, 10 seeds.</p></div>
+
+<h2>How the benchmark is built</h2>
+<p><b>Theirs, followed exactly.</b> The UCI label is used twice &mdash; as the unobserved
+confounder <i>U</i> and as the untreated potential outcome <i>Y</i><sup>0</sup> &isin;
+{&minus;1, +1}. Treatment comes from their Eq. (6),
+logit&thinsp;&pi;<sup>0</sup>(x,u) = &lambda;&#8242;x + &gamma;u with
+&lambda;<sub>j</sub> ~ U(&minus;0.1, 0.1) and <b>no clipping</b>, where &pi;<sup>0</sup> is the
+probability of <i>no</i> treatment. The dataset passes their admissibility screen: cross-validated
+logistic log-loss <b>0.3741</b>, inside the band [0.35, ln&thinsp;2 = 0.6931].</p>
+<p><b>Ours.</b> Their construction only needs <i>Y</i><sup>0</sup>, because their target is a risk
+score. Policy learning needs both arms, so
+<i>Y</i><sup>1</sup> = <i>Y</i><sup>0</sup> + &tau;(x) + &epsilon; with
+&tau;(x) = a&thinsp;(&sigma;(b&#8242;x &minus; c) &minus; &frac12;), a ~ U(0.5, 2).
+The <b>&minus;&frac12;</b> is load-bearing: without it &tau; is strictly positive (a &gt; 0 and
+&sigma; &isin; (0,1)), the CATE never changes sign, and the oracle policy is "treat everyone".
+Measured on this dataset, the uncentred form gives headroom of exactly
+<b>+0.00000</b> &mdash; a benchmark on which no policy learner can be separated from a constant.</p>
+<div class="scrollx"><table class="dt">
+<tr><th class="l">&gamma;</th><th>&Gamma; = e<sup>2&gamma;</sup></th><th>headroom</th>
+<th>corr(x, u)</th><th>e min</th><th>e max</th><th>odds-ratio err</th></tr>
+<tr><td class='l'>0.0</td><td>1.0000</td><td>0.1682</td><td>-0.024</td><td>0.062</td><td>0.722</td><td>0.0e+00</td></tr><tr><td class='l'>1.0</td><td>7.3891</td><td>0.1682</td><td>-0.024</td><td>0.024</td><td>0.876</td><td>2.1e-14</td></tr><tr><td class='l'>1.5</td><td>20.0855</td><td>0.1682</td><td>-0.024</td><td>0.015</td><td>0.921</td><td>3.6e-14</td></tr><tr><td class='l'>2.0</td><td>54.5982</td><td>0.1682</td><td>-0.024</td><td>0.009</td><td>0.950</td><td>2.3e-13</td></tr></table></div>
+<p class="muted">The odds ratio between the two hidden states equals e<sup>2&gamma;</sup> to
+~1e&minus;13 at every x, so the matched &Gamma; is <b>exact</b> here, not the approximation the
+paper settles for &mdash; a consequence of never clipping &pi;<sup>0</sup>. Positivity holds
+throughout. <b>corr(x, u) &asymp; 0</b> is the number to keep in mind: on this construction the
+covariate the solver sees carries almost no information about the confounder, which by our own
+coupling diagnostic is the regime where a transport term has nothing to exploit.</p>
+
+<h2>Average test outcome at the matched &Gamma;
+<span class="hsub">&mdash; best (c<sub>&epsilon;</sub>, L) cell, mean &plusmn; sd over 10 seeds, C4 off</span></h2>
+<div class='scrollx'><table class='dt'><tr><th class='l'>&gamma;</th><th>&Gamma;=e<sup>2&gamma;</sup></th><th>IPW-O-X</th><th>DR-O-X</th><th>Hajek-O-X</th><th>IPW-O-W</th><th>DR-O-W</th><th>Hajek-O-W</th><th>IPW-X-X</th><th>DR-X-X</th><th>Direct-X-X</th><th>Hess</th><th>Kallus</th><th>best const</th><th>oracle</th></tr><tr><td class='l'>0.0</td><td class='ref'>1.000</td><td style='color:#0b7d33'>-0.4247 <span class='sd'>&plusmn;0.015</span></td><td style='color:#0a7d33;font-weight:700'>-0.4244 <span class='sd'>&plusmn;0.016</span></td><td style='color:#0b7d33'>-0.4247 <span class='sd'>&plusmn;0.015</span></td><td style='color:#0b7d33'>-0.4247 <span class='sd'>&plusmn;0.015</span></td><td style='color:#0a7d33;font-weight:700'>-0.4244 <span class='sd'>&plusmn;0.016</span></td><td style='color:#0b7d33'>-0.4247 <span class='sd'>&plusmn;0.015</span></td><td style='color:#0b7d33'>-0.4247 <span class='sd'>&plusmn;0.015</span></td><td style='color:#0a7d33;font-weight:700'>-0.4244 <span class='sd'>&plusmn;0.016</span></td><td style='color:#0d7d32'>-0.4257 <span class='sd'>&plusmn;0.014</span></td><td style='color:#c0392b'>-0.5851 <span class='sd'>&plusmn;0.038</span></td><td style='color:#be4225'>-0.5727 <span class='sd'>&plusmn;0.017</span></td><td class='ref'>-0.5434</td><td class='ref'>-0.3752</td></tr><tr><td class='l'>1.0</td><td class='ref'>7.389</td><td style='color:#7f7513'>-0.4927 <span class='sd'>&plusmn;0.027</span></td><td style='color:#b9511b'>-0.5368 <span class='sd'>&plusmn;0.012</span></td><td style='color:#b85618'>-0.5326 <span class='sd'>&plusmn;0.016</span></td><td style='color:#0a7d33;font-weight:700'>-0.4568 <span class='sd'>&plusmn;0.036</span></td><td style='color:#387a26'>-0.4709 <span class='sd'>&plusmn;0.043</span></td><td style='color:#b85618'>-0.5326 <span class='sd'>&plusmn;0.016</span></td><td style='color:#b16c09'>-0.5124 <span class='sd'>&plusmn;0.022</span></td><td style='color:#b3660c'>-0.5173 <span class='sd'>&plusmn;0.015</span></td><td style='color:#4a7821'>-0.4764 <span class='sd'>&plusmn;0.035</span></td><td style='color:#c0392b'>-0.5587 <span class='sd'>&plusmn;0.027</span></td><td style='color:#bd4324'>-0.5494 <span class='sd'>&plusmn;0.009</span></td><td class='ref'>-0.5434</td><td class='ref'>-0.3752</td></tr><tr><td class='l'>1.5</td><td class='ref'>20.086</td><td style='color:#857411'>-0.5157 <span class='sd'>&plusmn;0.012</span></td><td style='color:#b26b09'>-0.5404 <span class='sd'>&plusmn;0.010</span></td><td style='color:#857411'>-0.5158 <span class='sd'>&plusmn;0.018</span></td><td style='color:#0a7d33;font-weight:700'>-0.4658 <span class='sd'>&plusmn;0.038</span></td><td style='color:#4b7821'>-0.4923 <span class='sd'>&plusmn;0.040</span></td><td style='color:#857411'>-0.5158 <span class='sd'>&plusmn;0.018</span></td><td style='color:#867411'>-0.5160 <span class='sd'>&plusmn;0.018</span></td><td style='color:#b07006'>-0.5345 <span class='sd'>&plusmn;0.012</span></td><td style='color:#737516'>-0.5083 <span class='sd'>&plusmn;0.017</span></td><td style='color:#c0392b'>-0.6006 <span class='sd'>&plusmn;0.028</span></td><td style='color:#b4640e'>-0.5488 <span class='sd'>&plusmn;0.008</span></td><td class='ref'>-0.5434</td><td class='ref'>-0.3752</td></tr><tr><td class='l'>2.0</td><td class='ref'>54.598</td><td style='color:#53781f'>-0.5020 <span class='sd'>&plusmn;0.019</span></td><td style='color:#b16e07'>-0.5437 <span class='sd'>&plusmn;0.009</span></td><td style='color:#52781f'>-0.5016 <span class='sd'>&plusmn;0.019</span></td><td style='color:#0a7d33;font-weight:700'>-0.4723 <span class='sd'>&plusmn;0.039</span></td><td style='color:#58771d'>-0.5042 <span class='sd'>&plusmn;0.035</span></td><td style='color:#52781f'>-0.5016 <span class='sd'>&plusmn;0.019</span></td><td style='color:#52781f'>-0.5018 <span class='sd'>&plusmn;0.019</span></td><td style='color:#ac7106'>-0.5383 <span class='sd'>&plusmn;0.009</span></td><td style='color:#52781f'>-0.5018 <span class='sd'>&plusmn;0.019</span></td><td style='color:#c0392b'>-0.6079 <span class='sd'>&plusmn;0.041</span></td><td style='color:#b26a0a'>-0.5488 <span class='sd'>&plusmn;0.007</span></td><td class='ref'>-0.5434</td><td class='ref'>-0.3752</td></tr></table></div>
+
+<h2>Effect of the C4 "historical rationality" constraint
+<span class="hsub">&mdash; same cell, C4 on minus C4 off</span></h2>
+<p>Left block: change in realised <b>test policy value</b>. Right block: change in the solver's own
+<b>worst-case objective</b>, which must be &ge; 0 by construction &mdash; C4 restricts the inner
+minimisation, so the certified worst case can only improve. A positive objective change with a
+negative value change means the constraint bought certainty, not accuracy.</p>
+<div class='scrollx'><table class='dt'><tr><th class='l'>&gamma;</th><th>&Gamma;</th><th>IPW-O-X</th><th>DR-O-X</th><th>IPW-O-W</th><th>DR-O-W</th><th>obj &Delta; IPW-O-X</th><th>obj &Delta; DR-O-X</th><th>obj &Delta; IPW-O-W</th><th>obj &Delta; DR-O-W</th></tr><tr><td class='l'>0.0</td><td class='ref'>1.000</td><td style='color:#c0392b'>+0.0000</td><td style='color:#c0392b'>+0.0000</td><td style='color:#c0392b'>+0.0000</td><td style='color:#c0392b'>+0.0000</td><td class='ref'>+0.0000</td><td class='ref'>+0.0000</td><td class='ref'>+0.0000</td><td class='ref'>+0.0000</td></tr><tr><td class='l'>1.0</td><td class='ref'>7.389</td><td style='color:#c0392b'>-0.0223</td><td style='color:#c0392b'>-0.0013</td><td style='color:#c0392b'>-0.0381</td><td style='color:#c0392b'>-0.0299</td><td class='ref'>+0.4543</td><td class='ref'>+0.3877</td><td class='ref'>+0.4456</td><td class='ref'>+0.3930</td></tr><tr><td class='l'>1.5</td><td class='ref'>20.086</td><td style='color:#c0392b'>-0.0103</td><td style='color:#0a7d33'>+0.0010</td><td style='color:#c0392b'>-0.0308</td><td style='color:#c0392b'>-0.0198</td><td class='ref'>+0.6968</td><td class='ref'>+0.5184</td><td class='ref'>+0.6891</td><td class='ref'>+0.5651</td></tr><tr><td class='l'>2.0</td><td class='ref'>54.598</td><td style='color:#c0392b'>-0.0066</td><td style='color:#0a7d33'>+0.0022</td><td style='color:#c0392b'>-0.0268</td><td style='color:#c0392b'>-0.0146</td><td class='ref'>+0.9025</td><td class='ref'>+0.6280</td><td class='ref'>+0.8958</td><td class='ref'>+0.6962</td></tr></table></div>
+
+<h2>Transport margin
+<span class="hsub">&mdash; O-W minus its own O-X twin at identical L</span></h2>
+<p>Same estimator, same box, same policy class; the only difference is the Wasserstein ball. This
+is the quantity the paper's Robust-vs-Robust-Baseline comparison measures, and the one our whole
+O-W claim rests on.</p>
+<div class='scrollx'><table class='dt'><tr><th class='l'>&gamma;</th><th>&Gamma;</th><th>IPW, C4 off</th><th>IPW, C4 on</th><th>DR, C4 off</th><th>DR, C4 on</th></tr><tr><td class='l'>0.0</td><td class='ref'>1.000</td><td>+0.0000</td><td>+0.0000</td><td>+0.0000</td><td>+0.0000</td></tr><tr><td class='l'>1.0</td><td class='ref'>7.389</td><td>+0.0158</td><td>-0.0000</td><td>+0.0280</td><td>-0.0006</td></tr><tr><td class='l'>1.5</td><td class='ref'>20.086</td><td>+0.0205</td><td>+0.0000</td><td>+0.0197</td><td>-0.0011</td></tr><tr><td class='l'>2.0</td><td class='ref'>54.598</td><td>+0.0202</td><td>+0.0000</td><td>+0.0163</td><td>-0.0005</td></tr></table></div>
+
+<h2>Protocol</h2>
+<p>&gamma; &isin; {0, 1, 1.5, 2} (the paper's Table 1), each solved <b>only</b> at its matched
+&Gamma; = e<sup>2&gamma;</sup> &isin; {1, 7.39, 20.09, 54.60}. c<sub>&epsilon;</sub> &isin;
+{1, <b>1.025</b>, 2} &mdash; 1.025 is the paper's own &epsilon; multiplier. L &isin;
+{&infin;, 3, 1}. 300 training rows, 4,000 held-out rows with both potential outcomes retained,
+10 seeds. Each (&gamma;, seed) cell ran as its own SLURM job, 40 in parallel.</p>
+<p class="muted">The solver's covariate is the scalar index b&#8242;x. Since &tau; depends on x only
+through b&#8242;x, that index is a <b>sufficient statistic for the optimal policy</b> &mdash; the
+projection loses nothing about which decision is correct, so this isolates
+confounding-robustness rather than dimension reduction. The raw d-dimensional arm with the MILP
+halfspace class is the natural follow-up.</p>
+<p class="muted">Regenerate: <code>sbatch scripts/uci10/ss_prep.sh</code>, then
+<code>scripts/uci10/ss_array.sh</code>, then <code>python3 aggregate_semisynth.py</code> and
+<code>python3 build_semisynth_report.py</code>. The C4 constraint is added to the four solvers by
+<code>semisynthetic/patch_rationality.py</code> (backups in <code>solver_backups/</code>) and
+verified by <code>test_rationality.py</code>.</p>
+</body></html>

@@ -70,6 +70,8 @@ def solve_hajek_o_w_uncapped(
     mesh_range: Tuple[float, float] = (-1.0, 1.0),
     zscore: bool = False,
     metric: str = "euclidean",
+    lipschitz=None,
+    lipschitz_k: int = 10,
     c_eps: float = 1.0,
     epsilon: Optional[Sequence[float]] = None,
     rounding_digits: int = 6,
@@ -150,6 +152,28 @@ def solve_hajek_o_w_uncapped(
         for j in g[1:]:
             for k in range(K):
                 m.addConstr(pi[k, a] == pi[k, int(j)], name=f"tie_{k}_{a}_{int(j)}")
+    if lipschitz is not None:                              # L-Lipschitz policy class
+        _Xs = np.asarray(support_X, float)
+        if _Xs.ndim == 1:
+            _Xs = _Xs.reshape(-1, 1)
+        if _Xs.shape[1] == 1:                             # 1-D: consecutive sorted pairs (exact)
+            _o = np.argsort(_Xs.ravel()); _xs = _Xs.ravel()[_o]
+            for _a in range(n - 1):
+                _i, _j = int(_o[_a]), int(_o[_a + 1]); _dx = float(_xs[_a + 1] - _xs[_a])
+                m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+                m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+        else:                                             # d > 1: k-NN pairs (a relaxation; see
+            _DL = np.sqrt(((_Xs[:, None, :] - _Xs[None, :, :]) ** 2).sum(-1))   # patch_lip_md.py)
+            _kk = int(min(max(1, lipschitz_k), n - 1))
+            for _i in range(n):
+                for _jj in np.argsort(_DL[_i])[1:_kk + 1]:
+                    _j = int(_jj)
+                    if _j <= _i:
+                        continue
+                    _dx = float(_DL[_i, _j])
+                    m.addConstr(pi[1, _i] - pi[1, _j] <= lipschitz * _dx)
+                    m.addConstr(pi[1, _j] - pi[1, _i] <= lipschitz * _dx)
+
     # *** NO capacity constraint here — that is the only structural difference from the capped LP ***
 
     # --- factual-row dual equality (regret reward c_{k,i}=(1/n)(1[k=0]−π_{k,i})Y_i) ---

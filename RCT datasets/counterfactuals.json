@@ -1,0 +1,122 @@
+[
+ {
+  "dataset": "LaLonde",
+  "n": 445,
+  "n_treated": 185,
+  "n_control": 260,
+  "outcome_binary": false,
+  "benchmark_ate": 1794.342404270271,
+  "benchmark_note": "RANDOMISED -- this is the true ATE",
+  "factual_cv": {
+   "arm0": -0.4425055200696113,
+   "arm1": -0.8458011488984525
+  },
+  "methods": {
+   "T-learner": {
+    "implied_ate": 1676.7557218895167,
+    "abs_error_vs_benchmark": 117.58668238075416,
+    "cate_sd": 7927.188025371401
+   },
+   "X-learner": {
+    "implied_ate": 1485.8609568860963,
+    "abs_error_vs_benchmark": 308.48144738417454,
+    "cate_sd": 5768.161230547539
+   },
+   "1NN-match": {
+    "implied_ate": 1791.7702921348312,
+    "abs_error_vs_benchmark": 2.5721121354397383,
+    "cate_sd": 9867.229243588155
+   }
+  }
+ },
+ {
+  "dataset": "NHEFS",
+  "n": 1566,
+  "n_treated": 403,
+  "n_control": 1163,
+  "outcome_binary": false,
+  "benchmark_ate": 2.5405814549558885,
+  "benchmark_note": "OBSERVATIONAL -- NOT a valid target, shown only for reference",
+  "factual_cv": {
+   "arm0": -0.013772264355780273,
+   "arm1": -0.08393682316700812
+  },
+  "methods": {
+   "T-learner": {
+    "implied_ate": 3.4591594580819276,
+    "abs_error_vs_benchmark": 0.9185780031260391,
+    "cate_sd": 8.474867536353516
+   },
+   "X-learner": {
+    "implied_ate": 3.578368417986836,
+    "abs_error_vs_benchmark": 1.0377869630309475,
+    "cate_sd": 4.4254697833740515
+   },
+   "1NN-match": {
+    "implied_ate": 3.6121059678288634,
+    "abs_error_vs_benchmark": 1.071524512872975,
+    "cate_sd": 11.073627821737682
+   }
+  }
+ },
+ {
+  "dataset": "IST",
+  "n": 19435,
+  "n_treated": 9720,
+  "n_control": 9715,
+  "outcome_binary": true,
+  "benchmark_ate": -0.009888456821893099,
+  "benchmark_note": "RANDOMISED (aspirin) -- this is the true ATE",
+  "factual_cv": {
+   "arm0": 0.7856452577378563,
+   "arm1": 0.8012569650290865
+  },
+  "methods": {
+   "T-learner": {
+    "implied_ate": -0.008758543149535464,
+    "abs_error_vs_benchmark": 0.0011299136723576346,
+    "cate_sd": 0.36908646468201506
+   },
+   "X-learner": {
+    "implied_ate": -0.008814552803397388,
+    "abs_error_vs_benchmark": 0.0010739040184957107,
+    "cate_sd": 0.05573744339350073
+   },
+   "1NN-match": {
+    "implied_ate": -0.007254952405454078,
+    "abs_error_vs_benchmark": 0.0026335044164390213,
+    "cate_sd": 0.5210257368469916
+   }
+  }
+ },
+ {
+  "dataset": "STAR",
+  "n": 5766,
+  "n_treated": 1738,
+  "n_control": 4028,
+  "outcome_binary": false,
+  "benchmark_ate": 13.653654853310968,
+  "benchmark_note": "RANDOMISED (within school) -- this is the true ATE",
+  "factual_cv": {
+   "arm0": 0.24258313337177817,
+   "arm1": 0.18838919311769808
+  },
+  "methods": {
+   "T-learner": {
+    "implied_ate": 11.577536040151612,
+    "abs_error_vs_benchmark": 2.076118813159356,
+    "cate_sd": 74.61512759037582
+   },
+   "X-learner": {
+    "implied_ate": 12.728753115557767,
+    "abs_error_vs_benchmark": 0.924901737753201,
+    "cate_sd": 31.96290417164428
+   },
+   "1NN-match": {
+    "implied_ate": 8.85241068331599,
+    "abs_error_vs_benchmark": 4.801244169994979,
+    "cate_sd": 98.03970876933514
+   }
+  }
+ }
+]

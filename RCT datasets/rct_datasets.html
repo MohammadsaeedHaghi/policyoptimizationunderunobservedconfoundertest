@@ -1,0 +1,284 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RCT and causal-benchmark datasets</title>
+<style>
+:root{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+/* LIGHT ONLY, deliberately. These reports were rendering dark for anyone whose OS was in dark
+   mode (the old @media prefers-color-scheme block flipped every variable). The figures, chart
+   gridlines and chip swatches are tuned for a light background, so the theme is pinned: the
+   dark-mode media query and the [data-theme="dark"] override are both removed, and a viewer
+   theme toggle stamping data-theme="dark" now leaves the palette unchanged. */
+:root[data-theme="dark"], :root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;
+ --muted:#667085;--border:#e9ebf3;--accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;
+ --warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);
+ color:var(--fg);margin:0 auto;max-width:980px;padding:0 22px 80px;line-height:1.6;}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;}
+.hero{color:#fff;border-radius:20px;padding:26px 30px;margin:18px 0 20px;box-shadow:var(--sh);}
+.hero h1{margin:0;font-weight:800;letter-spacing:-.03em;font-size:1.6rem;}
+.hero p{margin:.5rem 0 0;color:#e3e8f0;max-width:840px;}
+h2{font-size:1.28rem;font-weight:750;margin:34px 0 6px;} h3{font-size:1.0rem;font-weight:700;margin:18px 0 4px;}
+p{margin:.5rem 0;} .muted{color:var(--muted);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 18px;margin:12px 0;box-shadow:var(--sh);}
+.good{border-left:4px solid var(--good);} .warn{border-left:4px solid var(--warn);} .bad{border-left:4px solid var(--bad);}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-variant-numeric:tabular-nums;font-size:.88rem;}
+.tw{overflow-x:auto;}
+th{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 9px;border-bottom:2px solid var(--border);}
+th:first-child,td:first-child{text-align:left;} td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right;}
+td.g{color:var(--good);font-weight:700;} td.b{color:var(--bad);font-weight:700;}
+.fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 4px;}
+.figrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;}
+svg.chart{width:100%;height:auto;display:block;}
+.ct{font-size:12.5px;font-weight:700;fill:var(--fg);} .tk{font-size:10px;fill:var(--muted);}
+.al{font-size:11px;fill:var(--muted);font-weight:600;} .hm{font-size:8.6px;font-weight:600;}
+.grid{stroke:var(--border);stroke-width:1;} .ax{stroke:var(--muted);stroke-width:1.2;}
+.figcap{font-size:.8rem;line-height:1.5;margin:4px 4px 14px;}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
+.li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
+
+table.dt{border-collapse:collapse;font-size:12.5px;margin:10px 0;width:100%}
+table.dt th,table.dt td{border:1px solid #e3e6ea;padding:5px 8px;text-align:left;vertical-align:top}
+table.dt th{background:#f4f6f8;font-weight:600;white-space:nowrap}
+table.dt td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scrollx{overflow-x:auto;max-width:100%}
+.ds{border:1px solid #e3e6ea;border-radius:12px;padding:2px 18px 14px;margin:16px 0;background:#fff}
+.ds h3{margin:14px 0 2px;font-size:1.06rem}
+.ds .sub{color:#667085;font-size:.86rem;margin:0 0 10px}
+.role{display:grid;grid-template-columns:86px 1fr;gap:4px 12px;font-size:13px;margin:10px 0}
+.role .k{font-weight:700;color:#334155}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;
+     vertical-align:middle;margin-left:8px}
+.t-rct{background:#dcfce7;color:#166534}.t-obs{background:#fef3c7;color:#92400e}
+.t-semi{background:#ede9fe;color:#5b21b6}.t-nat{background:#dbeafe;color:#1e40af}
+.gt{background:#dcfce7;color:#166534;font-weight:700}
+.nogt{background:#fee2e2;color:#991b1b;font-weight:700}
+code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.86em}
+</style></head><body>
+<div class="hero" style="background:linear-gradient(135deg,#134e4a,#0f766e)">
+<h1>RCT and causal-benchmark datasets &mdash; what is in each one</h1>
+<p>Six datasets downloaded and inspected: what plays the role of treatment, what the covariates
+are, what the outcome is, and whether any counterfactual ground truth exists.</p></div>
+
+<h2>The six at a glance</h2>
+<div class="scrollx"><table class="dt">
+<tr><th>dataset</th><th>design</th><th style="text-align:right">rows</th>
+<th style="text-align:right">cols</th><th style="text-align:right">arms</th>
+<th>treatment</th><th>outcome</th></tr>
+<tr><td>IHDP</td><td><span class='tag t-semi'>SEMI-SYNTHETIC</span></td><td class='n'>672</td><td class='n'>25</td><td class='n'>2</td><td>t  </td><td>yf  </td></tr><tr><td>Twins</td><td><span class='tag t-nat'>NATURAL EXPERIMENT</span></td><td class='n'>71345</td><td class='n'>54</td><td class='n'>2</td><td>derived: being the HEAVIER twin of the pair </td><td>mort_0 / mort_1  </td></tr><tr><td>Jobs / LaLonde (NSW)</td><td><span class='tag t-rct'>RANDOMISED</span></td><td class='n'>445</td><td class='n'>10</td><td class='n'>2</td><td>treat  </td><td>re78  </td></tr><tr><td>NHEFS</td><td><span class='tag t-obs'>OBSERVATIONAL</span></td><td class='n'>1629</td><td class='n'>67</td><td class='n'>2</td><td>qsmk  </td><td>wt82_71  </td></tr><tr><td>IST</td><td><span class='tag t-rct'>RANDOMISED</span></td><td class='n'>19435</td><td class='n'>112</td><td class='n'>8</td><td>RXASP </td><td>OCCODE </td></tr><tr><td>STAR</td><td><span class='tag t-rct'>RANDOMISED</span></td><td class='n'>11598</td><td class='n'>48</td><td class='n'>3</td><td>stark / star1 / star2 / star3  </td><td>readk, mathk </td></tr>
+</table></div>
+
+<div class="card warn"><b>OHIE could not be downloaded.</b> The Oregon Health Insurance
+Experiment public-use files sit behind an NBER account login
+(<code>data.nber.org/oregon/oregon_puf/oregon_puf.zip</code> returns the MyNBER sign-in page, not
+a zip). It needs a free registration and manual acceptance of their terms, so it has to be
+fetched by hand rather than scripted. Everything else here downloaded cleanly.</div>
+
+<h2>Treatment arms, and whether counterfactuals are visible</h2>
+<div class="scrollx"><table class="dt">
+<tr><th>dataset</th><th style="text-align:right">arms K</th><th>what the arms are</th>
+<th>counterfactuals</th></tr>
+<tr><td>IHDP</td><td class='n'><b>2</b></td><td>binary: t in {0, 1}</td><td><span class='gt'>ALL (simulated)</span><br><span class='muted' style='font-size:11.5px'>ALL -- the file ships ycf (the unobserved arm) AND mu0/mu1 (the noiseless response surfaces), so every unit has both potential outcomes</span></td></tr><tr><td>Twins</td><td class='n'><b>2</b></td><td>binary: lighter (0) vs heavier (1) twin of the pair</td><td><span class='gt'>ALL (observed)</span><br><span class='muted' style='font-size:11.5px'>ALL -- mort_0 and mort_1 are both present and non-null on 71345 of 71345 rows (100%), because the pair supplies both arms</span></td></tr><tr><td>Jobs / LaLonde (NSW)</td><td class='n'><b>2</b></td><td>binary: treat in {0, 1}</td><td><span class='nogt'>NONE</span><br><span class='muted' style='font-size:11.5px'>NONE -- one arm per person; no ycf column exists in the files</span></td></tr><tr><td>NHEFS</td><td class='n'><b>2</b></td><td>binary: qsmk in {0, 1}</td><td><span class='nogt'>NONE</span><br><span class='muted' style='font-size:11.5px'>NONE -- one arm per person, and not even randomised</span></td></tr><tr><td>IST</td><td class='n'><b>8</b></td><td>FACTORIAL 2 x 4 = 8 occupied cells. Aspirin Y/N (9720 / 9715) crossed with heparin N / L / M / H (9718 / 4861 / 4611 / 245). H is a small high-dose sub-study; the headline design is usually read as 2 x 3 = 6 arms</td><td><span class='nogt'>NONE</span><br><span class='muted' style='font-size:11.5px'>NONE -- one arm per patient</span></td></tr><tr><td>STAR</td><td class='n'><b>3</b></td><td>3 arms per grade, re-recorded each year: small / regular / regular+aide. Kindergarten 1900 / 2194 / 2231 (n=6325); grade 1 1925 / 2584 / 2320 (6829); grade 2 2016 / 2329 / 2495 (6840); grade 3 2174 / 2085 / 2543 (6802)</td><td><span class='nogt'>NONE</span><br><span class='muted' style='font-size:11.5px'>NONE -- one class type per child per year</span></td></tr>
+</table></div>
+<p class="muted">"Counterfactuals visible" means the file contains the outcome under the arm the
+unit did <b>not</b> receive. Only two of the six do, and they get there differently: IHDP
+<b>simulates</b> both arms (its <code>ycf</code> and <code>mu0</code>/<code>mu1</code> arrays are
+generated), while Twins <b>observes</b> both, because the two twins of a pair supply one arm
+each. Everywhere else exactly one arm per unit is recorded, so no individual-level effect can be
+scored &mdash; only averages.</p>
+
+<h2>Three different things are being called a "benchmark" here</h2>
+<p>The six split into groups that behave very differently, and mixing them up is the usual source
+of confusion when comparing numbers across papers:</p>
+<ul>
+<li><b>Genuine RCTs</b> &mdash; LaLonde/NSW, IST, STAR. Treatment was randomised, so the raw
+difference in means <i>is</i> the causal effect. There are no counterfactuals for individuals,
+only a trustworthy average.</li>
+<li><b>Known individual effects</b> &mdash; IHDP and Twins. Both give you
+<i>Y</i>(0) and <i>Y</i>(1) for the same unit, so you can score an individual-level error such as
+PEHE. IHDP buys that by <b>simulating</b> the outcomes on real covariates; Twins buys it by using
+the two twins of a pair as each other's counterfactual.</li>
+<li><b>Purely observational</b> &mdash; NHEFS. Nothing was randomised and nothing is known; its
+value is that the correct analysis is published in a textbook, so it checks your pipeline.</li>
+</ul>
+
+<h2>Dataset by dataset</h2>
+
+<div class="ds">
+<h3>IHDP<span class="tag t-semi">SEMI-SYNTHETIC</span></h3>
+<p class="sub">Infant Health and Development Program (semi-synthetic outcomes on real covariates) &middot; <code>ihdp/</code> &middot; <span class='gt'>ground truth available</span></p>
+<div class="role"><div class='k'>Treatment</div><div>t  (1 = intensive early-intervention, 0 = control)</div><div class='k'>Outcome</div><div>yf  (factual cognitive test score); ycf = counterfactual, both SIMULATED</div><div class='k'>Covariates</div><div>x1 (6 continuous: birth weight, head circumference, weeks born pre-term, birth order, neonatal health index, mother's age), x7..x25 (19 binary: infant sex, twin status, mother's marital status, education, race, cigarette/alcohol/drug use, prenatal care, site 1-8)</div></div>
+<div class="scrollx"><table class="dt">
+<tr><th>quantity</th><th style="text-align:right">value</th></tr>
+<tr><td>rows</td><td class='n'>672</td></tr><tr><td>columns</td><td class='n'>25</td></tr><tr><td>treated</td><td class='n'>123</td></tr><tr><td>control</td><td class='n'>549</td></tr>
+<tr><td>raw difference in means</td><td class='n'>4.005 (yf treated minus control, replication 1)</td></tr>
+<tr><td>treatment arms K</td><td class='n'>2</td></tr><tr><td>replications</td><td class='n'>100</td></tr><tr><td>held-out rows</td><td class='n'>75</td></tr><tr><td>TRUE ATE</td><td class='n'>4.012 (mu1 - mu0, the KNOWN ground-truth ATE, replication 1)</td></tr>
+</table></div>
+<p><b>What it is for.</b> The only one here with a KNOWN individual treatment effect on real covariates, which is why almost every CATE paper reports PEHE on it.</p>
+<p class="muted">Covariates and treatment are REAL (from the 1985-88 RCT); outcomes are simulated from the NPCI 'A' response surface, which is why mu0/mu1 exist. The published benchmark also removes a non-random subset of treated children to induce imbalance.</p>
+</div>
+<div class="ds">
+<h3>Twins<span class="tag t-nat">NATURAL EXPERIMENT</span></h3>
+<p class="sub">Twin births, NBER natality 1989-1991, same-sex pairs under 2kg &middot; <code>twins/</code> &middot; <span class='gt'>ground truth available</span></p>
+<div class="role"><div class='k'>Treatment</div><div>derived: being the HEAVIER twin of the pair (dbirwt_1 &gt; dbirwt_0)</div><div class='k'>Outcome</div><div>mort_0 / mort_1  (1-year mortality of the lighter / heavier twin)</div><div class='k'>Covariates</div><div>pldel, birattnd, brstate, stoccfipb, mager8, ormoth, mrace, meduc6, dmar, mplbir, mpre5, adequacy</div></div>
+<div class="scrollx"><table class="dt">
+<tr><th>quantity</th><th style="text-align:right">value</th></tr>
+<tr><td>rows</td><td class='n'>71345</td></tr><tr><td>columns</td><td class='n'>54</td></tr><tr><td>treated</td><td class='n'>n/a -- BOTH potential outcomes are observed, one per twin</td></tr>
+<tr><td>raw difference in means</td><td class='n'>-0.00712 (mort_1 mean 0.03235 minus mort_0 mean 0.03947)</td></tr>
+<tr><td>treatment arms K</td><td class='n'>2</td></tr><tr><td>birth-weight columns</td><td class='n'>['dbirwt_0', 'dbirwt_1']</td></tr>
+</table></div>
+<p><b>What it is for.</b> Both potential outcomes are genuinely observed, so the individual effect is known without simulating anything.</p>
+<p class="muted">Not an RCT. The trick: for a twin PAIR both outcomes are observed, so the pair acts as its own counterfactual and the individual treatment effect is known exactly. Benchmarks then HIDE one twin at random and simulate a confounded assignment.</p>
+</div>
+<div class="ds">
+<h3>Jobs / LaLonde (NSW)<span class="tag t-rct">RANDOMISED</span></h3>
+<p class="sub">National Supported Work Demonstration, 1975-1979 -- a genuine RCT &middot; <code>lalonde/</code> &middot; <span class='nogt'>no counterfactuals</span></p>
+<div class="role"><div class='k'>Treatment</div><div>treat  (1 = offered the subsidised-work training programme)</div><div class='k'>Outcome</div><div>re78  (real earnings in 1978, US$; the post-treatment year)</div><div class='k'>Covariates</div><div>age, education, black, hispanic, married, nodegree, re74 (earnings 1974), re75 (earnings 1975)</div></div>
+<div class="scrollx"><table class="dt">
+<tr><th>quantity</th><th style="text-align:right">value</th></tr>
+<tr><td>rows</td><td class='n'>445</td></tr><tr><td>columns</td><td class='n'>10</td></tr><tr><td>treated</td><td class='n'>185</td></tr><tr><td>control</td><td class='n'>260</td></tr>
+<tr><td>raw difference in means</td><td class='n'>$1794 (experimental benchmark: re78 treated $6349 minus control $4555)</td></tr>
+<tr><td>treatment arms K</td><td class='n'>2</td></tr><tr><td>substitute control pools</td><td class='n'>{'CPS-1': 15992, 'PSID-1': 2490}</td></tr><tr><td>naive estimate with survey controls</td><td class='n'>$-8498 (swap the RCT controls for CPS controls and the estimate becomes this)</td></tr>
+</table></div>
+<p><b>What it is for.</b> The original 'can an observational method recover an experiment?' test, and still the sharpest one.</p>
+<p class="muted">The canonical test: the RCT gives a trustworthy ATE, then you REPLACE the randomised controls with a survey comparison group (CPS or PSID) and see whether your observational estimator can recover the experimental number.</p>
+</div>
+<div class="ds">
+<h3>NHEFS<span class="tag t-obs">OBSERVATIONAL</span></h3>
+<p class="sub">NHANES I Epidemiologic Follow-up Study -- observational, Hernan &amp; Robins textbook &middot; <code>nhefs/</code> &middot; <span class='nogt'>no counterfactuals</span></p>
+<div class="role"><div class='k'>Treatment</div><div>qsmk  (1 = quit smoking between the 1971 baseline and the 1982 follow-up)</div><div class='k'>Outcome</div><div>wt82_71  (weight change in kg, 1971 to 1982). Secondary: death, sbp, dbp</div><div class='k'>Covariates</div><div>sex, age, race, education, smokeintensity, smokeyrs, exercise, active, wt71, income, marital, asthma, bronch, hbp</div></div>
+<div class="scrollx"><table class="dt">
+<tr><th>quantity</th><th style="text-align:right">value</th></tr>
+<tr><td>rows</td><td class='n'>1629</td></tr><tr><td>columns</td><td class='n'>67</td></tr><tr><td>treated</td><td class='n'>403</td></tr><tr><td>control</td><td class='n'>1163</td></tr>
+<tr><td>raw difference in means</td><td class='n'>2.54 kg (unadjusted: quitters 4.53 minus non-quitters 1.98)</td></tr>
+<tr><td>treatment arms K</td><td class='n'>2</td></tr><tr><td>rows missing the outcome</td><td class='n'>63</td></tr>
+</table></div>
+<p><b>What it is for.</b> The textbook worked example: every adjustment set and g-method answer is published, so you can check your pipeline against a known target.</p>
+<p class="muted">NOT randomised -- people choose to quit. It is the standard worked example for IP-weighting, standardisation and g-methods, so adjustment sets are well documented.</p>
+</div>
+<div class="ds">
+<h3>IST<span class="tag t-rct">RANDOMISED</span></h3>
+<p class="sub">International Stroke Trial, 1991-1996 -- a large factorial RCT &middot; <code>ist/</code> &middot; <span class='nogt'>no counterfactuals</span></p>
+<div class="role"><div class='k'>Treatment</div><div>RXASP (aspirin Y/N) and RXHEP (heparin N/L/M) -- a 2 x 3 FACTORIAL randomisation</div><div class='k'>Outcome</div><div>OCCODE (1 dead / 2 dependent / 3 not recovered / 4 recovered at 6 months); DEAD14, FDEAD, FRECOVER are binary alternatives</div><div class='k'>Covariates</div><div>AGE, SEX, RSBP (systolic BP), RDELAY (hours since stroke), RCONSC (consciousness), RATRIAL (atrial fibrillation), RVISINF, RSLEEP, RDEF1..RDEF8 (neurological deficits), STYPE (stroke subtype)</div></div>
+<div class="scrollx"><table class="dt">
+<tr><th>quantity</th><th style="text-align:right">value</th></tr>
+<tr><td>rows</td><td class='n'>19435</td></tr><tr><td>columns</td><td class='n'>112</td></tr><tr><td>treated</td><td class='n'>9720</td></tr><tr><td>control</td><td class='n'>9715</td></tr>
+<tr><td>raw difference in means</td><td class='n'>-0.0099 (6-month death rate: aspirin 0.2133 minus no-aspirin 0.2232)</td></tr>
+<tr><td>treatment arms K</td><td class='n'>8</td></tr><tr><td>heparin arms</td><td class='n'>{'N': 9718, 'L': 4861, 'M': 4611, 'H': 245}</td></tr>
+</table></div>
+<p><b>What it is for.</b> Large, factorial, and clinical -- the realistic setting for policy learning with a capacity constraint.</p>
+<p class="muted">Randomised, so the raw difference IS the causal effect. The size (~19k patients, 36 countries) and the factorial design make it the usual real-data testbed for heterogeneous-effect and policy-learning methods.</p>
+</div>
+<div class="ds">
+<h3>STAR<span class="tag t-rct">RANDOMISED</span></h3>
+<p class="sub">Tennessee Student/Teacher Achievement Ratio, 1985-1989 -- RCT on class size &middot; <code>star/</code> &middot; <span class='nogt'>no counterfactuals</span></p>
+<div class="role"><div class='k'>Treatment</div><div>stark / star1 / star2 / star3  (small | regular | regular+aide, randomised per grade)</div><div class='k'>Outcome</div><div>readk, mathk (and grades 1-3): scaled achievement test scores</div><div class='k'>Covariates</div><div>gender, ethnicity, birth (quarter), lunchk (free-lunch status), schoolk (school type: rural/urban/inner-city/suburban), degreek (teacher degree), ladderk (teacher career ladder), experiencek (teacher years), tethnicityk (teacher ethnicity)</div></div>
+<div class="scrollx"><table class="dt">
+<tr><th>quantity</th><th style="text-align:right">value</th></tr>
+<tr><td>rows</td><td class='n'>11598</td></tr><tr><td>columns</td><td class='n'>48</td></tr><tr><td>treated</td><td class='n'>1738</td></tr><tr><td>control</td><td class='n'>4048</td></tr>
+<tr><td>raw difference in means</td><td class='n'>+13.7 points (kindergarten read+math: small class 931.9 minus other 918.2)</td></tr>
+<tr><td>treatment arms K</td><td class='n'>3</td></tr><tr><td>class-size arms</td><td class='n'>{'regular+aide': 2231, 'regular': 2194, 'small': 1900}</td></tr>
+</table></div>
+<p><b>What it is for.</b> Three arms and within-school randomisation: the natural test for multi-arm and clustered designs.</p>
+<p class="muted">Randomisation is WITHIN school, so school should be conditioned on. Three treatment arms, not two -- most causal work either drops the aide arm or pools it with regular.</p>
+</div>
+
+
+<h2>Imputing the missing counterfactual for the four that lack one</h2>
+<p>LaLonde, NHEFS, IST and STAR record only the factual arm, so
+<i>Y</i>(1&minus;<i>T</i>) has to be estimated. Three methods were used, chosen to fail in
+different ways rather than to be three flavours of one idea:</p>
+<ul>
+<li><b>T-learner</b> &mdash; two separate outcome regressions, &mu;<sub>0</sub> and
+&mu;<sub>1</sub>, each fit on its own arm only. Flexible, but each extrapolates into covariate
+regions its own arm barely covers.</li>
+<li><b>X-learner</b> (K&uuml;nzel et al.) &mdash; imputes each unit's effect using the OTHER arm's
+model, regresses those imputed effects on <i>X</i> per arm, then blends the two by the propensity
+score. Designed for arms of very unequal size, which is exactly LaLonde (185 vs 260) and NHEFS
+(403 vs 1163).</li>
+<li><b>1-NN matching</b> &mdash; non-parametric: the counterfactual is the OBSERVED outcome of the
+nearest unit in the opposite arm, on standardised covariates. It never extrapolates and invents
+no value, but uses a single neighbour, so it is noisy.</li>
+</ul>
+
+<h3>Does the imputation recover the known answer?</h3>
+<p>Three of the four are randomised, so difference-in-means is the TRUE average effect. After
+imputation the completed table implies its own ATE (mean of <i>Y</i><sub>1</sub> &minus;
+<i>Y</i><sub>0</sub> over all units), and it should land on that benchmark. Green = closest.</p>
+<div class="scrollx"><table class="dt">
+<tr><th>dataset</th><th style="text-align:right">benchmark ATE</th>
+<th style="text-align:right">T-learner</th><th style="text-align:right">X-learner</th>
+<th style="text-align:right">1NN-match</th><th>benchmark valid?</th></tr>
+<tr><td>LaLonde</td><td class='n'>+1794.3424</td><td class='n'>+1676.7557<br><span class='muted' style='font-size:11px'>err 117.5867</span></td><td class='n'>+1485.8610<br><span class='muted' style='font-size:11px'>err 308.4814</span></td><td class='n' style='background:#e8f5e9;font-weight:700'>+1791.7703<br><span class='muted' style='font-size:11px'>err 2.5721</span></td><td><span class='gt'>valid target</span></td></tr><tr><td>NHEFS</td><td class='n'>+2.5406</td><td class='n'>+3.4592<br><span class='muted' style='font-size:11px'>err 0.9186</span></td><td class='n'>+3.5784<br><span class='muted' style='font-size:11px'>err 1.0378</span></td><td class='n'>+3.6121<br><span class='muted' style='font-size:11px'>err 1.0715</span></td><td><span class='nogt'>not a target</span></td></tr><tr><td>IST</td><td class='n'>-0.0099</td><td class='n'>-0.0088<br><span class='muted' style='font-size:11px'>err 0.0011</span></td><td class='n' style='background:#e8f5e9;font-weight:700'>-0.0088<br><span class='muted' style='font-size:11px'>err 0.0011</span></td><td class='n'>-0.0073<br><span class='muted' style='font-size:11px'>err 0.0026</span></td><td><span class='gt'>valid target</span></td></tr><tr><td>STAR</td><td class='n'>+13.6537</td><td class='n'>+11.5775<br><span class='muted' style='font-size:11px'>err 2.0761</span></td><td class='n' style='background:#e8f5e9;font-weight:700'>+12.7288<br><span class='muted' style='font-size:11px'>err 0.9249</span></td><td class='n'>+8.8524<br><span class='muted' style='font-size:11px'>err 4.8012</span></td><td><span class='gt'>valid target</span></td></tr>
+</table></div>
+<p class="muted">NHEFS is observational, so its difference in means is NOT a target: all three
+methods moving it from 2.54 kg to about 3.5 kg is adjustment doing its job, not error.</p>
+
+<h3>But first &mdash; can the model predict the arm it actually sees?</h3>
+<p>Before trusting a model to invent an unobserved outcome, it is worth checking whether it can
+predict the observed one. This is 5-fold cross-validation on the FACTUAL arm.</p>
+<div class="scrollx"><table class="dt">
+<tr><th>dataset</th><th>metric</th><th style="text-align:right">arm 0</th>
+<th style="text-align:right">arm 1</th>
+<th style="text-align:right">implied CATE sd (T / X / 1NN)</th><th>verdict</th></tr>
+<tr><td>LaLonde</td><td>R<sup>2</sup></td><td class='n'>-0.443</td><td class='n'>-0.846</td><td class='n'>7927 / 5768 / 9867</td><td><span class='nogt'>no usable signal</span></td></tr><tr><td>NHEFS</td><td>R<sup>2</sup></td><td class='n'>-0.014</td><td class='n'>-0.084</td><td class='n'>8 / 4 / 11</td><td><span class='nogt'>no usable signal</span></td></tr><tr><td>IST</td><td>AUC</td><td class='n'>0.786</td><td class='n'>0.801</td><td class='n'>0.369 / 0.056 / 0.521</td><td><span class='gt'>real signal</span></td></tr><tr><td>STAR</td><td>R<sup>2</sup></td><td class='n'>0.243</td><td class='n'>0.188</td><td class='n'>75 / 32 / 98</td><td><span class='gt'>real signal</span></td></tr>
+</table></div>
+
+<div class="card bad"><b>The caveat that matters most.</b> On LaLonde and NHEFS the covariates
+essentially do not predict the outcome &mdash; LaLonde's cross-validated
+<i>R</i><sup>2</sup> is <b>negative</b> (&minus;0.44 and &minus;0.85), i.e. worse than predicting
+the arm mean. So the individual counterfactuals there are the arm mean plus noise, and the implied
+per-unit effects confirm it: LaLonde's have a spread of roughly $8,000&ndash;9,900 around a
+$1,794 average. LaLonde's headline result (1NN-match hitting the ATE to within $2.6) is therefore
+misleading on its own &mdash; the average is right because the two arm ANCHORS are right, not
+because any individual imputation is. The same 1NN-match is the WORST method on STAR (error 4.80):
+single-neighbour matching is unbiased in aggregate but high-variance, and on 445 rows it got
+lucky.
+<br><br><b>Practical reading.</b> IST's imputed counterfactuals are usable &mdash; real predictive
+signal (AUC 0.79/0.80) and the ATE recovered to about 11% of an effect that is itself only 0.0099.
+STAR's are marginal; prefer the X-learner there. LaLonde's and NHEFS's should be treated as
+ATE-consistent but individually meaningless. For genuine individual counterfactuals, IHDP and
+Twins remain the only two options in this collection.</div>
+
+<p class="muted">Written to <code>counterfactuals/&lt;dataset&gt;_&lt;method&gt;.csv</code>, twelve
+files, each carrying the covariates plus <code>T</code>, <code>Y_factual</code>,
+<code>Y0</code>, <code>Y1</code> and <code>which_imputed</code>. Regenerate with
+<code>python3 impute_counterfactuals.py</code>.</p>
+
+
+<h2>How each one gets used for policy learning</h2>
+<div class="scrollx"><table class="dt">
+<tr><th>dataset</th><th>what you can validate</th><th>what you cannot</th></tr>
+<tr><td>IHDP</td><td>Individual effect error (PEHE) and policy value, against a known
+&mu;<sub>0</sub>, &mu;<sub>1</sub>, over 100 replications</td>
+<td>Anything about real outcome noise &mdash; the outcomes are simulated</td></tr>
+<tr><td>Twins</td><td>Individual effects with no simulation at all; confounding can be injected
+by hiding one twin with a chosen assignment rule</td>
+<td>The "treatment" (being heavier) is not manipulable, so the estimand is not a policy anyone
+could implement</td></tr>
+<tr><td>LaLonde</td><td>Whether an observational estimator recovers the experimental ATE once the
+randomised controls are swapped for CPS or PSID</td>
+<td>Individual effects; and the sample is small (445) so power is limited</td></tr>
+<tr><td>NHEFS</td><td>That your IP-weighting / standardisation code reproduces the published
+textbook numbers</td>
+<td>Any causal claim without an untestable unconfoundedness assumption</td></tr>
+<tr><td>IST</td><td>Average effects, subgroup effects, and capacity-constrained policies at
+realistic scale (19,435 patients)</td>
+<td>Individual effects &mdash; only one arm is observed per patient</td></tr>
+<tr><td>STAR</td><td>Multi-arm and clustered designs; effects on a continuous test score</td>
+<td>Individual effects; and school must be conditioned on, since randomisation was within
+school</td></tr>
+</table></div>
+
+<h2>Reproducing this</h2>
+<p><code>bash "RCT datasets"/download.sh</code> fetches everything (NHEFS comes from the
+<code>causaldata</code> package because the Harvard CDN link now serves a web page rather than the
+CSV), then <code>python3 inspect_datasets.py</code> recomputes every number on this page and
+writes <code>structure.json</code>.</p>
+<p class="muted">All figures above are computed from the downloaded files, not quoted from
+papers. Two worth checking against the literature as a sanity test: LaLonde's experimental ATE
+comes out at $1,794, and NHEFS's unadjusted weight-change difference at 2.54 kg &mdash; both match
+the canonical published values.</p>
+</body></html>

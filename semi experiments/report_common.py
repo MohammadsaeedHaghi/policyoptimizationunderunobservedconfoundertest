@@ -27,7 +27,9 @@ def legend_swatch(col, dash="", mk="c", w=30, h=12):
     p = [f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" style="vertical-align:middle;flex:none">',
          f'<line x1="1" y1="{cy}" x2="{w-1}" y2="{cy}" style="stroke:{col}" stroke-width="2.2"{da}/>']
     cx, r = w / 2.0, 3.0
-    if mk == "s":
+    if mk == "n":
+        pass                                              # line only -- matches a marker-free series
+    elif mk == "s":
         p.append(f'<rect x="{cx-r}" y="{cy-r}" width="{2*r}" height="{2*r}" style="fill:{col}"/>')
     elif mk == "t":
         p.append(f'<polygon points="{cx},{cy-1.3*r} {cx-1.2*r},{cy+r} {cx+1.2*r},{cy+r}" style="fill:{col}"/>')
@@ -113,7 +115,7 @@ def linechart(series, W=560, H=330, xlab="", ylab="", title="", hlines=None, leg
         d = f' stroke-dasharray="{dash}"' if dash else ""
         p.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="2"{d}/>')
         for a, b in zip(xs, ys):
-            if b != b: continue
+            if b != b or mk == "n": continue
             cx, cy = X(a), Y(b)
             if mk == "s": p.append(f'<rect x="{cx-2.3:.1f}" y="{cy-2.3:.1f}" width="4.6" height="4.6" fill="{col}"/>')
             elif mk == "t": p.append(f'<polygon points="{cx:.1f},{cy-2.9:.1f} {cx-2.7:.1f},{cy+2.3:.1f} {cx+2.7:.1f},{cy+2.3:.1f}" fill="{col}"/>')

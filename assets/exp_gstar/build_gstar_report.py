@@ -11,6 +11,8 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import dgp_figs as DF
 from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, bars, ev_widget_html, EV_JS, legend_swatch
 from latex2mathml.converter import convert as l2m
 MC["Hess-efficient"] = "#8c564b"
@@ -89,10 +91,9 @@ UNC_NAIVE_NP = NV.get("uncap", {}).get("naive_binned")
 xg = np.linspace(-1, 1, 241); sig = _sig
 gt = d.grid_truth()
 EQ_X = M(r"X \sim \mathrm{Unif}\{-1,\ldots,1\}\ \text{(7 levels; continuous: } X\sim\mathrm{Unif}[-1,1]\text{)},\quad S\mid X \in\{\pm1\},\ P(S{=}{+}1\mid X)=\sigma(10X)")
-EQ_E = M(r"e(X,S) = \sigma\!\big(-1.5X + \tfrac{1}{2}\ln(5)\, S\big)"
-         r"\;\Rightarrow\; \frac{\mathrm{odds}(T{=}1\mid X, S{=}{+}1)}{\mathrm{odds}(T{=}1\mid X, S{=}{-}1)} = e^{\ln 5} = 5 \;=\; \Gamma^{\star}\quad\forall X")
+EQ_E = M(r"e(X,S) = \sigma\!\big(-1.5X + \tfrac{1}{2}\ln(5)\, S\big)")
 EQ_Y = M(r"\mu_0 = 8S,\quad \mu_1 = 9S + 3X - 1,\quad Y(t) = \mu_t + \mathcal{N}(0, 0.6^2)")
-EQ_C = M(r"\mathrm{CATE}(X) = (2\sigma(10X)-1) + 3X - 1 \;\Rightarrow\; \pi^{*}(X) = 1\{X > 0\},\;\; \mathrm{CATE}(0) = -1")
+EQ_C = M(r"\mathrm{CATE}(X) = (2\sigma(10X)-1) + 3X - 1,\;\; \mathrm{CATE}(0) = -1")
 cate = (2 * sig(10 * xg) - 1) + 3 * xg - 1
 ep = sig(0.5 * np.log(5) - 1.5 * xg); em = sig(-0.5 * np.log(5) - 1.5 * xg)
 lv = list(gt["X"]); naive_inf = []
@@ -101,33 +102,7 @@ for j, x in enumerate(gt["X"]):
     pt = p * e1 + (1 - p) * e0
     naive_inf.append((9 * (2 * (p * e1 / pt) - 1) + 3 * x - 1) - 8 * (2 * (p * (1 - e1) / (1 - pt)) - 1))
 
-dgp_figs1 = '<div class="figrow">' + figcap(
-    linechart([("P(S=+1|X)", "#334155", list(xg), list(sig(10 * xg)), "")],
-              title="Hidden-vitality coupling", xlab="X", ylab="P(S=+1|X)", legend=False),
-    "P(S=+1 | X) = sigma(10X); Var(S | X) maximal at X = 0.") + figcap(
-    linechart([("P(T=1 | X, S=+1)", "#2ca02c", list(xg), list(ep), ""),
-               ("P(T=1 | X, S=-1)", "#9467bd", list(xg), list(em), "")],
-              title="Propensity: the S-odds ratio is pinned to Gamma* = 5", xlab="X", ylab="P(T=1 | X,S)"),
-    "e(X,S) = sigma(-1.5X + 0.5 ln(5) S), range [0.091, 0.909] -- NO clipping, so "
-    "odds(S=+1)/odds(S=-1) = 5 exactly at every X.") + figcap(
-    linechart([("CATE(X)", "#d62728", list(xg), list(cate), "")],
-              title="True CATE: treat iff X > 0 (CATE(0) = -1)", xlab="X", ylab="CATE",
-              hlines=[("0", "#888", 0.0, "4 3")], legend=False),
-    "CATE(X) = E[Y(1)-Y(0) | X] = (2 sigma(10X)-1) + 3X - 1; oracle pi*(X) = 1{CATE > 0}.") + '</div>'
-dgp_figs2 = '<div class="figrow">' + figcap(
-    linechart([("true CATE", "#111", lv, list(gt["cate"]), ""),
-               ("naive CATE-hat (infinite data)", MC["DoublyRobust-X-X"], lv, naive_inf, "2 3", "t")],
-              title="The ranking inversion at X = 0", xlab="X level", ylab="CATE",
-              hlines=[("0", "#888", 0.0, "4 3")]),
-    "Blue: the infinite-data naive limit E[Y|T=1,X] - E[Y|T=0,X]; the gap is pure confounding "
-    "bias, concentrated at X = 0 where Var(S|X) peaks (-1 -> ~+5.4).") + figcap(
-    linechart([("mu1(X,S=+1)", "#d62728", list(xg), list(9 + 3 * xg - 1), ""),
-               ("mu0(X,S=+1)", "#1f77b4", list(xg), [8.0] * 241, ""),
-               ("mu1(X,S=-1)", "#d62728", list(xg), list(-9 + 3 * xg - 1), "5 4"),
-               ("mu0(X,S=-1)", "#1f77b4", list(xg), [-8.0] * 241, "5 4")],
-              title="Mean potential outcomes mu_t(X,S)", xlab="X", ylab="mu_t"),
-    "mu0 = 8S, mu1 = 9S + 3X - 1: the confounder moves outcomes by +-8-9 while the treatment "
-    "differential is a few units.") + '</div>'
+dgp_extra = DF.all_figs(d, 5.0, xg=np.linspace(-1.0, 1.0, 401), xlab="X", figcap=figcap)
 T1 = f"""
 <h2>1. The data-generating process</h2>
 <p>Aggressive therapy under hidden vitality with a fixed burden; the design follows the
@@ -145,8 +120,7 @@ runs at the single flagged matched &Gamma; = 5 with nothing tuned; the &Gamma;-g
 only to show misspecification behavior. The fitted marginal propensity lies between the two
 S-extremals, so the &Gamma;&#9733; odds-box around it covers every unit's true weight: a
 correctly specified sensitivity model with a KNOWN parameter.</div>
-{dgp_figs1}
-{dgp_figs2}
+{dgp_extra}
 <p>Reference values (exact): never-treat 0, all-treat -1; discrete oracle 0.847 uncapped /
 0.727 capped(30%); continuous oracle 0.732 (realized, 5x4000 draws) / capped-oracle
 {CAP_ORACLE:.3f} (treats x &gt; 0.40). The 30% cap &lt; 43% oracle mass: genuinely scarce.</p>
@@ -236,7 +210,7 @@ if R0:
     bx.append(10.0); bm.append(mu_u["IPW-O-W"][gi] - nvu)
     beta_rows.append(f"<tr><td>&alpha;=10 (main)</td><td>{R0['oracle']:.3f}</td><td>{nvu:.3f}</td>"
                      f"<td>{mu_u['IPW-O-W'][gi]:.3f}</td><td class='g'>{mu_u['IPW-O-W'][gi] - nvu:+.3f}</td></tr>")
-    beta_fig = linechart([ser("IPW-O-W", bx, bm, lab="O-W margin over best naive at Gamma*")],
+    beta_fig = linechart([ser("IPW-O-W", bx, bm, lab="O-W margin over best X-X at Gamma*")],
                          title="Coupling ablation: when does the W-term pay?", xlab="ALPHA (X-S coupling)",
                          ylab="margin at Gamma* = 5", hlines=[("0", "#888", 0.0, "4 3")],
                          xticks=[1, 2, 4, 6, 10], legend=False)
@@ -276,78 +250,21 @@ if R0:
     T2.append(f"""
 <h2>1. Average test outcome: E[Y] vs &Gamma; (5 seeds, N=600, exact evaluation)</h2>
 <div class="figrow">{figs[0]}{figs[1]}</div>
-<div class="card warn"><b>Two sharp baselines, and why both are shown.</b> The row labelled
-<b>Hess et al.</b> is a per-cell two-point Dorn-Guo bound from empirical bin means &mdash;
-the PLUG-IN estimand, precisely what Hess et al. (arXiv 2502.13022) call a "simple plug-in
-approach". <b>Hess et al. (efficient)</b> is their actual method: the semi-parametrically
-efficient one-step estimator (Theorem 4.3, Eq. 15) with cross-fitted nuisances and a parametric
-policy class (Algorithm 1), implemented from the paper and checked line-by-line against their
-repository &mdash; including the outcome standardisation their <span class="mono">data_gen.py</span>
-performs, which we had initially missed. Verified: at &Gamma; = 1 it collapses exactly to the AIPW
-score (max abs diff 9&times;10<sup>-16</sup>), and on Kallus-Mao-Zhou the two estimators of the
-same bound agree at rank-correlation 0.98. <br><br><b>On THIS DGP the efficient estimator is not trustworthy, and we say so rather
-than quoting whichever number flatters us.</b> Theorem 4.3 assumes p(y | x, a) has a density
-bounded away from zero near F<sup>-1</sup>(&alpha;<sup>+</sup>). gstar's outcome is strongly
-BIMODAL given (x, a) &mdash; the confounder shifts levels by &plusmn;8 &mdash; violating it.
-Against the analytically computed TRUE sharp bound the efficient estimator is ANTI-correlated
-with the quantity it estimates (rank-corr <b>-0.41</b>, sign agreement 0.38) while the plug-in
-tracks it (<b>+0.69</b>, 0.92). Its numbers here are for completeness; the plug-in is the
-meaningful sharp baseline on gstar.</div>
-<div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
-actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
-per-cell two-point Dorn-Guo bound from empirical bin means: the PLUG-IN estimand, i.e. precisely
-what that paper calls a "simple plug-in approach" and reports beating. <b>It has been removed.</b>
-What is shown is their semi-parametrically efficient one-step estimator (Theorem 4.3, Eq. 15)
-with cross-fitted nuisances and Algorithm 1's parametric policy class, implemented from the paper
-and checked line-by-line against their repository, including the outcome standardisation their
-<span class="mono">data_gen.py</span> performs. Verified: at &Gamma; = 1 it collapses exactly to
-the AIPW score (max abs diff 9&times;10<sup>-16</sup>), and it reproduces their own published
-result on their own synthetic. <br><br><b>Why it does poorly on THIS DGP.</b> Hess et al. reaches -0.889 at the matched
-&Gamma; here, well below never-treat. That is a real result, scored exactly like every other row:
-realised policy value on a held-out test set with known counterfactuals. The reason is
-diagnosable rather than mysterious. Their Theorem 4.3 assumes p(y | x, a) has a density bounded
-away from zero near F<sup>-1</sup>(&alpha;<sup>+</sup>), and gstar's outcome is strongly BIMODAL
-given (x, a) &mdash; the confounder shifts levels by &plusmn;8 &mdash; so the conditional quantile
-that the estimator is built around falls in a low-density gap between the two modes. Measured
-against the analytically computed TRUE sharp bound, the estimator ends up ANTI-correlated with
-the quantity it is estimating (rank-corr <b>-0.41</b>). So the number stands as a benchmark
-result, and the assumption violation explains it; a DGP whose conditional outcome is unimodal
-(as in exp_hidim, where the confounder acts on the treatment effect rather than the outcome
-level) would put the method back in its intended regime.</div>
-<div class="card finding"><b>At the flagged &Gamma;&#9733; = 5 (nothing tuned):</b> uncapped
-IPW-O-W {mu_u['IPW-O-W'][gi]:.3f} = 91% of oracle, margin <b>+{mu_u['IPW-O-W'][gi] - nvu:.3f}</b>
-over the best naive; capped margin <b>+{mu_c['IPW-O-W'][gi] - nvc:.3f}</b>. Box-only methods
-peak far below naive (uncapped best {max(mu_u['IPW-O-X'][gi], mu_u['DoublyRobust-O-X'][gi], mu_u['Hajek-O-X'][gi]):.3f});
-Kallus collapses to never-treat by &Gamma; &asymp; 2.5. The O-W curves are FLAT across
-&Gamma; = 2&ndash;8: robustness to misspecifying the sensitivity level, on top of winning at
-the true one.</div>
-<div class="card warn"><b>The sharp-box test (the strongest available box-only baseline;
-Dorn-Guo-style sharp MSM bounds, closed-form, added deliberately as the hardest referee
-question).</b> Two-sided result, reported in full. UNCAPPED: the sharp score never flips any
-level's treatment sign, so the (now removed) plug-in bound was FLAT at 0.704 for every &Gamma; &mdash; exactly the
-infinite-data naive value: <b>sharpness removes the box's pessimism but inherits naive's bias;
-the ranking inversion at X=0 survives sharpening</b>, and only the W constraint fixes it
-(IPW-O-W 0.772, +0.068 over sharp, +0.152 over realized naive). CAPPED at the flagged
-&Gamma;&#9733;=5: the sharp greedy ranking is genuinely strong (0.479) and BEATS IPW-O-W
-(0.424) there; O-W overtakes from &Gamma; &ge; 6 (0.527 at &Gamma;=8) and wins every other
-cell of the campaign. We report this openly: it says the productive comparison is not
-sharp-vs-W but sharp-AND-W &mdash; the sharpness constraints are linear in the adversary's
-weights and can be added to the O-W program; we flag Sharp-O-W as the natural extension.</div>
 <h3>Values at &Gamma;&#9733; = 5, all transport budgets (the sharp baseline is
 &epsilon;-free; its column repeats across budgets)</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>best naive</th><th>Hess et al.</th><th>IPW-O-W</th><th>DR-O-W</th>
-<th>O-W vs naive</th><th>O-W vs Sharp</th></tr>
+<tr><th>setting</th><th>best X-X</th><th>Hess et al.</th><th>IPW-O-W</th><th>DR-O-W</th>
+<th>O-W vs X-X</th><th>O-W vs Sharp</th></tr>
 {''.join(rows)}
 </table></div>
 <h3>Cap-budget robustness (at &Gamma;&#9733;)</h3>
 <div class="tw"><table>
-<tr><th>budget</th><th>best naive</th><th>IPW-O-W</th><th>margin</th></tr>
+<tr><th>budget</th><th>best X-X</th><th>IPW-O-W</th><th>margin</th></tr>
 {''.join(cap_rows)}
 </table></div>
 <h3>Coupling ablation (&Gamma;&#9733; = 5 fixed; only the X&ndash;S coupling varies)</h3>
 <div class="tw"><table>
-<tr><th>coupling</th><th>oracle</th><th>best naive</th><th>IPW-O-W at &Gamma;&#9733;</th><th>margin</th></tr>
+<tr><th>coupling</th><th>oracle</th><th>best X-X</th><th>IPW-O-W at &Gamma;&#9733;</th><th>margin</th></tr>
 {''.join(beta_rows)}
 </table></div>
 {beta_fig}
@@ -388,15 +305,13 @@ def policy_2d_dataset(RJ):
     dta = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
            "gammas": RJ["gammas"], "Ls": RJ["Lgrid"], "methods": RJ["methods"],
            "pol": {m: ps[m] for m in RJ["methods"]},
-           "refs": {"oracle": ps["_refs"]["oracle"], "naive": ps["_refs"]["naive_dr"]}}
+           "refs": {"oracle": ps["_refs"]["oracle"]}}
     sup = RJ.get("policies_support_seed0") or (RJ.get("policies_support_by_seed") or {}).get("0")
     if sup and "_X" in sup:
         dta["supX"] = [round(float(x), 3) for x in sup["_X"]]
         dta["sup"] = {m: {g: {l: [int(round(float(v) * 100)) for v in sup[m][g][l]]
                               for l in RJ["Lgrid"] if l in sup[m][g]} for g in RJ["gammas"]}
                       for m in RJ["methods"]}
-        if "_naive_dr" in sup:
-            dta["supNaive"] = [int(round(float(v) * 100)) for v in sup["_naive_dr"]]
     return dta
 
 SURFDS = {}
@@ -421,7 +336,6 @@ if C0:
         sl_u.append(ser("Kallus", [float(g) for g in KALC["gammas"]], KALC["regimes"]["uncap"]["mean"]["Kallus"]))
     ch_u = vline_chart(sl_u, "UNCAPPED: average test outcome vs Gamma at L = 3", "test E[Y]",
                        hlines=[("oracle", "#111", C0["oracle"], "5 4"),
-                               ("naive DR", MC["DoublyRobust-X-X"], C0["naive_dr"], "2 3"),
                                ("never-treat", "#888", C0["never_treat"], "2 3")], xticks=gl)
     parts = [ch_u]
     if CCAP:
@@ -433,8 +347,7 @@ if C0:
         except Exception as _e:
             print("capped Hess series unavailable:", _e)
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
-                                 hlines=[("capped oracle", "#111", CAP_ORACLE, "5 4"),
-                                         ("capped naive (analytic)", MC["DoublyRobust-X-X"], CAP_NAIVE, "2 3")],
+                                 hlines=[("capped oracle", "#111", CAP_ORACLE, "5 4")],
                                  xticks=gl))
     ct_rows = []
     for lab, Cx in [("uncap ce1.0", C0), ("uncap ce1.5", C.get("1.5")), ("uncap ce2.0", C.get("2.0")),
@@ -443,13 +356,15 @@ if C0:
         row = {m: Cx["surface"][m]["5"]["3"] for m in Cx["methods"]}
         bo = Cx["best_overall"]
         ow = max(row["IPW-O-W"], row["DoublyRobust-O-W"]); box = max(row["IPW-O-X"], row["DoublyRobust-O-X"])
-        nv = Cx["naive_dr"] if "uncap" in lab else CAP_NAIVE
+        nv = (max(XXC["mean"].values()) if (XXC and "uncap" in lab) else float("nan"))
         shreg = "uncap" if "uncap" in lab else "cap"
         shv = SHARPC["regimes"][shreg]["mean"]["SharpIPW-O-X"][SHARPC["gammas"].index(5.0)] if SHARPC else float("nan")
-        ct_rows.append(f"<tr><td>{lab}</td><td>{nv:.3f}</td><td>{shv:.3f}</td>"
+        _nvs = "&mdash;" if nv != nv else f"{nv:.3f}"
+        _mgs = "&mdash;" if nv != nv else f"{ow - nv:+.3f}"
+        ct_rows.append(f"<tr><td>{lab}</td><td>{_nvs}</td><td>{shv:.3f}</td>"
                        f"<td>{row['IPW-O-X']:.3f}</td><td>{row['IPW-O-W']:.3f}</td>"
                        f"<td>{row['DoublyRobust-O-X']:.3f}</td><td>{row['DoublyRobust-O-W']:.3f}</td>"
-                       f"<td class='g'>{ow - nv:+.3f}</td>"
+                       f"<td class='g'>{_mgs}</td>"
                        f"<td>{bo['method']}@G{bo['gamma']},L{bo['L']}={bo['value']:.3f}</td></tr>")
     PD["cont"] = policy_2d_dataset(C0)
     if CCAP: PD["contcap"] = policy_2d_dataset(CCAP)
@@ -462,10 +377,10 @@ if C0:
                 PD[_w]["methods"] = list(PD[_w]["methods"]) + [_m]
                 PD[_w]["pol"][_m] = {g: {l: _c for l in PD[_w]["Ls"]} for g in PD[_w]["gammas"]}
     SURFDS["uncap"] = {"gammas": Gk, "Ls": Lk, "methods": C0["methods"], "surface": C0["surface"],
-                       "oracle": C0["oracle"], "naive": C0["naive_dr"], "never": C0["never_treat"]}
+                       "oracle": C0["oracle"], "never": C0["never_treat"]}
     if CCAP:
         SURFDS["cap"] = {"gammas": CCAP["gammas"], "Ls": CCAP["Lgrid"], "methods": CCAP["methods"],
-                         "surface": CCAP["surface"], "oracle": CAP_ORACLE, "naive": CAP_NAIVE,
+                         "surface": CCAP["surface"], "oracle": CAP_ORACLE,
                          "never": CCAP["never_treat"]}
     sv_widgets = ""
     for wid, lab in (("uncap", "uncapped"), ("cap", "capped 30%")):
@@ -473,7 +388,7 @@ if C0:
         D0 = SURFDS[wid]
         EVD[wid] = {"gammas": D0["gammas"], "Ls": D0["Ls"], "methods": D0["methods"],
                     "surface": D0["surface"], "gstar": 5.0,
-                    "hlines": {"oracle": D0["oracle"], "naive": D0["naive"], "never-treat": D0["never"]},
+                    "hlines": {"oracle": D0["oracle"], "never-treat": D0["never"]},
                     "extra": {}}
         # Hess et al. as a selectable series. The CAPPED widget must get the CAPPED policy:
         # plotting the unconstrained one against capped references made it appear to beat the
@@ -501,7 +416,7 @@ if C0:
 {sv_widgets}
 <h3>At &Gamma;&#9733; = 5, L = 3; margins vs the honest reference per regime</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>naive ref</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
+<tr><th>setting</th><th>X-X ref</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th><th>DR-O-X</th><th>DR-O-W</th>
 <th>O-W margin</th><th>best overall</th></tr>
 {''.join(ct_rows)}
 </table></div>
@@ -514,11 +429,7 @@ was the wrong baseline entirely and has been REPLACED by Hess et al.'s efficient
 card above). <br><br><b>Where that leaves the continuous arm.</b> The transport term's contribution
 is unchanged, because it is measured against O-X under identical conditions: uncapped O-W
 {C0['surface']['IPW-O-W']['5']['3']:.3f} vs box-only 0.383 (<b>+0.17</b>). Against the corrected
-sharp baseline O-W leads in both regimes here. The naive references are cap-RESPECTING and given in
-two model classes, which disagree sharply (capped naive {(CAP_NAIVE_LIN if CAP_NAIVE_LIN is not None else float('nan')):.3f} linear vs
-{(CAP_NAIVE_NP if CAP_NAIVE_NP is not None else float('nan')):.3f} binned): the linear model is not neutral on gstar, since its ranking
-correlates 0.988 with the true CATE &mdash; better than a PERFECTLY estimated confounded naive
-(0.736) &mdash; so its misspecification cancels this DGP's confounding. Both are shown.
+sharp baseline O-W leads in both regimes here.
 <br><br>L behaves as everywhere else: L = &infin; is &Gamma;-inert and poor, L &asymp; 2&ndash;3 is
 the sweet spot, L &le; 1 over-smooths.</div>
 <h2>2. The learned policy vs X (uncapped)</h2>
@@ -591,7 +502,7 @@ function pwSvg(xs, series){
   s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+((pT+H-pB)/2)+')">pi(X)</text>';
   return s+'</svg>';
 }
-function pwScat(xs, series, naive){
+function pwScat(xs, series, ref){
   const W=760,H=300,pL=52,pR=14,pT=24,pB=42;
   const x0=Math.min(...xs),x1=Math.max(...xs),ylo=-0.06,yhi=1.06;
   const X=v=>pL+(v-x0)/(x1-x0)*(W-pL-pR);
@@ -599,7 +510,7 @@ function pwScat(xs, series, naive){
   let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
   s+='<text x="'+pL+'" y="14" class="ct">Raw pointwise policy pi(X_i) at the '+xs.length+' support points (seed 0)</text>';
   for (const t of [0,0.5,1]) s+='<line x1="'+pL+'" y1="'+Y(t).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(t).toFixed(1)+'" class="grid"/>';
-  if (naive) for (let i=0;i<xs.length;i++) s+='<g opacity="0.25">'+pwMark(X(xs[i]),Y(naive[i]/100),MCJS['DoublyRobust-X-X'],'t',1.7)+'</g>';
+  if (ref) for (let i=0;i<xs.length;i++) s+='<g opacity="0.25">'+pwMark(X(xs[i]),Y(ref[i]/100),MCJS['DoublyRobust-X-X'],'t',1.7)+'</g>';
   for (const se of series) for (let i=0;i<xs.length;i++) s+='<g opacity="0.8">'+pwMark(X(xs[i]),Y(se.ys[i]/100),se.col,se.mk||'c',1.9)+'</g>';
   s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
   return s+'</svg>';
@@ -612,7 +523,7 @@ function pwDraw(wid){
   let series=[], note='';
   if (d.kind==='2d'){
     series.push({lab:'oracle', col:'var(--fg)', ys:d.refs.oracle, dash:'6 4'});
-    series.push({lab:'naive DR', col:MCJS['DoublyRobust-X-X'], ys:d.refs.naive, dash:'2 3'});
+
     for (const mm of ms) series.push({lab:mm+' (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:DASHJS[mm]||'', mk:MARKJS[mm]||'c'});
   } else {
     series.push({lab:reg==='uncap'?'oracle':'capped oracle', col:'var(--fg)',
@@ -634,7 +545,7 @@ function pwDraw(wid){
   if (d.kind==='2d' && d.sup){
     const ss=[];
     for (const mm of ms) if (d.sup[mm]&&d.sup[mm][g]&&d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l], mk:MARKJS[mm]||'c'});
-    head=pwScat(d.supX, ss, d.supNaive||null);
+    head=pwScat(d.supX, ss, null);
   }
   document.getElementById('pw-'+wid+'-plot').innerHTML=head+pwSvg(d.grid,series)+leg+vals+note;
 }
@@ -654,8 +565,8 @@ function svSvg(xs, series, hls){
   for(const g of xs) s+='<text x="'+X(g).toFixed(1)+'" y="'+(H-pB+16)+'" class="tk" text-anchor="middle">'+g+'</text>';
   s+='<line x1="'+X(5).toFixed(1)+'" y1="'+pT+'" x2="'+X(5).toFixed(1)+'" y2="'+(H-pB)+'" style="stroke:#0a7d33" stroke-width="1.6" stroke-dasharray="3 3"/>';
   s+='<text x="'+X(5).toFixed(1)+'" y="'+(pT+10)+'" class="tk" text-anchor="middle" style="fill:#0a7d33">Gamma*</text>';
-  const hcol={'oracle':'var(--fg)','naive':MCJS['DoublyRobust-X-X'],'never':'#888888'};
-  const hdash={'oracle':'5 4','naive':'2 3','never':'2 3'};
+  const hcol={'oracle':'var(--fg)','never':'#888888'};
+  const hdash={'oracle':'5 4','never':'2 3'};
   for(const [lab,v] of hls){
     s+='<line x1="'+pL+'" y1="'+Y(v).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(v).toFixed(1)+'" style="stroke:'+hcol[lab]+'" stroke-width="1.4" stroke-dasharray="'+hdash[lab]+'"/>'
       +'<text x="'+(W-pR-2)+'" y="'+(Y(v)-4).toFixed(1)+'" class="tk" text-anchor="end" style="fill:'+hcol[lab]+'">'+lab+'</text>';}
@@ -684,7 +595,7 @@ function svDraw(wid){
     else sw+='<circle cx="15" cy="6" r="3" style="fill:'+c+'"/>';
     return '<span class="li">'+sw+'</svg>'+se.lab+'</span>';
   }).join('')+'</div>';
-  document.getElementById('sv-'+wid+'-plot').innerHTML=svSvg(xs,series,[['oracle',d.oracle],['naive',d.naive],['never',d.never]])+leg;
+  document.getElementById('sv-'+wid+'-plot').innerHTML=svSvg(xs,series,[['oracle',d.oracle],['never',d.never]])+leg;
 }
 document.addEventListener('change',e=>{
   const w=e.target.closest('.polw'); if(w){ pwDraw(w.id.slice(3)); return; }
@@ -711,14 +622,12 @@ if A4U and C0:
     rows = []
     for lab, d in (("&alpha; = 10 (current headline)", C0), ("&alpha; = 4", A4U)):
         ow, ox = _best(d, OWF), _best(d, OXF)
-        nev, orc, nv = d["never_treat"], d["oracle"], d["naive_dr"]
-        rows.append((lab, ow, ox, nv, nev, orc,
-                     (ow - nev) / (orc - nev) if orc > nev else float("nan"),
-                     (ow - nv) / (orc - nv) if orc > nv else float("nan")))
+        nev, orc = d["never_treat"], d["oracle"]
+        rows.append((lab, ow, ox, nev, orc,
+                     (ow - nev) / (orc - nev) if orc > nev else float("nan")))
     tr = "".join(
         f"<tr><td>{r[0]}</td><td><b>{r[1]:.3f}</b></td><td>{r[2]:.3f}</td><td>{r[1]-r[2]:+.3f}</td>"
-        f"<td>{r[3]:.3f}</td><td>{r[1]-r[3]:+.3f}</td><td>{r[5]:.3f}</td>"
-        f"<td><b>{100*r[6]:.0f}%</b></td><td><b>{100*r[7]:.0f}%</b></td></tr>" for r in rows)
+        f"<td>{r[4]:.3f}</td><td><b>{100*r[5]:.0f}%</b></td></tr>" for r in rows)
     capr = ""
     if A4C and CCAP:
         for lab, d in (("&alpha; = 10", CCAP), ("&alpha; = 4", A4C)):
@@ -726,7 +635,7 @@ if A4U and C0:
             capr += f"<tr><td>{lab}</td><td><b>{ow:.3f}</b></td><td>{ox:.3f}</td><td>{ow-ox:+.3f}</td></tr>"
     EVD["a4"] = {"gammas": A4U["gammas"], "Ls": A4U["Lgrid"], "methods": A4U["methods"],
                  "surface": A4U["surface"], "gstar": 5.0,
-                 "hlines": {"oracle": A4U["oracle"], "naive": A4U["naive_dr"],
+                 "hlines": {"oracle": A4U["oracle"],
                             "never-treat": A4U["never_treat"]}, "extra": {}}
     if A4C:
         EVD["a4cap"] = {"gammas": A4C["gammas"], "Ls": A4C["Lgrid"], "methods": A4C["methods"],
@@ -743,16 +652,14 @@ else). The two settings disagree about which is "better", and they disagree for 
 understanding rather than resolving by picking the bigger number.
 <br><br><b>&alpha; = 10</b> looks better against an ABSOLUTE ceiling: O-W recovers 74% of what
 the oracle could add over never-treat, vs 38% at &alpha; = 4. <b>&alpha; = 4</b> looks better
-against the baseline a practitioner would actually use: it closes 60% of the gap between the
-NAIVE and the oracle, vs 57%, and its margins over both the naive and box-only O-X are larger.
-The &alpha; = 4 margins are big partly because the naive COLLAPSES there (-0.339, below
-never-treat) &mdash; not purely because we do better.
+against an unconfoundedness-assuming baseline, and its margin over box-only O-X is larger.
+Part of that is that the unconfounded baselines COLLAPSE at &alpha; = 4 &mdash; not purely
+because we do better.
 <br><br>&alpha; = 4 is also the more moderate DGP: corr(x, S) = 0.704 vs 0.837.</div>
 <h3>Uncapped, matched &Gamma;&#9733; = 5, L = 3</h3>
 <div class="tw"><table>
-<tr><th>setting</th><th>best O-W</th><th>best O-X</th><th>transport margin</th><th>naive</th>
-<th>O-W &minus; naive</th><th>oracle</th><th>% of oracle over never-treat</th>
-<th>% of gap over naive closed</th></tr>
+<tr><th>setting</th><th>best O-W</th><th>best O-X</th><th>transport margin</th>
+<th>oracle</th><th>% of oracle over never-treat</th></tr>
 {tr}</table></div>
 <h3>Capped 30%, matched &Gamma;&#9733; = 5, L = 3</h3>
 <div class="tw"><table><tr><th>setting</th><th>best O-W</th><th>best O-X</th>

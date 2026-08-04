@@ -1,0 +1,38 @@
+{
+ "name": "wine_quality",
+ "uci_id": 186,
+ "outcome": "quality",
+ "outcome_kind": "continuous",
+ "pseudo_treatment_col": "alcohol",
+ "treatment_search_headroom": 0.7478,
+ "n_total": 6497,
+ "cols_X": [
+  "chlorides",
+  "total_sulfur_dioxide",
+  "citric_acid",
+  "density",
+  "volatile_acidity"
+ ],
+ "cols_U": [
+  "fixed_acidity",
+  "free_sulfur_dioxide",
+  "pH",
+  "residual_sugar",
+  "sulphates"
+ ],
+ "LAM_declared": 4.0,
+ "LAM_realised": 4.0,
+ "CX": 1.2,
+ "corr_x_u": 0.4716455183112956,
+ "corr_x_S": 0.3823425203020181,
+ "P_T1": 0.49853778667077114,
+ "e_min": 0.14753729681157662,
+ "e_max": 0.8691139538101299,
+ "oracle_test": 0.2869895726144507,
+ "never_test": -0.3014058980098307,
+ "all_test": 0.2605521963302192,
+ "cate_sd": 0.35790427648217954,
+ "outcome_sd": 0.5975305859695141,
+ "n_train": 300,
+ "n_test": 4000
+}

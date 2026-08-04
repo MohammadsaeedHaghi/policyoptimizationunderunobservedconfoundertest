@@ -71,6 +71,7 @@ def solve_ipw_o_w_uncapped(
     epsilon: Optional[Sequence[float]] = None,
     rounding_digits: int = 6,
     debug: bool = False,
+    rationality: bool = False,      # C4: sum_{N0} Y_i w_i >= sum_{N0} Y_i w_hat_i
     lipschitz=None,
     linear_policy: bool = False,
     linear_M: float = 20.0,
@@ -165,6 +166,18 @@ def solve_ipw_o_w_uncapped(
     for _key, (_idx, _R) in _sharp_groups.items():          # free dual per (arm, cell) equality
         delta[_key] = m.addVar(lb=-GRB.INFINITY, name="delta_%d_%d" % _key)
         obj += delta[_key] * _R                             # + delta * (nominal group total)
+
+    # --- C4 "historical rationality" (see semisynthetic/patch_rationality.py) ---
+    # One primal inequality on the adversary's weights over the UNTREATED arm becomes one dual
+    # variable kappa >= 0: + R*kappa in this MAXIMISE objective, and -kappa*Y_i in the dual
+    # feasibility row of every untreated unit. R is the nominal value of the same functional, so
+    # w = w_hat is always feasible and the set is never empty.
+    _kappa = None
+    if rationality:
+        _N0 = [int(i) for i in range(n) if int(T[i]) == 0]
+        _R = float(sum(float(Y[i]) * float(w_hat[i]) for i in _N0))
+        _kappa = m.addVar(lb=0.0, name="kappa_rationality")
+        obj += _R * _kappa
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- policy constraints: simplex + tie ONLY (NO capacity) ---
@@ -223,8 +236,9 @@ def solve_ipw_o_w_uncapped(
     for k in range(K):
         for i in i_by_t[k]:
             _d = delta.get((k, int(_cell_of[i]))) if _sharp_groups else None
+            _rc = (_kappa * float(Y[i])) if (rationality and k == 0) else 0.0
             m.addConstr((1.0 / n) * pi[k, i] * float(Y[i]) + (1.0 / n) * theta[k, i]
-                        - mu[i] + nu[i] - (_d if _d is not None else 0.0) >= 0.0,
+                        - mu[i] + nu[i] - (_d if _d is not None else 0.0) - _rc >= 0.0,
                         name=f"feas_{k}_{i}")
 
     # --- transport-metric constraints (Wasserstein ball geometry) ---

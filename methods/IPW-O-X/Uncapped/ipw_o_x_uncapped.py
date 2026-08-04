@@ -60,6 +60,7 @@ def solve_ipw_o_x_uncapped(
     mesh_range: Tuple[float, float] = (-1.0, 1.0),
     rounding_digits: int = 6,
     debug: bool = False,
+    rationality: bool = False,      # C4: sum_{N0} Y_i w_i >= sum_{N0} Y_i w_hat_i
     lipschitz=None,
     linear_policy: bool = False,
     linear_M: float = 20.0,
@@ -107,12 +108,26 @@ def solve_ipw_o_x_uncapped(
         obj += float(a_box[i]) * mu[i] - float(b_box[i]) * nu[i]   # MSM-box interval term
     for k in range(K):
         obj += float(n) * beta[k]                            # per-arm calibration term
+
+    # --- C4 "historical rationality" (see semisynthetic/patch_rationality.py) ---
+    # One primal inequality on the adversary's weights over the UNTREATED arm becomes one dual
+    # variable kappa >= 0: + R*kappa in this MAXIMISE objective, and -kappa*Y_i in the dual
+    # feasibility row of every untreated unit. R is the nominal value of the same functional, so
+    # w = w_hat is always feasible and the set is never empty.
+    _kappa = None
+    if rationality:
+        _N0 = [int(i) for i in range(n) if int(T[i]) == 0]
+        _R = float(sum(float(Y[i]) * float(w_hat[i]) for i in _N0))
+        _kappa = m.addVar(lb=0.0, name="kappa_rationality")
+        obj += _R * _kappa
     m.setObjective(obj, GRB.MAXIMIZE)
 
     # --- stationarity constraint per unit ---
     for i in range(n):
         t = int(T[i])
-        m.addConstr(mu[i] - nu[i] == (1.0 / n) * float(Y[i]) * pi[t, i] - beta[t], name=f"stat_{i}")
+        _rc = (_kappa * float(Y[i])) if (rationality and t == 0) else 0.0
+        m.addConstr(mu[i] - nu[i] == (1.0 / n) * float(Y[i]) * pi[t, i] - beta[t] - _rc,
+                    name=f"stat_{i}")
 
     # --- policy constraints: simplex + tie ONLY (NO capacity) ---
     if lipschitz is not None:                              # L-Lipschitz policy class

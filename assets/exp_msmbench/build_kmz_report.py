@@ -13,6 +13,8 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import dgp_figs as DF
 from report_common import CSS, MC, mdash, mmark, ser, esc, linechart, heatmap, ev_widget_html, EV_JS, legend_swatch
 from latex2mathml.converter import convert as l2m
 MC["Hess-efficient"] = "#8c564b"
@@ -53,23 +55,15 @@ def vline_chart(series, title, ylab, hlines=None, W=680, xticks=None):
 
 # ================================ TAB 1: DGP ================================
 xg = np.linspace(-1, 1, 241); Xg = 2 * xg
-EQ = M(r"Y(a) = (2a{-}1)X + (2a{-}1) - 2\sin(2(2a{-}1)X) - 2(2U{-}1)(1+0.5X) + \mathcal{N}(0,1),"
-       r"\quad X \sim \mathrm{Unif}[-2,2],\; U \sim \mathrm{Bern}(\tfrac12) \perp X")
-EQ_E = M(r"e(x,u) = \frac{u}{\rho(x, 1/\Gamma^{\!*})} + \frac{1-u}{\rho(x, \Gamma^{\!*})},"
+EQ = M(r"Y(a) = (2a{-}1)X + (2a{-}1) - 2\sin(2(2a{-}1)X) - 2S(1+0.5X) + \mathcal{N}(0,1),"
+       r"\quad X \sim \mathrm{Unif}[-2,2],\; S \in \{\pm 1\},\; P(S{=}{+}1) = \tfrac12,\; S \perp X")
+EQ_E = M(r"e(x,S) = \frac{1{+}S}{2\,\rho(x, 1/\Gamma^{\!*})} + \frac{1{-}S}{2\,\rho(x, \Gamma^{\!*})},"
          r"\quad \rho(x,\gamma) = 1 + \Big(\frac{1}{e(x)}-1\Big)\gamma,\quad e(x) = \sigma(0.75X + 0.5)")
 cate = 2 * Xg + 2 - 4 * np.sin(2 * Xg)
 e1 = d.propensity(xg, np.ones_like(xg)); e0 = d.propensity(xg, -np.ones_like(xg))
-figs = '<div class="figrow">' + figcap(
-    linechart([("CATE(x)", "#d62728", list(xg), list(cate), "")],
-              title="True CATE (oscillating; oracle treats ~73%)", xlab="x = X/2", ylab="CATE",
-              hlines=[("0", "#888", 0.0, "4 3")], legend=False),
-    "CATE(X) = 2X + 2 - 4 sin(2X); the confounder U shifts levels only and cancels.") + figcap(
-    linechart([("P(T=1 | x, U=1)", "#2ca02c", list(xg), list(e1), ""),
-               ("P(T=1 | x, U=0)", "#9467bd", list(xg), list(e0), ""),
-               ("nominal e(x)", "#334155", list(xg), list(1/(1+np.exp(-(0.75*Xg+0.5)))), "5 4")],
-              title="MSM-extremal propensity at Gamma* = e^1.5", xlab="x", ylab="P(T=1 | x, U)"),
-    "The paper's construction: the true propensity sits ON the MSM boundary, so the "
-    "sensitivity model holds exactly with the KNOWN Gamma*.") + '</div>'
+# Four more DGP figures, shared with the gstar report (assets/dgp_figs.py).
+dgp_extra = DF.all_figs(d, d.GSTAR, xg=np.linspace(-1.0, 1.0, 401),
+                        xlab="x = X/2", figcap=figcap)
 T1 = f"""
 <h2>1. The DGP (Kallus-Mao-Zhou 2019, arXiv 1810.02894 -- unmodified)</h2>
 {EQ}{EQ_E}
@@ -79,17 +73,15 @@ known by construction, nothing tuned. Pipeline units: x = X/2 &isin; [-1, 1]. 5 
 N = 400 train / 4,000 test draws, Shapley deployment; every raw
 per-seed policy persisted.</p>
 <div class="card warn"><b>Declared expectation (the honest frame, written before the wave).</b>
-This DGP has U &perp; X: measured corr(x, S) &asymp; 0.01 -- the ZERO-COUPLING anchor of our
+This DGP has S &perp; X: measured corr(x, S) &asymp; 0.01 -- the ZERO-COUPLING anchor of our
 diagnostic map. No X-balance device can constrain a confounder that is independent of X, so
 the prediction is <b>O-W &asymp; O-X (do no harm), with box-family methods on their
 correctly-specified home turf performing well</b>. The campaign's value: our methods evaluated
 on the literature's own benchmark with its own strength axis, the do-no-harm property
 demonstrated, and the capped 30% variant (absent from the literature) added.</div>
-{figs}
+{dgp_extra}
 <p>Analytic references: oracle {REFS['oracle_uncap']:.3f} uncapped / {REFS['oracle_cap30']:.3f}
-capped(30%); never-treat {REFS['never']:.3f}; all-treat {REFS['all']:.3f}; infinite-data naive
-by &Gamma;*: {REFS['by_gstar']['g05']['naive_uncap']:.3f} / {REFS['by_gstar']['g10']['naive_uncap']:.3f} /
-{REFS['by_gstar']['g15']['naive_uncap']:.3f} (bias grows with strength).</p>
+capped(30%); never-treat {REFS['never']:.3f}; all-treat {REFS['all']:.3f}.</p>
 """
 
 # ================================ TAB 2: RESULTS ================================
@@ -101,12 +93,10 @@ if C0:
     if KAL: sl.append(ser("Kallus", [float(g) for g in KAL["gammas"]], KAL["regimes"]["uncap"]["mean"]["Kallus"]))
     ch = vline_chart(sl, "UNCAPPED: average test outcome vs Gamma at L = 3 (Gamma* = e^1.5)", "test E[Y]",
                      hlines=[("oracle", "#111", REFS["oracle_uncap"], "5 4"),
-                             ("naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_uncap"], "2 3"),
                              ("never-treat", "#888", REFS["never"], "2 3")], xticks=gl)
     EVD["kuncap"] = {"gammas": Gk, "Ls": Lk, "methods": C0["methods"], "surface": C0["surface"],
                      "gstar": GSTAR,
                      "hlines": {"oracle": REFS["oracle_uncap"],
-                                "naive (analytic)": REFS["by_gstar"]["g15"]["naive_uncap"],
                                 "never-treat": REFS["never"]},
                      "extra": {}}
     if KAL: EVD["kuncap"]["extra"]["Kallus"] = {("%g" % g): v for g, v in zip(KAL["gammas"], KAL["regimes"]["uncap"]["mean"]["Kallus"])}
@@ -120,13 +110,11 @@ if C0:
         except Exception as _e:
             print("capped Hess series unavailable:", _e)
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
-                                 hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4"),
-                                         ("capped naive (analytic)", MC["DoublyRobust-X-X"], REFS["by_gstar"]["g15"]["naive_cap30"], "2 3")],
+                                 hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4")],
                                  xticks=gl))
         EVD["kcap"] = {"gammas": CC["gammas"], "Ls": CC["Lgrid"], "methods": CC["methods"],
                        "surface": CC["surface"], "gstar": GSTAR,
-                       "hlines": {"capped oracle": REFS["oracle_cap30"],
-                                  "capped naive": REFS["by_gstar"]["g15"]["naive_cap30"]},
+                       "hlines": {"capped oracle": REFS["oracle_cap30"]},
                        "extra": {}}
     if XX:
         # X-X methods assume unconfoundedness, so they carry no Gamma: each is a FLAT line.
@@ -162,14 +150,13 @@ if C0:
         g0 = Rg["gammas"][0]
         row = {m: Rg["surface"][m][g0]["3"] for m in Rg["methods"]}
         shv = float("nan")   # strength ladder: Hess not run per strength arm
-        nv = REFS["by_gstar"]["g" + tag]["naive_uncap"]
-        st_rows.append(f"<tr><td>&Gamma;* = {lab}</td><td>{nv:.3f}</td><td>{shv:.3f}</td>"
+        st_rows.append(f"<tr><td>&Gamma;* = {lab}</td><td>{shv:.3f}</td>"
                        f"<td>{row['IPW-O-X']:.3f}</td><td>{row['IPW-O-W']:.3f}</td>"
                        f"<td>{row['DoublyRobust-O-X']:.3f}</td><td>{row['DoublyRobust-O-W']:.3f}</td></tr>")
     row15 = {m: C0["surface"][m][GKEY]["3"] for m in C0["methods"]}
     sh15 = (HESSD["mean"][HESSD["gammas"].index("4.4817")] if HESSD and "4.4817" in HESSD["gammas"] else float("nan"))
     st_rows.append(f"<tr><td>&Gamma;* = e^1.5 = 4.48 (main)</td>"
-                   f"<td>{REFS['by_gstar']['g15']['naive_uncap']:.3f}</td><td>{sh15:.3f}</td>"
+                   f"<td>{sh15:.3f}</td>"
                    f"<td>{row15['IPW-O-X']:.3f}</td><td>{row15['IPW-O-W']:.3f}</td>"
                    f"<td>{row15['DoublyRobust-O-X']:.3f}</td><td>{row15['DoublyRobust-O-W']:.3f}</td></tr>")
     # ceps + n ablations at matched Gamma
@@ -200,7 +187,7 @@ if C0:
 <div class="figrow">{''.join(hms)}</div>
 <h2>2. The paper's own axis: confounding strength &Gamma;* (each at its matched &Gamma;, L = 3)</h2>
 <div class="tw"><table>
-<tr><th>strength</th><th>naive (analytic)</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th>
+<tr><th>strength</th><th>Hess et al.</th><th>IPW-O-X</th><th>IPW-O-W</th>
 <th>DR-O-X</th><th>DR-O-W</th></tr>
 {''.join(st_rows)}
 </table></div>
@@ -216,33 +203,6 @@ Shapley deployment.</p>
 <div class="tw"><table><tr><th>method</th><th>test E[Y]</th><th>sd over seeds</th></tr>
 {''.join(xx_rows)}</table></div>
 
-<div class="card warn"><b>The sharp baseline here is Hess et al. (arXiv 2502.13022) &mdash; their
-actual method.</b> Earlier versions of this report carried a row called "Sharp-O-X" that was a
-per-cell two-point Dorn-Guo bound from empirical bin means: the PLUG-IN estimand, i.e. precisely
-what that paper calls a "simple plug-in approach" and reports beating. <b>It has been removed.</b>
-What is shown is their semi-parametrically efficient one-step estimator (Theorem 4.3, Eq. 15)
-with cross-fitted nuisances and Algorithm 1's parametric policy class, implemented from the paper
-and checked line-by-line against their repository, including the outcome standardisation their
-<span class="mono">data_gen.py</span> performs. Verified: at &Gamma; = 1 it collapses exactly to
-the AIPW score (max abs diff 9&times;10<sup>-16</sup>), and it reproduces their own published
-result on their own synthetic. This benchmark IS their own synthetic, so the estimator is in its intended regime and
-this comparison is the meaningful one.</div>
-<div class="card good" id="kmz-verdict"><b>Verdict (written against the declared expectation).</b> The zero-coupling
-prediction is confirmed across the paper's entire strength sweep: at every &Gamma;* the O-W
-methods TIE their box-only counterparts within noise (main: IPW-O-W 1.084 vs IPW-O-X 1.079;
-&Gamma;*=1.65: 1.243 vs 1.242; &Gamma;*=2.72: 1.172 vs 1.167) &mdash; with U &perp; X the
-Wasserstein term is idle, and it does NO HARM. Against the CORRECTED sharp baseline &mdash; Hess et al.'s efficient
-estimator rather than the plug-in this report previously carried &mdash; O-W leads at the matched
-&Gamma;* (1.084 vs 0.960). An earlier version of this report concluded that the best robust method here was the
-plug-in bound at 1.166; that comparison used the plug-in rather than the published method and
-is WITHDRAWN. In the
-capped 30% variant (novel vs the literature) the robust methods cluster (0.43-0.44) below the
-infinite-data capped naive (0.540): at zero coupling the naive RANKING survives the smooth
-bias shift, so robustness costs a worst-case premium with nothing to buy &mdash; the
-"robustness unnecessary here" corner of the diagnostic, demonstrated on the literature's own
-benchmark. Together with the gstar campaign this completes the two-benchmark story: O-W wins
-where the confounder is X-trackable, ties harmlessly where it is not, and the coupling
-diagnostic tells the regimes apart.</div>
 """)
 else:
     T2.append('<p class="muted">Wave running; rerun this builder when jobs land.</p>')
@@ -294,15 +254,13 @@ def policy_2d_dataset(RJ):
     dta = {"kind": "2d", "grid": [float(x) for x in RJ["policy_grid"]],
            "gammas": RJ["gammas"], "Ls": RJ["Lgrid"], "methods": RJ["methods"],
            "pol": {m: ps[m] for m in RJ["methods"]},
-           "refs": {"oracle": ps["_refs"]["oracle"], "naive": ps["_refs"]["naive_dr"]}}
+           "refs": {"oracle": ps["_refs"]["oracle"]}}
     sup = RJ.get("policies_support_seed0") or (RJ.get("policies_support_by_seed") or {}).get("0")
     if sup and "_X" in sup:
         dta["supX"] = [round(float(x), 3) for x in sup["_X"]]
         dta["sup"] = {m: {g: {l: [int(round(float(v) * 100)) for v in sup[m][g][l]]
                               for l in RJ["Lgrid"] if l in sup[m][g]} for g in RJ["gammas"]}
                       for m in RJ["methods"]}
-        if "_naive_dr" in sup:
-            dta["supNaive"] = [int(round(float(v) * 100)) for v in sup["_naive_dr"]]
     return dta
 
 T3 = []
@@ -311,7 +269,7 @@ if C0:
     T3.append("""
 <h2>1. Learned policy vs x -- uncapped</h2>
 <p>Raw per-unit support policy (seed 0) above; Shapley-deployed pi(x) below. The oracle's
-oscillating interior structure is the test: naive under-treats the positive regions.</p>""")
+oscillating interior structure is the test: an unconfounded fit under-treats the positive regions.</p>""")
     _add_hess_curves(PD, "km")
     if XX and XX.get("curves"):
         for _w in PD:
@@ -383,15 +341,14 @@ function pwSvg(xs, series){
   s+='<text x="14" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 14 '+((pT+H-pB)/2)+')">pi(x)</text>';
   return s+'</svg>';
 }
-function pwScat(xs, series, naive){
+function pwScat(xs, series, ref){
   const W=760,H=300,pL=52,pR=14,pT=24,pB=42;
   const x0=Math.min(...xs),x1=Math.max(...xs),ylo=-0.06,yhi=1.06;
   const X=v=>pL+(v-x0)/(x1-x0)*(W-pL-pR);
   const Y=v=>H-pB-(v-ylo)/(yhi-ylo)*(H-pT-pB);
-  let s='<svg viewBox="0 0 '+W+'" class="chart" viewBox="0 0 '+W+' '+H+'">';
-  s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
+  let s='<svg viewBox="0 0 '+W+' '+H+'" class="chart">';
   s+='<text x="'+pL+'" y="14" class="ct">Raw pointwise policy at the support points (seed 0)</text>';
-  if (naive) for (let i=0;i<xs.length;i++) s+='<g opacity="0.25">'+pwMark(X(xs[i]),Y(naive[i]/100),MCJS['DoublyRobust-X-X'],'t',1.7)+'</g>';
+  if (ref) for (let i=0;i<xs.length;i++) s+='<g opacity="0.25">'+pwMark(X(xs[i]),Y(ref[i]/100),MCJS['DoublyRobust-X-X'],'t',1.7)+'</g>';
   for (const se of series) for (let i=0;i<xs.length;i++) s+='<g opacity="0.8">'+pwMark(X(xs[i]),Y(se.ys[i]/100),se.col,se.mk||'c',1.9)+'</g>';
   s+='<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>';
   return s+'</svg>';
@@ -402,13 +359,13 @@ function pwDraw(wid){
   const g=gv('g'), l=gv('l');
   const ms=Array.from(document.querySelectorAll('#pw-'+wid+'-m input:checked')).map(e=>e.dataset.m);
   let series=[{lab:'oracle', col:'var(--fg)', ys:d.refs.oracle, dash:'6 4'},
-              {lab:'naive DR', col:MCJS['DoublyRobust-X-X'], ys:d.refs.naive, dash:'2 3'}];
+              ];
   for (const mm of ms) series.push({lab:mm+' (G='+g+', L='+l+')', col:MCJS[mm]||'#7f7f7f', ys:d.pol[mm][g][l], dash:DASHJS[mm]||'', mk:MARKJS[mm]||'c'});
   let head='';
   if (d.sup){
     const ss=[];
     for (const mm of ms) if (d.sup[mm]&&d.sup[mm][g]&&d.sup[mm][g][l]) ss.push({col:MCJS[mm]||'#7f7f7f', ys:d.sup[mm][g][l], mk:MARKJS[mm]||'c'});
-    head=pwScat(d.supX, ss, d.supNaive||null);
+    head=pwScat(d.supX, ss, null);
   }
   const leg='<div class="leg">'+series.map(se=>{
     const c=se.col, dd=se.dash||'', mk=se.mk||'c';
