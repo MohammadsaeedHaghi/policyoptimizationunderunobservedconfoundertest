@@ -203,7 +203,8 @@ if __name__ == "__main__":
     test_gamma1_is_aipw()
 
 
-def learn_policy_parametric(X, g, n_iter=800, lr=0.2, restarts=6, seed=0, maximize=True, hidden=0):
+def learn_policy_parametric(X, g, n_iter=800, lr=2.0, restarts=6, seed=0, maximize=True, hidden=0,
+                            decay=True):
     """Algorithm 1, steps 4-8: optimise a PARAMETRIC policy class by gradient descent.
 
     The paper learns pi_theta over a parametric class (they use neural networks) rather than
@@ -214,6 +215,12 @@ def learn_policy_parametric(X, g, n_iter=800, lr=0.2, restarts=6, seed=0, maximi
     minimised in the paper's convention; with maximize=True we ascend instead, having already
     negated the scores. Logistic class by default; hidden>0 gives a 1-hidden-layer tanh MLP,
     closer to their neural instantiation.
+
+    NOT the pointwise argmax. Eq. 15 is linear in pi, so `sharp_hess_policy` returns the exact
+    optimum over ALL policies -- and that optimum OVERFITS badly: measured here it attains an
+    Eq.-15 objective of 7.41 against this class's -0.08 while its true normalised value is -0.054
+    against +0.790. The paper's guarantee (Theorem 5.1) is stated over a class of bounded
+    Rademacher complexity for exactly this reason, so the parametric route is the faithful one.
     """
     X = np.atleast_2d(np.asarray(X, float))
     if X.shape[0] == 1: X = X.T
@@ -227,27 +234,50 @@ def learn_policy_parametric(X, g, n_iter=800, lr=0.2, restarts=6, seed=0, maximi
 
     def sig(z): return 1.0 / (1.0 + np.exp(-np.clip(z, -40, 40)))
 
+    # OPTIMISER FIX (2026-08-04), the same defect found in methods/Kallus/kallus.py. The step below
+    # is a raw ∇π, which carries a p·(1−p) factor that collapses exactly as the policy sharpens, so
+    # a fixed lr from a fixed small init cannot reach the ‖θ‖ a decisive boundary needs. Measured
+    # against a brute-force grid over this very class (2 parameters when x is scalar), the old
+    # settings lost up to 0.96 normalised value — e.g. german_credit γ=1 scored −0.076 where the
+    # class optimum is +0.886. Three changes: normalise the step, spread the restart scales, and
+    # keep the best ITERATE rather than each restart's last one (the objective is available every
+    # iteration for free, and ascent on this objective is not monotone once the step is normalised).
+    scales = (np.geomspace(1.0, 100.0, restarts) if restarts > 1 else np.array([1.0]))
+
+    def track(params_, p_):
+        nonlocal best, best_val
+        v = sgn * float(np.mean(gap * p_)) + base
+        if v > best_val:
+            best_val, best = v, (tuple(np.copy(q) for q in params_) if isinstance(params_, tuple)
+                                 else np.copy(params_), hidden)
+
     for r in range(restarts):
+        sc0 = float(scales[r])
         if hidden > 0:
-            W1 = rng.normal(0, 1.0, size=(Z.shape[1], hidden)); W2 = rng.normal(0, 1.0, size=hidden + 1)
-            for _ in range(n_iter):
+            W1 = rng.normal(0, sc0, size=(Z.shape[1], hidden)); W2 = rng.normal(0, sc0, size=hidden + 1)
+            for k in range(n_iter):
                 H = np.tanh(Z @ W1); Hb = np.hstack([H, np.ones((n, 1))])
                 p = sig(Hb @ W2)
+                track((W1, W2), p)
                 dobj = sgn * gap * p * (1 - p) / n
                 gW2 = Hb.T @ dobj
                 gH = np.outer(dobj, W2[:hidden]) * (1 - H ** 2)
                 gW1 = Z.T @ gH
-                W2 += lr * gW2; W1 += lr * gW1
-            H = np.tanh(Z @ W1); p = sig(np.hstack([H, np.ones((n, 1))]) @ W2)
-            params = (W1, W2)
+                gn = float(np.sqrt((gW1 ** 2).sum() + (gW2 ** 2).sum()))
+                if gn < 1e-12: break
+                st = lr / (k + 1) ** 0.5 if decay else lr
+                W2 = W2 + st * gW2 / gn; W1 = W1 + st * gW1 / gn
+            H = np.tanh(Z @ W1); track((W1, W2), sig(np.hstack([H, np.ones((n, 1))]) @ W2))
         else:
-            th = rng.normal(0, 1.0, size=Z.shape[1])
-            for _ in range(n_iter):
+            th = rng.normal(0, sc0, size=Z.shape[1])
+            for k in range(n_iter):
                 p = sig(Z @ th)
-                th += lr * (Z.T @ (sgn * gap * p * (1 - p))) / n
-            p = sig(Z @ th); params = th
-        val = sgn * float(np.mean(gap * p)) + base
-        if val > best_val: best_val, best = val, (params, hidden)
+                track(th, p)
+                grad = Z.T @ (sgn * gap * p * (1 - p)) / n
+                gn = float(np.linalg.norm(grad))
+                if gn < 1e-12: break
+                th = th + (lr / (k + 1) ** 0.5 if decay else lr) * grad / gn
+            track(th, sig(Z @ th))
     return best
 
 
