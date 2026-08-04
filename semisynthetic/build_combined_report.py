@@ -389,7 +389,9 @@ wins = Counter()
 for d in SEMI:
     for s in SEMI[d]:
         if s["gamma"] == 0: continue
-        v = {m: s["rows"][m]["mean"] for m in s["rows"]}
+        # COLS only: SharpHess-kNN is the same method under a different nuisance estimator,
+        # not a rival, and counting both arms would double-count Hess in this ledger.
+        v = {m: s["rows"][m]["mean"] for m in s["rows"] if m in COLS}
         wins[max(v, key=v.get)] += 1
 win_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method</th>"
            "<th>cells won (of %d)</th></tr>" % sum(wins.values())
