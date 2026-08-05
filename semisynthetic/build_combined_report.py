@@ -296,52 +296,69 @@ BAR_SHORT = {"DoublyRobust-O-W": "DR-O-W", "DoublyRobust-O-X": "DR-O-X",
              "Hajek-O-X": "Haj-O-X", "Direct-X-X": "Dir-X-X"}
 
 
-def barchart(stats, title, W=940, H=330):
-    """stats[(method, gamma)] = (mean, sd). Grouped bars with sd whiskers."""
-    pL, pR, pT, pB = 54, 14, 30, 62
-    vals = [m for (m, sd) in stats.values()] + [m + sd for (m, sd) in stats.values()] \
-           + [m - sd for (m, sd) in stats.values()]
+def barchart(stats, title, W=1240, H=430):
+    """stats[(method, gamma)] = (mean, sd). Grouped bars with sd whiskers.
+
+    Geometry is derived from len(GAM) rather than assumed: with the gamma grid extended to five
+    values the old fixed bar width (0.24 of a slot) spanned 1.2 slots and neighbouring method
+    groups ran into each other. Bars now fill a fixed FRACTION of each slot and are centred on it,
+    so adding or removing a gamma re-flows cleanly.
+    """
+    pL, pR, pT, pB = 58, 16, 34, 74
+    vals = ([m for (m, sd) in stats.values()] + [m + sd for (m, sd) in stats.values()]
+            + [m - sd for (m, sd) in stats.values()])
     lo, hi = min(vals + [0.0]), max(vals + [0.0])
     pad = 0.10 * (hi - lo + 1e-9); lo -= pad; hi += pad
     Y = lambda v: H - pB - (v - lo) / (hi - lo + 1e-12) * (H - pT - pB)
-    n = len(BAR_METHODS); slot = (W - pL - pR) / n; bw = slot * 0.24
-    p = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
-         '<text x="%d" y="16" class="ct">%s</text>' % (pL, esc(title))]
-    for t in (-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0):
+    n, ng = len(BAR_METHODS), len(GAM)
+    slot = (W - pL - pR) / n
+    fill = 0.76                                    # of the slot occupied by the bar group
+    bw = slot * fill / ng
+    gw = bw * ng
+    p = ['<svg viewBox="0 0 %d %d" class="chart" preserveAspectRatio="xMinYMin meet">' % (W, H),
+         '<text x="%d" y="18" class="ct">%s</text>' % (pL, esc(title))]
+    # alternating band per method group -- the main thing that stops 55 bars reading as one mass
+    for i in range(n):
+        if i % 2:
+            p.append('<rect x="%.1f" y="%d" width="%.1f" height="%d" class="band"/>'
+                     % (pL + slot * i, pT, slot, H - pT - pB))
+    for t in (-0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0):
         if lo <= t <= hi:
             p.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>'
                      % (pL, Y(t), W - pR, Y(t)))
             p.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%.1f</text>'
-                     % (pL - 6, Y(t) + 3.5, t))
+                     % (pL - 7, Y(t) + 3.5, t))
     y0 = Y(0.0)
     for i, m in enumerate(BAR_METHODS):
         cx = pL + slot * (i + 0.5)
         for j, g in enumerate(GAM):
             if (m, g) not in stats: continue
             mu, sd = stats[(m, g)]
-            x = cx + (j - 1) * bw - bw / 2
+            x = cx - gw / 2 + j * bw
             yt, hgt = Y(max(mu, 0.0)), abs(y0 - Y(mu))
-            p.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" '
-                     'opacity="0.85"/>' % (x, yt, bw, max(hgt, 0.6), GCOL[g]))
-            if sd > 0:                                   # sd whisker, capped
-                xm = x + bw / 2
-                p.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#334155" '
-                         'stroke-width="1.1"/>' % (xm, Y(mu - sd), xm, Y(mu + sd)))
+            p.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" rx="1"/>'
+                     % (x + 0.6, yt, max(bw - 1.2, 1.0), max(hgt, 0.8), GCOL[g]))
+            if sd > 0:
+                xm, cap = x + bw / 2, min(bw * 0.30, 3.2)
+                p.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" class="whisk"/>'
+                         % (xm, Y(mu - sd), xm, Y(mu + sd)))
                 for yy in (Y(mu - sd), Y(mu + sd)):
-                    p.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#334155" '
-                             'stroke-width="1.1"/>' % (xm - 2.6, yy, xm + 2.6, yy))
+                    p.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" class="whisk"/>'
+                             % (xm - cap, yy, xm + cap, yy))
         p.append('<text x="%.1f" y="%d" class="tk" text-anchor="end" '
-                 'transform="rotate(-40 %.1f %d)">%s</text>'
-                 % (cx, H - pB + 16, cx, H - pB + 16, esc(BAR_SHORT.get(m, m))))
+                 'transform="rotate(-35 %.1f %d)">%s</text>'
+                 % (cx, H - pB + 17, cx, H - pB + 17, esc(BAR_SHORT.get(m, m))))
     p.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="ax"/>' % (pL, y0, W - pR, y0))
     p.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
-    p.append('<text x="14" y="%d" class="al" text-anchor="middle" transform="rotate(-90 14 %d)">'
-             'normalised value</text>' % ((pT + H - pB) // 2, (pT + H - pB) // 2))
+    ymid = (pT + H - pB) // 2
+    p.append('<text x="15" y="%d" class="al" text-anchor="middle" transform="rotate(-90 15 %d)">'
+             'normalised value</text>' % (ymid, ymid))
     p.append('</svg>')
     leg = "".join('<span class="li"><span class="sw" style="background:%s"></span>'
                   '&gamma; = %g</span>' % (GCOL[g], g) for g in GAM)
-    return ('<figure class="fig">%s<div class="leg">%s<span class="li">whisker = &plusmn;1 sd '
-            'across the 5 DGP draws</span></div></figure>' % ("".join(p), leg))
+    return ('<figure class="fig"><div class="scrollx chartbox">%s</div><div class="leg">%s'
+            '<span class="li">whisker = &plusmn;1 sd across the 5 DGP draws</span></div></figure>'
+            % ("".join(p), leg))
 
 
 def _stats_for(dsets):
@@ -431,17 +448,26 @@ rct_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>benchmark</
            + "".join("<th>%s</th>" % esc(SHORT.get(m, m)) for m in RCT_ORDER)
            + "<th>best const</th><th>oracle</th></tr>" + "".join(rct_rows) + "</table></div>")
 
+CHARTCSS = (".chartbox{overflow-x:auto}.chartbox .chart{min-width:1000px;width:100%;height:auto}.band{fill:currentColor;opacity:.035}.whisk{stroke:currentColor;stroke-width:1.1;opacity:.75}")
+STAMPCSS = (".stamp{font-size:.78rem;opacity:.65;margin:.2rem 0 1rem;font-variant-numeric:tabular-nums}")
 NOTECSS = (".note{border-left:3px solid #b07105;background:rgba(176,113,5,.07);"
            "padding:.7rem .9rem;margin:1rem 0;font-size:.88rem;line-height:1.5;"
            "border-radius:0 4px 4px 0}"
            "@media (prefers-color-scheme:dark){.note{background:rgba(176,113,5,.14)}}"
            ":root[data-theme=\"dark\"] .note{background:rgba(176,113,5,.14)}"
            ":root[data-theme=\"light\"] .note{background:rgba(176,113,5,.07)}")
+import datetime as _dt
+_ncells = sum(x["n_seeds"] for d in SEMI for x in SEMI[d])
+_gammas = sorted({x["gamma"] for d in SEMI for x in SEMI[d]})
+STAMP = ("<div class='stamp'>build %s &middot; %d cells &middot; &gamma; &isin; {%s} &middot; "
+         "&Gamma; up to %.0f</div>"
+         % (_dt.date.today().isoformat(), _ncells,
+            ", ".join("%g" % g for g in _gammas), float(np.exp(2 * max(_gammas)))))
 nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Semi-synthetic policy-learning experiments</title>
-<style>{CSS}{EXTRA}{NOTECSS}</style></head><body>
+<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}</style></head><body>
 <div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
 <h1>Semi-synthetic policy-learning experiments</h1>
 <p>Two constructions, both giving real covariates a synthetic confounded assignment with a KNOWN
@@ -453,6 +479,7 @@ sensitivity parameter. <b>Higher is better</b> throughout.</p></div>
 </div>
 
 <div id="tab-semi" class="tabpane on">
+{STAMP}
 <h2>The construction</h2>
 <p>Follows the data-generating procedure of <i>"Learning Risk Scores Robust to Unobserved
 Confounders"</i> exactly for <i>X</i>, <i>U</i>, <i>Y</i><sup>0</sup> and <i>T</i>, and adds the
