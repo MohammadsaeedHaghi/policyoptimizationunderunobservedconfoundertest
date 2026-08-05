@@ -11,6 +11,11 @@ byt = collections.defaultdict(list)
 for f in glob.glob("confirm/*_s*.json"):
     d = json.load(open(f)); byt[d["tag"]].append(d)
 
+# the fixed Kallus / Hess arms, scored on the SAME (cfg, seed) draws
+BASE = collections.defaultdict(dict)
+for f in glob.glob("baselines/*_s*.json"):
+    d = json.load(open(f)); BASE[d["tag"]][d["seed"]] = d["base"]
+
 def nz(v, c): return (v - c["bc"]) / c["sc"]
 
 out = []
@@ -38,6 +43,10 @@ for tag, ds in sorted(byt.items()):
         if best: rows[m] = best
     nvs = [nz(c["naive"], c) for c in cells]
     rows["naive"] = (float(np.mean(nvs)), "-", "-", float(np.std(nvs)))
+    for m in ("Kallus", "SharpHess", "SharpHess-kNN"):
+        vs = [(b[m]["value"] - b["bc"]) / b["sc"]
+              for b in BASE.get(tag, {}).values() if m in b]
+        if vs: rows[m] = (float(np.mean(vs)), "-", "-", float(np.std(vs)))
 
     # transport margin at IDENTICAL (c_eps, L), paired across seeds
     marg = {}
@@ -51,7 +60,8 @@ for tag, ds in sorted(byt.items()):
         if dd: marg[a] = (float(np.max(dd)), float(np.mean(dd)))
 
     ow = max(rows[m][0] for m in OW if m in rows)
-    gaps = {k: ow - rows[k][0] for k in OX + XX + ["naive"] if k in rows}
+    gaps = {k: ow - rows[k][0] for k in OX + XX + ["naive", "Kallus", "SharpHess",
+                                                  "SharpHess-kNN"] if k in rows}
     hr = float(np.mean([c["sc"] for c in cells]))
     out.append((tag, cfg, len(cells), hr, rows, marg, ow, gaps, min(gaps.values())))
 
@@ -60,7 +70,7 @@ for tag, cfg, ns, hr, rows, marg, ow, gaps, mg in out:
     print("=" * 84)
     print("%s  (%d seeds, n=400)  a=%g alpha=%g delta=%g beta0=%g bsx=%g | headroom %.3f"
           % (tag, ns, cfg["a"], cfg["alpha"], cfg["delta"], cfg["beta0"], cfg.get("bsx", 0), hr))
-    for m in OW + OX + XX + ["naive"]:
+    for m in OW + OX + XX + ["naive", "Kallus", "SharpHess", "SharpHess-kNN"]:
         if m in rows:
             v, ce, lk, sd = rows[m]
             print("   %-20s %7.3f +-%.3f   c_eps %-4s L %-4s" % (m, v, sd, ce, lk))
