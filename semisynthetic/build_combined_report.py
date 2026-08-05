@@ -21,8 +21,7 @@ from latex2mathml.converter import convert as l2m
 
 def M(tex):
     """Render LaTeX as MathML, as the other reports do -- real symbols, not mojibake."""
-    return ('<div style="text-align:center;overflow-x:auto;margin:8px 0">%s</div>'
-            % l2m(tex))
+    return '<div class="eq">%s</div>' % l2m(tex)
 
 # ------------------------------------------------------------------ data
 SEMI_DS = ["bank_marketing", "wine_quality", "german_credit", "credit_default", "adult"]
@@ -296,7 +295,8 @@ BAR_SHORT = {"DoublyRobust-O-W": "DR-O-W", "DoublyRobust-O-X": "DR-O-X",
              "Hajek-O-X": "Haj-O-X", "Direct-X-X": "Dir-X-X"}
 
 
-def barchart(stats, title, W=1240, H=430):
+def barchart(stats, title, methods=None, series=None, colors=None, labels=None,
+             note="whisker = &plusmn;1 sd across the 5 DGP draws", W=1240, H=430):
     """stats[(method, gamma)] = (mean, sd). Grouped bars with sd whiskers.
 
     Geometry is derived from len(GAM) rather than assumed: with the gamma grid extended to five
@@ -304,13 +304,17 @@ def barchart(stats, title, W=1240, H=430):
     groups ran into each other. Bars now fill a fixed FRACTION of each slot and are centred on it,
     so adding or removing a gamma re-flows cleanly.
     """
+    methods = methods or BAR_METHODS
+    series = series or GAM
+    colors = colors or GCOL
+    labels = labels or (lambda k: "&gamma; = %g" % k)
     pL, pR, pT, pB = 58, 16, 34, 74
     vals = ([m for (m, sd) in stats.values()] + [m + sd for (m, sd) in stats.values()]
             + [m - sd for (m, sd) in stats.values()])
     lo, hi = min(vals + [0.0]), max(vals + [0.0])
     pad = 0.10 * (hi - lo + 1e-9); lo -= pad; hi += pad
     Y = lambda v: H - pB - (v - lo) / (hi - lo + 1e-12) * (H - pT - pB)
-    n, ng = len(BAR_METHODS), len(GAM)
+    n, ng = len(methods), len(series)
     slot = (W - pL - pR) / n
     fill = 0.76                                    # of the slot occupied by the bar group
     bw = slot * fill / ng
@@ -329,15 +333,15 @@ def barchart(stats, title, W=1240, H=430):
             p.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%.1f</text>'
                      % (pL - 7, Y(t) + 3.5, t))
     y0 = Y(0.0)
-    for i, m in enumerate(BAR_METHODS):
+    for i, m in enumerate(methods):
         cx = pL + slot * (i + 0.5)
-        for j, g in enumerate(GAM):
+        for j, g in enumerate(series):
             if (m, g) not in stats: continue
             mu, sd = stats[(m, g)]
             x = cx - gw / 2 + j * bw
             yt, hgt = Y(max(mu, 0.0)), abs(y0 - Y(mu))
             p.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" rx="1"/>'
-                     % (x + 0.6, yt, max(bw - 1.2, 1.0), max(hgt, 0.8), GCOL[g]))
+                     % (x + 0.6, yt, max(bw - 1.2, 1.0), max(hgt, 0.8), colors[g]))
             if sd > 0:
                 xm, cap = x + bw / 2, min(bw * 0.30, 3.2)
                 p.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" class="whisk"/>'
@@ -347,18 +351,17 @@ def barchart(stats, title, W=1240, H=430):
                              % (xm - cap, yy, xm + cap, yy))
         p.append('<text x="%.1f" y="%d" class="tk" text-anchor="end" '
                  'transform="rotate(-35 %.1f %d)">%s</text>'
-                 % (cx, H - pB + 17, cx, H - pB + 17, esc(BAR_SHORT.get(m, m))))
+                 % (cx, H - pB + 17, cx, H - pB + 17, esc(BAR_SHORT.get(m, SHORT.get(m, m)))))
     p.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="ax"/>' % (pL, y0, W - pR, y0))
     p.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
     ymid = (pT + H - pB) // 2
     p.append('<text x="15" y="%d" class="al" text-anchor="middle" transform="rotate(-90 15 %d)">'
              'normalised value</text>' % (ymid, ymid))
     p.append('</svg>')
-    leg = "".join('<span class="li"><span class="sw" style="background:%s"></span>'
-                  '&gamma; = %g</span>' % (GCOL[g], g) for g in GAM)
+    leg = "".join('<span class="li"><span class="sw" style="background:%s"></span>%s</span>'
+                  % (colors[g], labels(g)) for g in series)
     return ('<figure class="fig"><div class="scrollx chartbox">%s</div><div class="leg">%s'
-            '<span class="li">whisker = &plusmn;1 sd across the 5 DGP draws</span></div></figure>'
-            % ("".join(p), leg))
+            '<span class="li">%s</span></div></figure>' % ("".join(p), leg, note))
 
 
 def _stats_for(dsets):
@@ -395,6 +398,31 @@ for g in GAMMA_ALL:
 hess_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>&nbsp;</th><th>&Gamma;</th>"
             "<th>neural {64,64,32} (paper)</th><th>k-NN k=15</th></tr>"
             + "".join(HROWS) + "</table></div>")
+
+RCOL = {"ihdp": "#1e40af", "twins": "#0a7d33", "ist": "#c0392b"}
+
+
+def rct_chart():
+    """Same grammar as the semi charts, with the three benchmarks in place of the gamma grid --
+    the RCT tab has a single matched Gamma per benchmark, so there is no gamma axis to group on.
+    The whisker is the across-seed sd, put on the normalised scale by the same divisor."""
+    st = {}
+    for s_ in RCT:
+        R = s_["refs"]; bc = max(R["never_treat"], R["all_treat"]); sc = R["oracle"] - bc
+        if sc <= 0: continue
+        for m in RCT_ORDER:
+            cell = s_["rows"].get(m, {}).get("matched_best_L")
+            if not cell: continue
+            st[(m, s_["dataset"])] = ((cell["mean"] - bc) / sc, abs(cell.get("sd", 0.0)) / abs(sc))
+    order = [d for d in ("ihdp", "twins", "ist") if any(k[1] == d for k in st)]
+    if not st: return ""
+    return barchart(st, "RCT benchmarks -- normalised value at the matched %s, by method"
+                    % "&Gamma;", methods=RCT_ORDER, series=order, colors=RCOL,
+                    labels=lambda k: esc(RCT_TITLE.get(k, k)),
+                    note="whisker = &plusmn;1 sd across seeds")
+
+
+RCT_CHART = rct_chart()
 
 CHARTS = barchart(_stats_for(list(SEMI)),
                   "ALL FIVE DATASETS POOLED -- normalised value by method and gamma")
@@ -448,6 +476,7 @@ rct_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>benchmark</
            + "".join("<th>%s</th>" % esc(SHORT.get(m, m)) for m in RCT_ORDER)
            + "<th>best const</th><th>oracle</th></tr>" + "".join(rct_rows) + "</table></div>")
 
+EQCSS = (".eq{text-align:center;overflow-x:auto;margin:18px 0;font-size:1.3em}.eq math{font-size:1.06em}.constr p{font-size:1.06rem;line-height:1.65;margin:.9rem 0}.constr p.muted{font-size:1.0rem}@media (max-width:720px){.eq{font-size:1.1em}.constr p{font-size:1rem}}")
 BOXCSS = (".box{border:1px solid rgba(128,128,128,.35);border-radius:6px;padding:.85rem 1rem;margin:1rem 0;font-size:.9rem;line-height:1.55}.box>b{display:block;margin-bottom:.4rem;font-size:.95rem}.box ol{margin:.5rem 0 .5rem 1.1rem;padding:0}.box li{margin:.3rem 0}.box p{margin:.5rem 0}.box p:last-child{margin-bottom:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}")
 CHARTCSS = (".chartbox{overflow-x:auto}.chartbox .chart{min-width:1000px;width:100%;height:auto}.band{fill:currentColor;opacity:.035}.whisk{stroke:currentColor;stroke-width:1.1;opacity:.75}")
 STAMPCSS = (".stamp{font-size:.78rem;opacity:.65;margin:.2rem 0 1rem;font-variant-numeric:tabular-nums}")
@@ -468,7 +497,7 @@ nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Semi-synthetic policy-learning experiments</title>
-<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}{BOXCSS}</style></head><body>
+<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}{BOXCSS}{EQCSS}</style></head><body>
 <div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
 <h1>Semi-synthetic policy-learning experiments</h1>
 <p>Two constructions, both giving real covariates a synthetic confounded assignment with a KNOWN
@@ -482,6 +511,7 @@ sensitivity parameter. <b>Higher is better</b> throughout.</p></div>
 <div id="tab-semi" class="tabpane on">
 {STAMP}
 <h2>The construction</h2>
+<section class="constr">
 <p>Follows the data-generating procedure of <i>"Learning Risk Scores Robust to Unobserved
 Confounders"</i> exactly for <i>X</i>, <i>U</i>, <i>Y</i><sup>0</sup> and <i>T</i>, and adds the
 one thing policy learning needs and a risk score does not: a second potential outcome.</p>
@@ -491,6 +521,7 @@ than the interval [e<sup>&gamma;</sup>, e<sup>2&gamma;</sup>] the paper settles 
 &pi;<sup>0</sup> is never clipped, the odds ratio between the two hidden states is
 e<sup>2&gamma;</sup> at <i>every</i> x. Verified to ~1e&minus;13 on all five datasets.
 Only &tau; and <i>Y</i><sup>1</sup> are ours; everything else is theirs.</p>
+</section>
 {SEMI_FLOW}
 <div class="box"><b>How the inverse propensity scores are determined</b>
 <p>Every solver is handed weights built from an <b>estimated</b> propensity. The true
@@ -606,6 +637,7 @@ Robust-vs-Robust-Baseline comparison measures, and the one the O-W claim rests o
 
 <div id="tab-rct" class="tabpane">
 <h2>The construction</h2>
+<section class="constr">
 <p>Three datasets that already carry both potential outcomes, given the same treatment of a
 synthetic confounded assignment with a known &Lambda; = 4.</p>
 {RCT_MATH}
@@ -614,6 +646,7 @@ principal-direction indices of the two covariate groups, and <i>q</i><sub>99</su
 percentile, so about 1% of the mass is clipped to the boundary. As above, not clipping
 <i>e</i> makes &Gamma;<sup>&#9733;</sup> = &Lambda; exact; the realised value measured back out of
 the data is 4.000 on all three benchmarks.</p>
+</section>
 {RCT_FLOW}
 <div class="scrollx"><table class="dt">
 <tr><th class="l">benchmark</th><th>N</th><th>outcome</th><th>corr(x,S)</th><th>&Lambda; realised</th>
@@ -623,6 +656,16 @@ the data is 4.000 on all three benchmarks.</p>
 <h2>Average test outcome at the matched &Gamma; = 4
 <span class="hsub">&mdash; best (L, c<sub>&epsilon;</sub>) cell, mean &plusmn; sd over 5 seeds</span></h2>
 {rct_tbl}
+
+<h2>By benchmark <span class="hsub">&mdash; normalised value, 0 = best constant
+policy, 1 = oracle</span></h2>
+<p class="muted"><b>Read this chart with the headroom column above in hand.</b> Normalising divides
+by (oracle &minus; best constant), which is only <b>0.0099</b> on IHDP and <b>0.0098</b> on Twins
+&mdash; so on those two the divisor is near zero and the bars magnify noise rather than measure
+skill. All-treat beats every method on all three benchmarks, which is why the whole field sits
+below the zero line. IST, with headroom 0.127, is the only one of the three where the normalised
+scale carries much meaning.</p>
+{RCT_CHART}
 
 <div class="card bad"><b>These three benchmarks are degenerate for policy learning.</b> Normalised
 as (V &minus; never)/(oracle &minus; never), the constant <b>all-treat</b> policy scores
