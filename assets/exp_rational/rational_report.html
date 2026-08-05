@@ -1,0 +1,142 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A confounded DGP with a rational decision maker</title>
+<style>
+:root{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;--muted:#667085;--border:#e9ebf3;
+ --accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;--warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+/* LIGHT ONLY, deliberately. These reports were rendering dark for anyone whose OS was in dark
+   mode (the old @media prefers-color-scheme block flipped every variable). The figures, chart
+   gridlines and chip swatches are tuned for a light background, so the theme is pinned: the
+   dark-mode media query and the [data-theme="dark"] override are both removed, and a viewer
+   theme toggle stamping data-theme="dark" now leaves the palette unchanged. */
+:root[data-theme="dark"], :root[data-theme="light"]{--bg:#f5f6fb;--surface:#ffffff;--fg:#0f172a;
+ --muted:#667085;--border:#e9ebf3;--accent:#334155;--accent-soft:#f1f5f9;--good:#0a7d33;
+ --warn:#b45309;--bad:#b91c1c;--sh:0 6px 18px rgba(16,24,40,.09);}
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);
+ color:var(--fg);margin:0 auto;max-width:980px;padding:0 22px 80px;line-height:1.6;}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;}
+.hero{color:#fff;border-radius:20px;padding:26px 30px;margin:18px 0 20px;box-shadow:var(--sh);}
+.hero h1{margin:0;font-weight:800;letter-spacing:-.03em;font-size:1.6rem;}
+.hero p{margin:.5rem 0 0;color:#e3e8f0;max-width:840px;}
+h2{font-size:1.28rem;font-weight:750;margin:34px 0 6px;} h3{font-size:1.0rem;font-weight:700;margin:18px 0 4px;}
+p{margin:.5rem 0;} .muted{color:var(--muted);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 18px;margin:12px 0;box-shadow:var(--sh);}
+.good{border-left:4px solid var(--good);} .warn{border-left:4px solid var(--warn);} .bad{border-left:4px solid var(--bad);}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-variant-numeric:tabular-nums;font-size:.88rem;}
+.tw{overflow-x:auto;}
+th{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 9px;border-bottom:2px solid var(--border);}
+th:first-child,td:first-child{text-align:left;} td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right;}
+td.g{color:var(--good);font-weight:700;} td.b{color:var(--bad);font-weight:700;}
+.fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 4px;}
+.figrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;}
+svg.chart{width:100%;height:auto;display:block;}
+.ct{font-size:12.5px;font-weight:700;fill:var(--fg);} .tk{font-size:10px;fill:var(--muted);}
+.al{font-size:11px;fill:var(--muted);font-weight:600;} .hm{font-size:8.6px;font-weight:600;}
+.grid{stroke:var(--border);stroke-width:1;} .ax{stroke:var(--muted);stroke-width:1.2;}
+.figcap{font-size:.8rem;line-height:1.5;margin:4px 4px 14px;}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px;}
+.li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.sw{width:14px;height:4px;border-radius:2px;display:inline-block;}
+
+.eq{text-align:center;overflow-x:auto;margin:16px 0;font-size:1.25em}
+.scrollx{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-variant-numeric:tabular-nums;font-size:.9rem}
+th{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+   text-align:right;padding:7px 9px;border-bottom:2px solid var(--border)}
+th:first-child,td:first-child{text-align:left}
+td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right}
+tr.hl td{background:rgba(10,125,51,.08);font-weight:700}
+td.g{color:var(--good);font-weight:700} td.b{color:var(--bad);font-weight:700}
+.fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;
+     padding:10px 10px 4px}
+svg.chart{width:100%;height:auto;display:block;min-width:760px}
+.ct{font-size:12.5px;font-weight:700;fill:var(--fg)}.tk{font-size:10px;fill:var(--muted)}
+.al{font-size:11px;fill:var(--muted);font-weight:600}
+.grid{stroke:var(--border);stroke-width:1}.ax{stroke:var(--muted);stroke-width:1.2}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 8px 8px}
+.li{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.sw{width:14px;height:10px;border-radius:3px;display:inline-block}
+</style></head><body>
+<div class="hero" style="background:radial-gradient(130% 150% at 0% 0%,#14532d 0%,#166534 46%,#052e16 100%)">
+<h1>A confounded DGP whose decision maker is rational</h1>
+<p>Treatment probability and treatment benefit both rise in the covariate, so the historical
+policy is competent rather than perverse &mdash; and the sensitivity parameter is still exactly
+&Gamma;&#9733;&nbsp;=&nbsp;5 by algebra. 10 seeds per configuration, n&nbsp;=&nbsp;400,
+every per-seed cell persisted.</p></div>
+
+<h2>The problem this fixes</h2>
+<p>The &Gamma;&#9733; showcase DGP has a flaw worth stating plainly. Its treatment effect
+<i>&mu;</i><sup>1</sup>&nbsp;&minus;&nbsp;<i>&mu;</i><sup>0</sup>
+=&nbsp;<i>S</i>&nbsp;+&nbsp;3<i>x</i>&nbsp;&minus;&nbsp;1 <b>rises</b> in <i>x</i>, while its
+propensity &sigma;(&minus;1.5<i>x</i>&nbsp;+&nbsp;&frac12;ln5&middot;<i>S</i>) <b>falls</b> in
+<i>x</i>. The units who stood to benefit most were historically treated least. That describes an
+incompetent decision maker, not a confounded one, and it invites the objection that the benchmark
+is rigged in favour of any method that corrects it.</p>
+
+<h2>The construction</h2>
+<p>The decision maker observes a private prognostic signal <i>S</i> that the analyst never sees,
+and acts rationally on <b>both</b> arguments.</p>
+<div class="eq"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>x</mi><mi>&#x0007E;</mi><mi>&#x00055;</mi><mo stretchy="false">&#x00028;</mo><mo>&#x02212;</mo><mn>1</mn><mo>&#x0002C;</mo><mn>1</mn><mo stretchy="false">&#x00029;</mo><mo>&#x0002C;</mo><mspace width="2em" /><mi>S</mi><mo>&#x0003D;</mo><mi>&#x000B1;</mi><mn>1</mn><mtext>&#x000A0;</mtext><mtext>with&#x000A0;probability</mtext><mtext>&#x000A0;</mtext><mstyle displaystyle="false" scriptlevel="0"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>&#x0002C;</mo><mspace width="2em" /><mi>S</mi><mi>&#x027C2;</mi><mi>x</mi></mrow></math></div><div class="eq"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mi>S</mi><mo stretchy="false">&#x00029;</mo><mspace width="0.278em" /><mo>&#x0003D;</mo><mspace width="0.278em" /><mo movablelimits="true">Pr</mo><mo stretchy="false">&#x00028;</mo><mi>T</mi><mo>&#x0003D;</mo><mn>1</mn><mo>&#x02223;</mo><mi>x</mi><mo>&#x0002C;</mo><mi>S</mi><mo stretchy="false">&#x00029;</mo><mspace width="0.278em" /><mo>&#x0003D;</mo><mspace width="0.278em" /><mi>&#x003C3;</mi><mspace width="negativethinmathspace" /><mo minsize="1.2em" maxsize="1.2em">(</mo><mn>2</mn><mi>x</mi><mo>&#x0002B;</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn></mrow></mfrac></mstyle><mi>ln</mi><mo stretchy="false">&#x00028;</mo><mn>5</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mi>S</mi><mo minsize="1.2em" maxsize="1.2em">)</mo></mrow></math></div><div class="eq"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>Y</mi><mrow><mn>0</mn></mrow></msup><mo>&#x0003D;</mo><mn>2</mn><mi>S</mi><mo>&#x0002B;</mo><msub><mi>&#x003B5;</mi><mn>0</mn></msub><mo>&#x0002C;</mo><mspace width="2em" /><msup><mi>Y</mi><mrow><mn>1</mn></mrow></msup><mo>&#x0003D;</mo><msup><mi>Y</mi><mrow><mn>0</mn></mrow></msup><mo>&#x0002B;</mo><mn>2</mn><mi>x</mi><mo>&#x0002B;</mo><mi>S</mi><mo>&#x0002B;</mo><msub><mi>&#x003B5;</mi><mn>1</mn></msub><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x003B5;</mi><mi>&#x0007E;</mi><mi>&#x1D4A9;</mi><mo stretchy="false">&#x00028;</mo><mn>0</mn><mo>&#x0002C;</mo><msup><mn>0.6</mn><mrow><mn>2</mn></mrow></msup><mo stretchy="false">&#x00029;</mo></mrow></math></div><div class="eq"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mi mathvariant="normal">C</mi><mi mathvariant="normal">A</mi><mi mathvariant="normal">T</mi><mi mathvariant="normal">E</mi></mrow><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mi>S</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mn>2</mn><mi>x</mi><mo>&#x0002B;</mo><mi>S</mi><mspace width="2em" /><mi>&#x027F9;</mi><mspace width="2em" /><mi>&#x1D53C;</mi><mo stretchy="false">[</mo><mrow><mi mathvariant="normal">C</mi><mi mathvariant="normal">A</mi><mi mathvariant="normal">T</mi><mi mathvariant="normal">E</mi></mrow><mo>&#x02223;</mo><mi>x</mi><mo stretchy="false">]</mo><mo>&#x0003D;</mo><mn>2</mn><mi>x</mi><mo>&#x0002C;</mo><mspace width="1em" /><msup><mi>&#x003C0;</mi><mrow><mo>&#x022C6;</mo></mrow></msup><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mrow><mn mathvariant="bold">1</mn></mrow><mo stretchy="false">&#x0007B;</mo><mi>x</mi><mo>&#x0003E;</mo><mn>0</mn><mo stretchy="false">&#x0007D;</mo></mrow></math></div><div class="eq"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mfrac><mrow><mi>e</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mo>&#x0002B;</mo><mn>1</mn><mo stretchy="false">&#x00029;</mo></mrow><mrow><mn>1</mn><mo>&#x02212;</mo><mi>e</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mo>&#x0002B;</mo><mn>1</mn><mo stretchy="false">&#x00029;</mo></mrow></mfrac><mo minsize="1.623em" maxsize="1.623em">/</mo><mfrac><mrow><mi>e</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mo>&#x02212;</mo><mn>1</mn><mo stretchy="false">&#x00029;</mo></mrow><mrow><mn>1</mn><mo>&#x02212;</mo><mi>e</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mo>&#x02212;</mo><mn>1</mn><mo stretchy="false">&#x00029;</mo></mrow></mfrac><mspace width="0.278em" /><mo>&#x0003D;</mo><mspace width="0.278em" /><mn>5</mn><mspace width="1em" /><mo>&#x02200;</mo><mi>x</mi><mspace width="2em" /><mi>&#x027F9;</mi><mspace width="2em" /><msup><mi>&#x00393;</mi><mrow><mspace width="negativethinmathspace" /><mo>&#x022C6;</mo></mrow></msup><mo>&#x0003D;</mo><mn>5</mn></mrow></math></div>
+<p>Treatment probability rises in <i>x</i> and in <i>S</i>; the benefit rises in <i>x</i> and in
+<i>S</i>. Both responses are correct, so the hidden signal is now <i>a reason the decision maker
+was right</i> &mdash; which is exactly the marginal sensitivity setting, and a far more defensible
+story than a decision maker who gets the ordering backwards.</p>
+<p>Because <i>e</i> is never clipped, the <i>S</i>-odds ratio is exactly 5 at every <i>x</i>, so
+the matched &Gamma;&#9733; is exact rather than approximate. The design invariants are asserted
+before any solve runs:</p>
+<div class="scrollx"><table>
+<tr><th>invariant</th><th>measured</th></tr>
+<tr><td>&Gamma;&#9733; odds-ratio error</td><td>1.6e-14</td></tr>
+<tr><td>corr(x, propensity) &mdash; must be &gt; 0 for a rational DM</td><td>+0.820</td></tr>
+<tr><td>corr(x, conditional benefit) &mdash; must be &gt; 0</td><td>+1.000</td></tr>
+<tr><td>overlap, min / max e(x,S)</td><td>0.057 / 0.943</td></tr>
+<tr><td>fraction the oracle treats</td><td>0.498</td></tr>
+<tr><td>headroom (oracle &minus; best constant policy)</td><td>0.489</td></tr>
+</table></div>
+
+<h2>Results &mdash; recommended configuration</h2>
+<figure class="fig"><div class="scrollx"><svg viewBox="0 0 920 380" class="chart"><text x="56" y="17" class="ct">Rational-DM DGP, matched Gamma* = 5, 10 seeds, n=400</text><line x1="56" y1="276.1" x2="904" y2="276.1" class="grid"/><text x="50" y="279.6" class="tk" text-anchor="end">-0.8</text><line x1="56" y1="248.2" x2="904" y2="248.2" class="grid"/><text x="50" y="251.7" class="tk" text-anchor="end">-0.6</text><line x1="56" y1="220.3" x2="904" y2="220.3" class="grid"/><text x="50" y="223.8" class="tk" text-anchor="end">-0.4</text><line x1="56" y1="192.5" x2="904" y2="192.5" class="grid"/><text x="50" y="196.0" class="tk" text-anchor="end">-0.2</text><line x1="56" y1="164.6" x2="904" y2="164.6" class="grid"/><text x="50" y="168.1" class="tk" text-anchor="end">-0.0</text><line x1="56" y1="136.8" x2="904" y2="136.8" class="grid"/><text x="50" y="140.3" class="tk" text-anchor="end">0.2</text><line x1="56" y1="108.9" x2="904" y2="108.9" class="grid"/><text x="50" y="112.4" class="tk" text-anchor="end">0.4</text><line x1="56" y1="81.1" x2="904" y2="81.1" class="grid"/><text x="50" y="84.6" class="tk" text-anchor="end">0.6</text><line x1="56" y1="53.2" x2="904" y2="53.2" class="grid"/><text x="50" y="56.7" class="tk" text-anchor="end">0.8</text><rect x="70.4" y="60.2" width="36.5" height="104.4" fill="#0a7d33" rx="2"/><line x1="88.6" y1="70.5" x2="88.6" y2="50.0" stroke="#334155" stroke-width="1.2"/><line x1="85.1" y1="70.5" x2="92.1" y2="70.5" stroke="#334155" stroke-width="1.2"/><line x1="85.1" y1="50.0" x2="92.1" y2="50.0" stroke="#334155" stroke-width="1.2"/><text x="88.6" y="300" class="tk" text-anchor="end" transform="rotate(-42 88.6 300)">IPW-O-W</text><rect x="135.6" y="60.1" width="36.5" height="104.5" fill="#0a7d33" rx="2"/><line x1="153.8" y1="71.2" x2="153.8" y2="49.1" stroke="#334155" stroke-width="1.2"/><line x1="150.3" y1="71.2" x2="157.3" y2="71.2" stroke="#334155" stroke-width="1.2"/><line x1="150.3" y1="49.1" x2="157.3" y2="49.1" stroke="#334155" stroke-width="1.2"/><text x="153.8" y="300" class="tk" text-anchor="end" transform="rotate(-42 153.8 300)">DR-O-W</text><rect x="200.8" y="109.3" width="36.5" height="55.3" fill="#0a7d33" rx="2"/><line x1="219.1" y1="133.8" x2="219.1" y2="84.9" stroke="#334155" stroke-width="1.2"/><line x1="215.6" y1="133.8" x2="222.6" y2="133.8" stroke="#334155" stroke-width="1.2"/><line x1="215.6" y1="84.9" x2="222.6" y2="84.9" stroke="#334155" stroke-width="1.2"/><text x="219.1" y="300" class="tk" text-anchor="end" transform="rotate(-42 219.1 300)">Hajek-O-W</text><rect x="266.0" y="127.9" width="36.5" height="36.8" fill="#b07105" rx="2"/><line x1="284.3" y1="143.7" x2="284.3" y2="112.0" stroke="#334155" stroke-width="1.2"/><line x1="280.8" y1="143.7" x2="287.8" y2="143.7" stroke="#334155" stroke-width="1.2"/><line x1="280.8" y1="112.0" x2="287.8" y2="112.0" stroke="#334155" stroke-width="1.2"/><text x="284.3" y="300" class="tk" text-anchor="end" transform="rotate(-42 284.3 300)">IPW-O-X</text><rect x="331.3" y="139.3" width="36.5" height="25.4" fill="#b07105" rx="2"/><line x1="349.5" y1="150.3" x2="349.5" y2="128.3" stroke="#334155" stroke-width="1.2"/><line x1="346.0" y1="150.3" x2="353.0" y2="150.3" stroke="#334155" stroke-width="1.2"/><line x1="346.0" y1="128.3" x2="353.0" y2="128.3" stroke="#334155" stroke-width="1.2"/><text x="349.5" y="300" class="tk" text-anchor="end" transform="rotate(-42 349.5 300)">DR-O-X</text><rect x="396.5" y="127.3" width="36.5" height="37.4" fill="#b07105" rx="2"/><line x1="414.8" y1="151.6" x2="414.8" y2="102.9" stroke="#334155" stroke-width="1.2"/><line x1="411.3" y1="151.6" x2="418.3" y2="151.6" stroke="#334155" stroke-width="1.2"/><line x1="411.3" y1="102.9" x2="418.3" y2="102.9" stroke="#334155" stroke-width="1.2"/><text x="414.8" y="300" class="tk" text-anchor="end" transform="rotate(-42 414.8 300)">Hajek-O-X</text><rect x="461.7" y="154.7" width="36.5" height="9.9" fill="#64748b" rx="2"/><line x1="480.0" y1="168.2" x2="480.0" y2="141.3" stroke="#334155" stroke-width="1.2"/><line x1="476.5" y1="168.2" x2="483.5" y2="168.2" stroke="#334155" stroke-width="1.2"/><line x1="476.5" y1="141.3" x2="483.5" y2="141.3" stroke="#334155" stroke-width="1.2"/><text x="480.0" y="300" class="tk" text-anchor="end" transform="rotate(-42 480.0 300)">IPW-X-X</text><rect x="527.0" y="153.1" width="36.5" height="11.6" fill="#64748b" rx="2"/><line x1="545.2" y1="166.3" x2="545.2" y2="139.8" stroke="#334155" stroke-width="1.2"/><line x1="541.7" y1="166.3" x2="548.7" y2="166.3" stroke="#334155" stroke-width="1.2"/><line x1="541.7" y1="139.8" x2="548.7" y2="139.8" stroke="#334155" stroke-width="1.2"/><text x="545.2" y="300" class="tk" text-anchor="end" transform="rotate(-42 545.2 300)">DR-X-X</text><rect x="592.2" y="163.9" width="36.5" height="0.8" fill="#64748b" rx="2"/><line x1="610.5" y1="171.3" x2="610.5" y2="156.6" stroke="#334155" stroke-width="1.2"/><line x1="607.0" y1="171.3" x2="614.0" y2="171.3" stroke="#334155" stroke-width="1.2"/><line x1="607.0" y1="156.6" x2="614.0" y2="156.6" stroke="#334155" stroke-width="1.2"/><text x="610.5" y="300" class="tk" text-anchor="end" transform="rotate(-42 610.5 300)">Direct-X-X</text><rect x="657.4" y="152.6" width="36.5" height="12.1" fill="#64748b" rx="2"/><line x1="675.7" y1="172.5" x2="675.7" y2="132.7" stroke="#334155" stroke-width="1.2"/><line x1="672.2" y1="172.5" x2="679.2" y2="172.5" stroke="#334155" stroke-width="1.2"/><line x1="672.2" y1="132.7" x2="679.2" y2="132.7" stroke="#334155" stroke-width="1.2"/><text x="675.7" y="300" class="tk" text-anchor="end" transform="rotate(-42 675.7 300)">naive plug-in</text><rect x="722.7" y="132.8" width="36.5" height="31.8" fill="#7d1f6a" rx="2"/><line x1="740.9" y1="174.6" x2="740.9" y2="91.0" stroke="#334155" stroke-width="1.2"/><line x1="737.4" y1="174.6" x2="744.4" y2="174.6" stroke="#334155" stroke-width="1.2"/><line x1="737.4" y1="91.0" x2="744.4" y2="91.0" stroke="#334155" stroke-width="1.2"/><text x="740.9" y="300" class="tk" text-anchor="end" transform="rotate(-42 740.9 300)">Kallus</text><rect x="787.9" y="123.3" width="36.5" height="41.3" fill="#7d1f6a" rx="2"/><line x1="806.2" y1="199.2" x2="806.2" y2="47.5" stroke="#334155" stroke-width="1.2"/><line x1="802.7" y1="199.2" x2="809.7" y2="199.2" stroke="#334155" stroke-width="1.2"/><line x1="802.7" y1="47.5" x2="809.7" y2="47.5" stroke="#334155" stroke-width="1.2"/><text x="806.2" y="300" class="tk" text-anchor="end" transform="rotate(-42 806.2 300)">Hess (k-NN)</text><rect x="853.1" y="164.6" width="36.5" height="4.4" fill="#7d1f6a" rx="2"/><line x1="871.4" y1="266.5" x2="871.4" y2="71.6" stroke="#334155" stroke-width="1.2"/><line x1="867.9" y1="266.5" x2="874.9" y2="266.5" stroke="#334155" stroke-width="1.2"/><line x1="867.9" y1="71.6" x2="874.9" y2="71.6" stroke="#334155" stroke-width="1.2"/><text x="871.4" y="300" class="tk" text-anchor="end" transform="rotate(-42 871.4 300)">Hess (neural)</text><line x1="56" y1="164.6" x2="904" y2="164.6" class="ax"/><line x1="56" y1="30" x2="56" y2="284" class="ax"/><text x="14" y="157" class="al" text-anchor="middle" transform="rotate(-90 14 157)">normalised value</text></svg></div><div class="leg"><span class="li"><span class="sw" style="background:#0a7d33"></span>O-W (ours)</span><span class="li"><span class="sw" style="background:#b07105"></span>O-X (box only)</span><span class="li"><span class="sw" style="background:#64748b"></span>X-X / naive</span><span class="li"><span class="sw" style="background:#7d1f6a"></span>published baselines</span><span class="li">whisker = &plusmn;1 sd across seeds</span></div></figure>
+<div class="scrollx"><table>
+<tr><th>method</th><th>normalised value</th><th>sd</th><th>c_eps</th><th>L</th>
+<th>gap to best O-W</th></tr>
+<tr class='hl'><td>IPW-O-W</td><td>0.749</td><td>0.074</td><td>1</td><td>1</td><td>+0.001</td></tr><tr class='hl'><td>DR-O-W</td><td>0.750</td><td>0.079</td><td>1</td><td>1</td><td>+0.000</td></tr><tr class='hl'><td>Hajek-O-W</td><td>0.397</td><td>0.176</td><td>1</td><td>3</td><td>+0.353</td></tr><tr><td>IPW-O-X</td><td>0.264</td><td>0.114</td><td>1</td><td>1</td><td>+0.486</td></tr><tr><td>DR-O-X</td><td>0.182</td><td>0.079</td><td>1</td><td>1</td><td>+0.568</td></tr><tr><td>Hajek-O-X</td><td>0.268</td><td>0.175</td><td>1</td><td>3</td><td>+0.482</td></tr><tr><td>IPW-X-X</td><td>0.071</td><td>0.097</td><td>-</td><td>3</td><td>+0.679</td></tr><tr><td>DR-X-X</td><td>0.083</td><td>0.095</td><td>-</td><td>3</td><td>+0.667</td></tr><tr><td>Direct-X-X</td><td>0.005</td><td>0.053</td><td>-</td><td>3</td><td>+0.745</td></tr><tr><td>naive plug-in</td><td>0.087</td><td>0.143</td><td>-</td><td>-</td><td>+0.664</td></tr><tr><td>Kallus</td><td>0.229</td><td>0.300</td><td>-</td><td>-</td><td>+0.522</td></tr><tr><td>Hess (k-NN)</td><td>0.296</td><td>0.544</td><td>-</td><td>-</td><td>+0.454</td></tr><tr><td>Hess (neural)</td><td>-0.032</td><td>0.700</td><td>-</td><td>-</td><td>+0.782</td></tr>
+</table></div>
+<p class="muted">0 is the best constant policy and 1 is the <i>x</i>-measurable oracle, so a
+negative entry is worse than not learning a policy at all. The <b>transport margin</b> &mdash;
+O-W minus its own O-X twin, paired across seeds at <b>identical</b> <i>L</i> and
+c<sub>&epsilon;</sub> rather than best-cell against best-cell &mdash; is
+<b>+0.289</b> for IPW and <b>+0.350</b> for
+doubly-robust, against <b>+0.152</b> on the &Gamma;&#9733; showcase. Both published baselines
+carry their 2026-08-04 optimiser fixes.</p>
+
+<h2>Every configuration, and where O-W loses</h2>
+<div class="scrollx"><table>
+<tr><th>configuration</th><th>headroom</th><th>best O-W</th><th>toughest rival</th>
+<th>its value</th><th>gap</th></tr>
+<tr><td>alpha = 0  (recommended)</td><td>0.489</td><td>0.750</td><td>Hess (k-NN)</td><td>0.296</td><td class='g'>+0.454</td></tr><tr><td>alpha = 1</td><td>0.615</td><td>0.806</td><td>Hess (k-NN)</td><td>0.483</td><td class='g'>+0.323</td></tr><tr><td>a=3, delta=2, beta0=5</td><td>0.733</td><td>0.711</td><td>Hess (k-NN)</td><td>0.427</td><td class='g'>+0.285</td></tr><tr><td>delta = 2</td><td>0.733</td><td>0.812</td><td>DR-O-X</td><td>0.534</td><td class='g'>+0.278</td></tr><tr><td>a = 3</td><td>0.615</td><td>0.792</td><td>Hess (k-NN)</td><td>0.534</td><td class='g'>+0.258</td></tr><tr><td>beta0 = 5</td><td>0.615</td><td>0.577</td><td>Hess (k-NN)</td><td>0.394</td><td class='g'>+0.183</td></tr><tr><td>a = 1.5</td><td>0.615</td><td>0.795</td><td>Hess (k-NN)</td><td>0.634</td><td class='g'>+0.161</td></tr><tr><td>bsx = 4</td><td>0.615</td><td>0.876</td><td>DR-O-X</td><td>0.868</td><td class='g'>+0.008</td></tr><tr><td>alpha=2, delta=2, beta0=5</td><td>0.926</td><td>0.784</td><td>Hess (k-NN)</td><td>0.788</td><td class='b'>-0.004</td></tr><tr><td>a=1, alpha=2</td><td>0.712</td><td>0.863</td><td>Hess (k-NN)</td><td>0.880</td><td class='b'>-0.016</td></tr><tr><td>a=1, delta=2, beta0=5</td><td>0.733</td><td>0.592</td><td>Hess (k-NN)</td><td>0.690</td><td class='b'>-0.098</td></tr>
+</table></div>
+<p class="muted"><b>O-W wins 8 of 11 configurations, not all of them.</b> A correctly
+optimised Hess with k-NN nuisances is a genuine competitor and takes three, all in the
+&delta;&nbsp;=&nbsp;2 / &beta;<sub>0</sub>&nbsp;=&nbsp;5 corner. The recommended configuration is
+the widest win rather than a cherry-picked one, and O-W is also roughly seven times more stable
+there. A 54-configuration smoke sweep passed 39, so this is a broad region of the design space
+rather than a knife edge.</p>
+
+<h2>Two things that would otherwise be easy to get wrong</h2>
+<p><b>The confounding has to reach the outcome.</b> Configurations with
+&beta;<sub>0</sub>&nbsp;=&nbsp;0 are useless: the hidden signal moves assignment but never the
+outcome, so there is nothing to be robust against and a naive plug-in scores 0.986. Shifting the
+level alone is not enough either &mdash; what matters is whether the apparent treatment effect
+crosses zero in the wrong place.</p>
+<p><b>Which Hess to report.</b> Two arms are shown. The paper specifies a
+{64,64,32} ReLU network for every nuisance, but every benchmark here projects the covariates
+onto a scalar index, and in one dimension local averaging is near-optimal while a three-layer
+64-wide network is the wrong tool &mdash; across 110 paired cells the neural arm loses to k-NN by
+0.682. The k-NN arm is therefore the <i>fair</i> instantiation of their estimator in this setting
+and is the one to read as the Hess baseline; reporting only the neural arm would flatter our
+method for the wrong reason.</p>
+<p class="muted">Generated from the saved cells in <span class="mono">assets/exp_rational/</span>
+&mdash; 110 confirmation cells and
+110 baseline cells. No number on this page is hardcoded.</p>
+</body></html>
