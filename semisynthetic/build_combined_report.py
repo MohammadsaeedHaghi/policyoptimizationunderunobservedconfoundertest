@@ -448,6 +448,7 @@ rct_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>benchmark</
            + "".join("<th>%s</th>" % esc(SHORT.get(m, m)) for m in RCT_ORDER)
            + "<th>best const</th><th>oracle</th></tr>" + "".join(rct_rows) + "</table></div>")
 
+BOXCSS = (".box{border:1px solid rgba(128,128,128,.35);border-radius:6px;padding:.85rem 1rem;margin:1rem 0;font-size:.9rem;line-height:1.55}.box>b{display:block;margin-bottom:.4rem;font-size:.95rem}.box ol{margin:.5rem 0 .5rem 1.1rem;padding:0}.box li{margin:.3rem 0}.box p{margin:.5rem 0}.box p:last-child{margin-bottom:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}")
 CHARTCSS = (".chartbox{overflow-x:auto}.chartbox .chart{min-width:1000px;width:100%;height:auto}.band{fill:currentColor;opacity:.035}.whisk{stroke:currentColor;stroke-width:1.1;opacity:.75}")
 STAMPCSS = (".stamp{font-size:.78rem;opacity:.65;margin:.2rem 0 1rem;font-variant-numeric:tabular-nums}")
 NOTECSS = (".note{border-left:3px solid #b07105;background:rgba(176,113,5,.07);"
@@ -467,7 +468,7 @@ nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Semi-synthetic policy-learning experiments</title>
-<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}</style></head><body>
+<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}{BOXCSS}</style></head><body>
 <div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
 <h1>Semi-synthetic policy-learning experiments</h1>
 <p>Two constructions, both giving real covariates a synthetic confounded assignment with a KNOWN
@@ -491,6 +492,38 @@ than the interval [e<sup>&gamma;</sup>, e<sup>2&gamma;</sup>] the paper settles 
 e<sup>2&gamma;</sup> at <i>every</i> x. Verified to ~1e&minus;13 on all five datasets.
 Only &tau; and <i>Y</i><sup>1</sup> are ours; everything else is theirs.</p>
 {SEMI_FLOW}
+<div class="box"><b>How the inverse propensity scores are determined</b>
+<p>Every solver is handed weights built from an <b>estimated</b> propensity. The true
+&pi;<sup>0</sup>(x,u) depends on the hidden state and is never passed to any method &mdash; it
+exists in the population file only to draw <i>T</i> and to certify that the matched &Gamma; equals
+e<sup>2&gamma;</sup>.</p>
+<ol>
+<li><b>Fit</b> a logistic model <i>T</i> ~ <i>x</i> on the n&nbsp;=&nbsp;300 training rows
+(scikit-learn <span class="mono">LogisticRegression</span>, lbfgs, max_iter 2000, default
+L2). The covariate is the scalar CATE index, so this is a one-dimensional sigmoid in <i>x</i>.</li>
+<li><b>Clip and renormalise</b>: probabilities are clipped to
+[10<sup>&minus;3</sup>, 1&minus;10<sup>&minus;3</sup>] and each row rescaled to sum to 1 &mdash; a
+positivity guard that keeps the inverse weights finite.</li>
+<li><b>Invert</b> at the observed arm: <i>w<sub>i</sub></i> =
+1&nbsp;/&nbsp;&ecirc;(<i>T<sub>i</sub></i>&nbsp;|&nbsp;<i>x<sub>i</sub></i>).</li>
+<li><b>Two flavours are produced and used deliberately.</b> The <i>Hajek</i> form rescales each
+arm's weights to sum to <i>n</i> and is what the IPW, doubly-robust and X-X solvers receive. The
+<i>raw</i> Horvitz&ndash;Thompson form (no rescaling, so <i>w</i>&nbsp;&ge;&nbsp;1) goes to the
+Hajek-* solvers and to Kallus, because the MSM box is built by multiplying and dividing a raw
+inverse weight by &Gamma; &mdash; feeding it rescaled weights would silently move the box, and the
+code raises rather than allow it.</li>
+</ol>
+<p>The propensity is fit once on the training split; it is <i>not</i> cross-fitted. SharpHess is the
+exception &mdash; it estimates its own propensity inside its cross-fitted nuisance step (a
+{{64,64,32}} ReLU net, per the paper), so it never sees the weights described here.</p>
+<p class="muted"><b>The gap this leaves is the point of the experiment.</b> Assignment truly depends
+on both <i>x</i> and <i>u</i>, while &ecirc; can only capture the <i>x</i> part; the residual
+<i>u</i>-dependence is exactly what &Gamma; is meant to cover. One wrinkle to keep in mind: the
+assignment uses &lambda;&prime;<i>X</i> over the full covariate vector, which is <b>not</b> a
+function of the scalar index <i>b</i>&prime;<i>X</i> the solvers see. So &ecirc;(<i>x</i>) carries
+unexplained variation beyond <i>u</i>, and the <i>operative</i> &Gamma; a fitted pipeline would need
+can exceed the declared e<sup>2&gamma;</sup>.</p></div>
+
 <p>Because &pi;<sup>0</sup> is never clipped, the odds ratio between the two hidden states equals
 e<sup>2&gamma;</sup> to ~1e&minus;13 at every <i>x</i>, so the matched &Gamma; is <b>exact</b> here
 rather than the interval the paper settles for. Every dataset below passes the paper's screen.</p>

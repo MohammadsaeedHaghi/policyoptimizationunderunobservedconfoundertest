@@ -54,7 +54,7 @@ table.dt tr.dsrow td{border-top:2px solid #b9c0c8;background:#eef1f5;font-weight
     background:#f2f4f7;cursor:pointer;font-size:15px}
 .tb.on{background:#fff;font-weight:700}
 .tabpane{display:none}.tabpane.on{display:block}
-.note{border-left:3px solid #b07105;background:rgba(176,113,5,.07);padding:.7rem .9rem;margin:1rem 0;font-size:.88rem;line-height:1.5;border-radius:0 4px 4px 0}@media (prefers-color-scheme:dark){.note{background:rgba(176,113,5,.14)}}:root[data-theme="dark"] .note{background:rgba(176,113,5,.14)}:root[data-theme="light"] .note{background:rgba(176,113,5,.07)}.stamp{font-size:.78rem;opacity:.65;margin:.2rem 0 1rem;font-variant-numeric:tabular-nums}.chartbox{overflow-x:auto}.chartbox .chart{min-width:1000px;width:100%;height:auto}.band{fill:currentColor;opacity:.035}.whisk{stroke:currentColor;stroke-width:1.1;opacity:.75}</style></head><body>
+.note{border-left:3px solid #b07105;background:rgba(176,113,5,.07);padding:.7rem .9rem;margin:1rem 0;font-size:.88rem;line-height:1.5;border-radius:0 4px 4px 0}@media (prefers-color-scheme:dark){.note{background:rgba(176,113,5,.14)}}:root[data-theme="dark"] .note{background:rgba(176,113,5,.14)}:root[data-theme="light"] .note{background:rgba(176,113,5,.07)}.stamp{font-size:.78rem;opacity:.65;margin:.2rem 0 1rem;font-variant-numeric:tabular-nums}.chartbox{overflow-x:auto}.chartbox .chart{min-width:1000px;width:100%;height:auto}.band{fill:currentColor;opacity:.035}.whisk{stroke:currentColor;stroke-width:1.1;opacity:.75}.box{border:1px solid rgba(128,128,128,.35);border-radius:6px;padding:.85rem 1rem;margin:1rem 0;font-size:.9rem;line-height:1.55}.box>b{display:block;margin-bottom:.4rem;font-size:.95rem}.box ol{margin:.5rem 0 .5rem 1.1rem;padding:0}.box li{margin:.3rem 0}.box p{margin:.5rem 0}.box p:last-child{margin-bottom:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}</style></head><body>
 <div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
 <h1>Semi-synthetic policy-learning experiments</h1>
 <p>Two constructions, both giving real covariates a synthetic confounded assignment with a KNOWN
@@ -78,6 +78,38 @@ than the interval [e<sup>&gamma;</sup>, e<sup>2&gamma;</sup>] the paper settles 
 e<sup>2&gamma;</sup> at <i>every</i> x. Verified to ~1e&minus;13 on all five datasets.
 Only &tau; and <i>Y</i><sup>1</sup> are ours; everything else is theirs.</p>
 <figure class="fig"><svg viewBox="0 0 980 420" class="chart" style="max-width:980px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs><rect x="40" y="26" width="900" height="62" rx="8" fill="#dbeafe" stroke="#1e40af" stroke-width="1.5"/><text x="52" y="46" font-size="13" font-weight="700" fill="#1e40af">UCI classification dataset</text><text x="52" y="64" font-size="11.3" fill="#334155">screened by the paper's rule: cross-validated logistic log-loss in [0.35, ln 2]</text><text x="52" y="78" font-size="11.3" fill="#334155">-- not trivially separable, not pure noise. 9 of 15 candidates pass.</text><rect x="40" y="128" width="430" height="78" rx="8" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/><text x="52" y="148" font-size="13" font-weight="700" fill="#92400e">The label is used TWICE  (their construction)</text><text x="52" y="166" font-size="11.3" fill="#334155" font-family="monospace">U     = y_UCI   the unobserved confounder</text><text x="52" y="180" font-size="11.3" fill="#334155" font-family="monospace">Y0    = y_UCI   the untreated potential outcome,  in {-1,+1}</text><rect x="520" y="128" width="420" height="78" rx="8" fill="#dcfce7" stroke="#166534" stroke-width="1.5"/><text x="532" y="148" font-size="13" font-weight="700" fill="#166534">CATE, our addition</text><text x="532" y="166" font-size="11.3" fill="#334155" font-family="monospace">tau(x) = a * (sigmoid(b'x - c) - 1/2)</text><text x="532" y="180" font-size="11.3" fill="#334155" font-family="monospace">Y1 = Y0 + tau(x) + eps,   a ~ U(0.5, 2)</text><rect x="40" y="240" width="900" height="74" rx="8" fill="#ede9fe" stroke="#5b21b6" stroke-width="1.5"/><text x="52" y="260" font-size="13" font-weight="700" fill="#5b21b6">Confounded assignment  (their Eq. 6)</text><text x="52" y="278" font-size="11.3" fill="#334155" font-family="monospace">logit pi0(x,u) = lam'x + gamma*u,   lam_j ~ U(-0.1, 0.1),   NO clipping</text><text x="52" y="292" font-size="11.3" fill="#334155" font-family="monospace">T ~ Bern(1 - pi0)     =&gt;   odds ratio between u=+1 and u=-1  ==  e^{2 gamma}  EXACTLY</text><rect x="40" y="348" width="430" height="60" rx="8" fill="#f1f5f9" stroke="#334155" stroke-width="1.5"/><text x="52" y="368" font-size="13" font-weight="700" fill="#334155">Observed</text><text x="52" y="386" font-size="11.3" fill="#334155" font-family="monospace">D_obs = (x, T, Y),  Y = Y_T</text><rect x="520" y="348" width="420" height="60" rx="8" fill="#f1f5f9" stroke="#334155" stroke-width="1.5"/><text x="532" y="368" font-size="13" font-weight="700" fill="#334155">Oracle (evaluation only)</text><text x="532" y="386" font-size="11.3" fill="#334155" font-family="monospace">U, Y0, Y1, tau, pi0, e*</text><line x1="255" y1="88" x2="255" y2="126" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ah)"/><line x1="730" y1="88" x2="730" y2="126" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ah)"/><line x1="255" y1="206" x2="255" y2="238" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ah)"/><line x1="730" y1="206" x2="730" y2="238" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ah)"/><line x1="255" y1="314" x2="255" y2="346" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ah)"/><line x1="730" y1="314" x2="730" y2="346" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ah)"/></svg></figure><p class='muted figcap'>Amber is the one place their construction is unusual: the same column is both the hidden confounder and the untreated outcome, which makes U maximally informative about Y0. Green is our only addition. The <b>&minus;&frac12;</b> in tau is load-bearing: without it tau &gt; 0 everywhere, the CATE never changes sign, and the oracle policy is &quot;treat everyone&quot; &mdash; measured headroom exactly +0.00000.</p>
+<div class="box"><b>How the inverse propensity scores are determined</b>
+<p>Every solver is handed weights built from an <b>estimated</b> propensity. The true
+&pi;<sup>0</sup>(x,u) depends on the hidden state and is never passed to any method &mdash; it
+exists in the population file only to draw <i>T</i> and to certify that the matched &Gamma; equals
+e<sup>2&gamma;</sup>.</p>
+<ol>
+<li><b>Fit</b> a logistic model <i>T</i> ~ <i>x</i> on the n&nbsp;=&nbsp;300 training rows
+(scikit-learn <span class="mono">LogisticRegression</span>, lbfgs, max_iter 2000, default
+L2). The covariate is the scalar CATE index, so this is a one-dimensional sigmoid in <i>x</i>.</li>
+<li><b>Clip and renormalise</b>: probabilities are clipped to
+[10<sup>&minus;3</sup>, 1&minus;10<sup>&minus;3</sup>] and each row rescaled to sum to 1 &mdash; a
+positivity guard that keeps the inverse weights finite.</li>
+<li><b>Invert</b> at the observed arm: <i>w<sub>i</sub></i> =
+1&nbsp;/&nbsp;&ecirc;(<i>T<sub>i</sub></i>&nbsp;|&nbsp;<i>x<sub>i</sub></i>).</li>
+<li><b>Two flavours are produced and used deliberately.</b> The <i>Hajek</i> form rescales each
+arm's weights to sum to <i>n</i> and is what the IPW, doubly-robust and X-X solvers receive. The
+<i>raw</i> Horvitz&ndash;Thompson form (no rescaling, so <i>w</i>&nbsp;&ge;&nbsp;1) goes to the
+Hajek-* solvers and to Kallus, because the MSM box is built by multiplying and dividing a raw
+inverse weight by &Gamma; &mdash; feeding it rescaled weights would silently move the box, and the
+code raises rather than allow it.</li>
+</ol>
+<p>The propensity is fit once on the training split; it is <i>not</i> cross-fitted. SharpHess is the
+exception &mdash; it estimates its own propensity inside its cross-fitted nuisance step (a
+{64,64,32} ReLU net, per the paper), so it never sees the weights described here.</p>
+<p class="muted"><b>The gap this leaves is the point of the experiment.</b> Assignment truly depends
+on both <i>x</i> and <i>u</i>, while &ecirc; can only capture the <i>x</i> part; the residual
+<i>u</i>-dependence is exactly what &Gamma; is meant to cover. One wrinkle to keep in mind: the
+assignment uses &lambda;&prime;<i>X</i> over the full covariate vector, which is <b>not</b> a
+function of the scalar index <i>b</i>&prime;<i>X</i> the solvers see. So &ecirc;(<i>x</i>) carries
+unexplained variation beyond <i>u</i>, and the <i>operative</i> &Gamma; a fitted pipeline would need
+can exceed the declared e<sup>2&gamma;</sup>.</p></div>
+
 <p>Because &pi;<sup>0</sup> is never clipped, the odds ratio between the two hidden states equals
 e<sup>2&gamma;</sup> to ~1e&minus;13 at every <i>x</i>, so the matched &Gamma; is <b>exact</b> here
 rather than the interval the paper settles for. Every dataset below passes the paper's screen.</p>
