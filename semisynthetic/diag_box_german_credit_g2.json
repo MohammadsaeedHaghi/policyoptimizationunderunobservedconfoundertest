@@ -1,0 +1,23 @@
+{
+ "data": "german_credit",
+ "gamma": 2.0,
+ "Gamma": 54.598150033144236,
+ "rows": {
+  "raw 1/Phat(t|x)": {
+   "coverage": 1.0,
+   "width": 54.521989688303805,
+   "lo": 1.0182962276399168,
+   "hi": 55.54028591594373
+  },
+  "Hajek-normalised": {
+   "coverage": 1.0,
+   "width": 54.5798343942555,
+   "lo": 1.0183156388887342,
+   "hi": 55.59815003314424
+  },
+  "raw box then scaled": {
+   "coverage": 1.0
+  },
+  "operative_Gamma": 32.49376752258821
+ }
+}

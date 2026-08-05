@@ -1,0 +1,23 @@
+{
+ "data": "adult",
+ "gamma": 1.0,
+ "Gamma": 7.38905609893065,
+ "rows": {
+  "raw 1/Phat(t|x)": {
+   "coverage": 1.0,
+   "width": 7.237444927592524,
+   "lo": 1.1350316181270623,
+   "hi": 8.372476545719586
+  },
+  "Hajek-normalised": {
+   "coverage": 1.0,
+   "width": 7.253720815694038,
+   "lo": 1.1353352832366128,
+   "hi": 8.38905609893065
+  },
+  "raw box then scaled": {
+   "coverage": 1.0
+  },
+  "operative_Gamma": 4.8506615469599765
+ }
+}

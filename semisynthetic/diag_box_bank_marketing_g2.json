@@ -1,0 +1,23 @@
+{
+ "data": "bank_marketing",
+ "gamma": 2.0,
+ "Gamma": 54.598150033144236,
+ "rows": {
+  "raw 1/Phat(t|x)": {
+   "coverage": 1.0,
+   "width": 54.563084018776514,
+   "lo": 1.0183100178781186,
+   "hi": 55.58139403665462
+  },
+  "Hajek-normalised": {
+   "coverage": 1.0,
+   "width": 54.579834394255506,
+   "lo": 1.018315638888734,
+   "hi": 55.59815003314424
+  },
+  "raw box then scaled": {
+   "coverage": 1.0
+  },
+  "operative_Gamma": 27.72703735446276
+ }
+}
