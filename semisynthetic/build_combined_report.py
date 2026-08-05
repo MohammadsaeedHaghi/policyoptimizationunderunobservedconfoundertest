@@ -246,17 +246,34 @@ cons = "".join(
        SEMI[d][0]["meta"]["corr_x_u"], SEMI[d][0]["meta"]["frac_tau_pos"],
        SEMI[d][0].get("n_dgp_draws", 1)) for d in SEMI)
 
+def reps(s_):
+    """(DGP draws, split seeds per draw) behind one summary entry. n_seeds counts result files,
+    which is draws x seeds, so the per-draw figure is the quotient."""
+    nd = int(s_.get("n_dgp_draws") or 0)
+    ns = int(s_.get("n_seeds") or 0)
+    return nd, (ns // nd if nd else 0)
+
+
+def repcell(s_):
+    nd, ps = reps(s_)
+    return "<td class='reps'>%d &times; %d</td>" % (nd, ps) if nd else "<td class='reps'>&mdash;</td>"
+
+
 rows = []
 for d in SEMI:
-    rows.append("<tr class='dsrow'><td colspan='%d'>%s</td></tr>" % (len(COLS) + 3, esc(d)))
+    _nd, _ps = reps(SEMI[d][0]) if SEMI[d] else (0, 0)
+    rows.append("<tr class='dsrow'><td colspan='%d'>%s <span class='dsn'>&mdash; %d DGP draws "
+                "&times; %d split seeds = %d replications per &gamma;</span></td></tr>"
+                % (len(COLS) + 4, esc(d), _nd, _ps, _nd * _ps))
     for s in SEMI[d]:
         r, rr = s["rows"], s["rows_rat"]
         vals, sds = {}, {}
         for m in COLS:
             if m in r: vals[m] = r[m]["mean"]; sds[m] = r[m]["sd"]
-        rows.append("<tr><td class='l'>&gamma; = %.1f</td><td class='ref'>%.2f</td>%s</tr>"
-                    % (s["gamma"], s["Gamma"], cells(vals, COLS, sds)))
+        rows.append("<tr><td class='l'>&gamma; = %.1f</td><td class='ref'>%.2f</td>%s%s</tr>"
+                    % (s["gamma"], s["Gamma"], repcell(s), cells(vals, COLS, sds)))
 semi_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>&nbsp;</th><th>&Gamma;</th>"
+            "<th>draws &times; seeds</th>"
             + "".join("<th>%s</th>" % esc(c) for c in CHEAD) + "</tr>" + "".join(rows)
             + "</table></div>")
 
@@ -273,9 +290,13 @@ for g in GAMMA_ALL:
                 src = s["rows_rat"] if c.endswith("+C4") else s["rows"]
                 if base in src: vs.append(norm(src[base]["mean"], s["refs"]))
         if vs: agg[c] = float(np.mean(vs))
-    pool.append("<tr><td class='l'>&gamma; = %.1f</td><td class='ref'>%.2f</td>%s</tr>"
-                % (g, float(np.exp(2 * g)), cells(agg, POOL)))
+    _nd = sum(reps(s_)[0] for d in SEMI for s_ in SEMI[d] if abs(s_["gamma"] - g) < 1e-12)
+    _ps = max([reps(s_)[1] for d in SEMI for s_ in SEMI[d] if abs(s_["gamma"] - g) < 1e-12] or [0])
+    pool.append("<tr><td class='l'>&gamma; = %.1f</td><td class='ref'>%.2f</td>"
+                "<td class='reps'>%d &times; %d</td>%s</tr>"
+                % (g, float(np.exp(2 * g)), _nd, _ps, cells(agg, POOL)))
 pool_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>&nbsp;</th><th>&Gamma;</th>"
+            "<th>draws &times; seeds</th>"
             + "".join("<th>%s</th>" % esc(c) for c in PHEAD) + "</tr>" + "".join(pool)
             + "</table></div>")
 
@@ -442,17 +463,30 @@ def rct_chart():
             st[(m, s_["dataset"])] = ((cell["mean"] - bc) / sc, abs(cell.get("sd", 0.0)) / abs(sc))
     order = [d for d in ("ihdp", "twins", "ist") if any(k[1] == d for k in st)]
     if not st: return ""
-    return barchart(st, "RCT benchmarks -- normalised value at the matched %s, by method"
-                    % "&Gamma;", methods=RCT_ORDER, series=order, colors=RCOL,
+    _ns = max([int(s_.get("n_seeds") or 0) for s_ in RCT] or [0])
+    # NB: chart titles go through esc() into SVG text, so an HTML entity here would be
+    # double-escaped and render as "&Gamma;" literally. Plain ASCII only.
+    return barchart(st, "RCT benchmarks -- normalised value at the matched Gamma, by method  "
+                    "(%d seeds per benchmark)" % _ns,
+                    methods=RCT_ORDER, series=order, colors=RCOL,
                     labels=lambda k: esc(RCT_TITLE.get(k, k)),
                     note="whisker = &plusmn;1 sd across seeds")
 
 
 RCT_CHART = rct_chart()
 
+def _cap(dsets):
+    """Chart subtitle: how many DGP draws and split seeds stand behind these bars."""
+    nd = sum(reps(s_)[0] for d in dsets for s_ in SEMI[d] if abs(s_["gamma"] - GAM[0]) < 1e-12)
+    ps = max([reps(s_)[1] for d in dsets for s_ in SEMI[d]] or [0])
+    return "%d DGP draws x %d split seeds = %d reps per bar" % (nd, ps, nd * ps)
+
+
 CHARTS = barchart(_stats_for(list(SEMI)),
-                  "ALL FIVE DATASETS POOLED -- normalised value by method and gamma")
-CHARTS += "".join(barchart(_stats_for([d]), "%s -- normalised value by method and gamma" % d)
+                  "ALL FIVE DATASETS POOLED -- normalised value by method and gamma  (%s)"
+                  % _cap(list(SEMI)))
+CHARTS += "".join(barchart(_stats_for([d]),
+                           "%s -- normalised value by method and gamma  (%s)" % (d, _cap([d])))
                   for d in SEMI)
 
 from collections import Counter
@@ -503,6 +537,7 @@ rct_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>benchmark</
            + "<th>best const</th><th>oracle</th></tr>" + "".join(rct_rows) + "</table></div>")
 
 EQCSS = (".eq{text-align:center;overflow-x:auto;margin:18px 0;font-size:1.3em}.eq math{font-size:1.06em}.constr p{font-size:1.06rem;line-height:1.65;margin:.9rem 0}.constr p.muted{font-size:1.0rem}@media (max-width:720px){.eq{font-size:1.1em}.constr p{font-size:1rem}}")
+REPSCSS = ("table.dt td.reps{font-variant-numeric:tabular-nums;opacity:.75;font-size:11.5px}.dsn{font-weight:400;opacity:.72;font-size:11.5px}")
 BOXCSS = (".box{border:1px solid rgba(128,128,128,.35);border-radius:6px;padding:.85rem 1rem;margin:1rem 0;font-size:.9rem;line-height:1.55}.box>b{display:block;margin-bottom:.4rem;font-size:.95rem}.box ol{margin:.5rem 0 .5rem 1.1rem;padding:0}.box li{margin:.3rem 0}.box p{margin:.5rem 0}.box p:last-child{margin-bottom:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}")
 CHARTCSS = (".chartbox{overflow-x:auto}.chartbox .chart{min-width:1000px;width:100%;height:auto}.band{fill:currentColor;opacity:.035}.whisk{stroke:currentColor;stroke-width:1.1;opacity:.75}")
 STAMPCSS = (".stamp{font-size:.78rem;opacity:.65;margin:.2rem 0 1rem;font-variant-numeric:tabular-nums}")
@@ -523,7 +558,7 @@ nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Semi-synthetic policy-learning experiments</title>
-<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}{BOXCSS}{EQCSS}</style></head><body>
+<style>{CSS}{EXTRA}{NOTECSS}{STAMPCSS}{CHARTCSS}{BOXCSS}{EQCSS}{REPSCSS}</style></head><body>
 <div class="hero" style="background:linear-gradient(135deg,#3b0764,#7e22ce)">
 <h1>Semi-synthetic policy-learning experiments</h1>
 <p>Two constructions, both giving real covariates a synthetic confounded assignment with a KNOWN
