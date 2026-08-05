@@ -12,9 +12,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "semi experiments"))
 sys.path.insert(0, str(HERE))
-from report_common import CSS, esc
+from report_common import CSS, esc, linechart, legend_swatch
 from latex2mathml.converter import convert as l2m
-from dgp_rational import Cfg, check
+from dgp_rational import Cfg, check, draw, _sig
 
 
 def M(tex):
@@ -136,6 +136,59 @@ def barchart(rows, title, W=920, H=380):
     return '<figure class="fig"><div class="scrollx">%s</div>%s</figure>' % ("".join(p), leg)
 
 
+
+# ------------------------------------------------------------------ DGP explanation figures
+# Same three questions the Gamma-star showcase answers about its own DGP, plus one it cannot ask:
+# what the naive analyst actually sees. Curves are analytic where possible and binned from a large
+# draw where they are not, so nothing here depends on a particular seed.
+CFG = Cfg(a=2.0, alpha=0.0, delta=1.0, beta0=2.0)
+_gx = np.linspace(-1, 1, 241)
+_lnG = 0.5 * np.log(CFG.Gstar)
+
+_e_p = _sig(CFG.a * _gx + _lnG)          # treated rate for the good hidden state
+_e_m = _sig(CFG.a * _gx - _lnG)          # ... and the bad one
+_e_marg = 0.5 * (_e_p + _e_m)            # what an analyst who cannot see S would estimate
+
+FIG_PROP = linechart(
+    [("P(T=1 | x, S=+1)", "#2ca02c", list(_gx), list(_e_p), "", "n"),
+     ("P(T=1 | x, S=-1)", "#9467bd", list(_gx), list(_e_m), "", "n"),
+     ("P(T=1 | x)  marginal", "#334155", list(_gx), list(_e_marg), "5 4", "n")],
+    W=560, H=330, xlab="x", ylab="P(T=1 | x, S)",
+    title="Propensity: how treatment was assigned")
+
+_cate_p = CFG.kappa * (_gx - CFG.x0) + CFG.delta
+_cate_m = CFG.kappa * (_gx - CFG.x0) - CFG.delta
+_cate_c = CFG.kappa * (_gx - CFG.x0)
+FIG_CATE = linechart(
+    [("CATE(x, S=+1)", "#2ca02c", list(_gx), list(_cate_p), "", "n"),
+     ("CATE(x, S=-1)", "#9467bd", list(_gx), list(_cate_m), "", "n"),
+     ("E[CATE | x]  (what a policy can use)", "#334155", list(_gx), list(_cate_c), "5 4", "n")],
+    W=560, H=330, xlab="x", ylab="treatment effect",
+    title="True treatment effect", hlines=[("0", "#888", 0.0, "4 3")])
+
+# The plot the showcase has no analogue for: the apparent effect in the OBSERVED data against the
+# truth. Binned from a large draw, since it has no closed form.
+_big = draw(400000, 20260805, CFG)
+_bins = np.linspace(-1, 1, 33)
+_bi = np.clip(np.digitize(_big["x"], _bins) - 1, 0, len(_bins) - 2)
+_bx, _app = [], []
+for _b in range(len(_bins) - 1):
+    _m = _bi == _b
+    _m1, _m0 = _m & (_big["T"] == 1), _m & (_big["T"] == 0)
+    if _m1.sum() > 30 and _m0.sum() > 30:
+        _bx.append(float(_big["x"][_m].mean()))
+        _app.append(float(_big["Y"][_m1].mean() - _big["Y"][_m0].mean()))
+_true_at = [CFG.kappa * (v - CFG.x0) for v in _bx]
+FIG_NAIVE = linechart(
+    [("apparent effect in the observed data", "#b91c1c", _bx, _app, "", "n"),
+     ("true E[CATE | x]", "#334155", _bx, _true_at, "5 4", "n")],
+    W=560, H=330, xlab="x", ylab="estimated treatment effect",
+    title="What a naive analyst sees, against the truth",
+    hlines=[("0", "#888", 0.0, "4 3")])
+
+_x_naive = next((_bx[i] for i in range(len(_app) - 1)
+                 if _app[i] <= 0 < _app[i + 1]), None)
+
 # ------------------------------------------------------------------ assemble
 rows_main, hr_main, ns_main = score(MAIN)
 best_ow = max(v[0] for m, v in rows_main.items() if m in OW)
@@ -184,9 +237,12 @@ th:first-child,td:first-child{text-align:left}
 td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:right}
 tr.hl td{background:rgba(10,125,51,.08);font-weight:700}
 td.g{color:var(--good);font-weight:700} td.b{color:var(--bad);font-weight:700}
+.figrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+.figcap{font-size:.8rem;line-height:1.5;margin:4px 4px 14px}
 .fig{margin:14px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;
      padding:10px 10px 4px}
-svg.chart{width:100%;height:auto;display:block;min-width:760px}
+svg.chart{width:100%;height:auto;display:block}
+.scrollx>svg.chart{min-width:760px}
 .ct{font-size:12.5px;font-weight:700;fill:var(--fg)}.tk{font-size:10px;fill:var(--muted)}
 .al{font-size:11px;fill:var(--muted);font-weight:600}
 .grid{stroke:var(--border);stroke-width:1}.ax{stroke:var(--muted);stroke-width:1.2}
@@ -223,6 +279,33 @@ and acts rationally on <b>both</b> arguments.</p>
 <i>S</i>. Both responses are correct, so the hidden signal is now <i>a reason the decision maker
 was right</i> &mdash; which is exactly the marginal sensitivity setting, and a far more defensible
 story than a decision maker who gets the ordering backwards.</p>
+<div class="figrow">
+<div><figure class="fig">{FIG_PROP}<div class="leg">{legend_swatch("#2ca02c")}
+<span class="li">P(T=1 | x, S=+1)</span>{legend_swatch("#9467bd")}
+<span class="li">P(T=1 | x, S=-1)</span>{legend_swatch("#334155", "5 4")}
+<span class="li">marginal, what the analyst estimates</span></div></figure>
+<p class="muted figcap"><b>Both curves rise in <i>x</i></b> &mdash; that is the rationality this
+DGP was built to restore. The vertical gap between them <i>is</i> the confounding: two units at
+the same <i>x</i> are treated at different rates purely because of the hidden state. Nothing is
+clipped, so the gap is a constant 5 in odds at every <i>x</i>.</p></div>
+<div><figure class="fig">{FIG_CATE}<div class="leg">{legend_swatch("#2ca02c")}
+<span class="li">CATE(x, S=+1)</span>{legend_swatch("#9467bd")}
+<span class="li">CATE(x, S=-1)</span>{legend_swatch("#334155", "5 4")}
+<span class="li">E[CATE | x]</span></div></figure>
+<p class="muted figcap">The benefit rises in <i>x</i> too, and is larger for the same hidden state
+that gets treated more &mdash; so the decision maker is right on both counts. A policy sees only
+<i>x</i>, so it can act on the dashed line, which crosses zero at <b><i>x</i> = 0</b>.</p></div>
+</div>
+<figure class="fig">{FIG_NAIVE}<div class="leg">{legend_swatch("#b91c1c")}
+<span class="li">apparent effect in the observed data</span>{legend_swatch("#334155", "5 4")}
+<span class="li">true E[CATE | x]</span></div></figure>
+<p class="muted figcap">Why robustness is needed at all. Selection on the hidden signal lifts the
+apparent effect well above the truth, and it does so unevenly in <i>x</i>, so the zero crossing
+moves: a naive analyst reads the boundary at
+<b>{("x = %.2f" % _x_naive) if _x_naive is not None else "no crossing -- treat everyone"}</b>
+instead of <i>x</i>&nbsp;=&nbsp;0, and treats a large group who should not be treated. The gap
+between the two curves is exactly what the &Gamma; box has to cover.</p>
+
 <p>Because <i>e</i> is never clipped, the <i>S</i>-odds ratio is exactly 5 at every <i>x</i>, so
 the matched &Gamma;&#9733; is exact rather than approximate. The design invariants are asserted
 before any solve runs:</p>
