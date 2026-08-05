@@ -95,12 +95,38 @@ SEMI_MATH = "".join([
       r"\varepsilon_i \sim \mathcal{N}(0,\sigma^{2}),\;\; \sigma = 0.1"),
     M(r"\operatorname{logit}\pi^{0}(x,u) \;=\; \lambda^{\top}x + \gamma u,\qquad "
       r"\lambda_j \sim \mathrm{U}(-0.1,\,0.1),\qquad \pi^{0} = \Pr(T=0 \mid x,u)"),
+    M(r"\pi^{0}(x,u) \;=\; \sigma\big(\lambda^{\top}x + \gamma u\big) \;=\; "
+      r"\frac{1}{1 + e^{-(\lambda^{\top}x + \gamma u)}},\qquad "
+      r"e(x,u) \;=\; \Pr(T=1\mid x,u) \;=\; 1 - \pi^{0}(x,u)"),
+    M(r"\text{since } u \in \{-1,+1\} \text{ and } \Gamma^{\!\star} = e^{2\gamma}:\quad "
+      r"\pi^{0}(x,+1) = \frac{\sqrt{\Gamma^{\!\star}}}"
+      r"{\sqrt{\Gamma^{\!\star}} + e^{-\lambda^{\top}x}},\qquad "
+      r"\pi^{0}(x,-1) = \frac{1}{1 + \sqrt{\Gamma^{\!\star}}\,e^{-\lambda^{\top}x}}"),
     M(r"T_i \sim \mathrm{Bernoulli}\big(1-\pi^{0}(X_i,U_i)\big),\qquad "
       r"Y_i \;=\; T_i Y_i^{1} + (1-T_i) Y_i^{0}"),
     M(r"\frac{\pi^{0}(x,+1)}{1-\pi^{0}(x,+1)} \Big/ \frac{\pi^{0}(x,-1)}{1-\pi^{0}(x,-1)}"
       r" \;=\; e^{2\gamma} \quad \forall x \qquad\Longrightarrow\qquad "
       r"\Gamma^{\!\star} = e^{2\gamma}"),
 ])
+
+# Overlap summary, precomputed by precompute_overlap.py. PERCENTILES, not min/max: the extremes
+# are taken over 25 populations x 20k rows, and at gamma=0 -- where there is no confounding at all
+# and e must sit near 1/2 -- the minimum is already 0.0014. That is one outlier row in the
+# standardised UCI covariates, not a property of the design.
+_OVP = HERE / "prepared" / "_overlap.json"
+overlap_tbl = ""
+if _OVP.exists():
+    _ov = json.loads(_OVP.read_text())
+    _rows = "".join(
+        "<tr><td class='l'>&gamma; = %g</td><td class='ref'>%.1f</td><td>%.3f</td><td>%.3f</td>"
+        "<td>%.3f</td><td>%.4f</td><td>%.4f</td></tr>"
+        % (r["gamma"], r["Gamma"], r["p01"], r["p50"], r["p99"],
+           r["frac_below_01"], r["frac_above_99"])
+        for r in sorted(_ov.values(), key=lambda r: r["gamma"]))
+    overlap_tbl = ("<div class='scrollx'><table class='dt'>"
+                   "<tr><th class='l'>&nbsp;</th><th>&Gamma;&#9733;</th><th>e, 1st pct</th>"
+                   "<th>median</th><th>99th pct</th><th>frac e&lt;0.01</th>"
+                   "<th>frac e&gt;0.99</th></tr>" + _rows + "</table></div>")
 
 RCT_MATH = "".join([
     M(r"\big(Y_i^{0},\,Y_i^{1}\big)\ \text{taken from the source dataset; neither is resimulated}"),
@@ -521,6 +547,15 @@ than the interval [e<sup>&gamma;</sup>, e<sup>2&gamma;</sup>] the paper settles 
 &pi;<sup>0</sup> is never clipped, the odds ratio between the two hidden states is
 e<sup>2&gamma;</sup> at <i>every</i> x. Verified to ~1e&minus;13 on all five datasets.
 Only &tau; and <i>Y</i><sup>1</sup> are ours; everything else is theirs.</p>
+<p class="muted">Both closed forms were checked against the generated populations and agree to
+1.1e&minus;16. Note the identity holds <i>conditional on x</i>: the marginal difference in
+logit&nbsp;&pi;<sup>0</sup> between the two hidden states is slightly under 2&gamma; because
+<i>u</i>&nbsp;=&nbsp;<i>Y</i><sup>0</sup> is weakly correlated with <i>x</i>. Since
+&pi;<sup>0</sup> is never clipped, overlap degrades with &gamma; but never formally fails. The
+percentiles below are over all 25 populations at each &gamma; (500k units); the raw min and max
+are not shown because they are single outlier rows &mdash; at &gamma;&nbsp;=&nbsp;0, where there is
+no confounding at all, the minimum e is already 0.0014 while the median is exactly 0.500.</p>
+{overlap_tbl}
 </section>
 {SEMI_FLOW}
 <div class="box"><b>How the inverse propensity scores are determined</b>
