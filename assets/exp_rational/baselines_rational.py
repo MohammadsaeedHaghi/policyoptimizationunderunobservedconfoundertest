@@ -54,8 +54,8 @@ def main():
 
     import common
     import sharp_hess as H
-    fit_kallus = _load("methods/Kallus/kallus.py", "fit_kallus")
-    predict_kallus = _load("methods/Kallus/kallus.py", "predict_kallus")
+    fit_kallus = _load("methods/Kallus/kallus.py", "fit_kallus_paper")
+    predict_kallus = _load("methods/Kallus/kallus.py", "predict_kallus_paper")
 
     sd = a.single_seed
     tr = draw(a.n_train, 1000 + sd, cfg)          # EXACTLY the draws smoke_rational uses

@@ -44,6 +44,12 @@ def main():
         d["cell"]["baselines_prev"] = dict(bl)          # keep the custom-trainer numbers
     pol = H.hess_paper(X, T, Y, Gamma=float(cfg.Gstar), seed=sd, maximize=True)
     bl["SharpHess"] = eval_capped(H.apply_hess_paper(pol, te["x"].reshape(-1, 1)))
+    fit_kp = _load("methods/Kallus/kallus.py", "fit_kallus_paper")
+    pred_kp = _load("methods/Kallus/kallus.py", "predict_kallus_paper")
+    import common
+    wraw, _ = common.ipw_weights_from_data(X, T, 2, normalize=False)
+    rk = fit_kp(X, T, Y, wraw, n_arms=2, Gamma=float(cfg.Gstar), maximize=True, seed=sd)
+    bl["Kallus"] = eval_capped(pred_kp(rk.theta, te["x"].reshape(-1, 1))[:, 1])
     p.write_text(json.dumps(d))
     print("%s: SharpHess(paper) capped -> %+.4f" % (p.name, bl["SharpHess"]), flush=True)
 

@@ -46,6 +46,10 @@ def main():
                          "draws: realized value on a fresh d.generate() test draw -- required "
                          "when the DGP's X-marginal is NOT uniform on LEVELS (e.g. diabetes).")
     ap.add_argument("--n-test", type=int, default=4000, dest="ntest")
+    ap.add_argument("--paper", action="store_true",
+                    help="use fit_kallus_paper: the verbatim port of the KZ18 authors' code "
+                         "(CausalML/confounding-robust-policy-improvement), bit-validated "
+                         "against their grad_descent_sharp")
     a = ap.parse_args()
     gammas = [float(x) for x in a.gammas.split(",")]; seeds = list(range(a.seeds))
 
@@ -70,11 +74,17 @@ def main():
         wraw, _ = common.ipw_weights_from_data(obs["X"], obs["T"], K, normalize=False)
         out = {"val": [], "obj": [], "pol": {}}
         for g in gammas:
-            res = kal.fit_kallus(obs["X"], obs["T"], obs["Y"], wraw, n_arms=K, Gamma=g,
-                                 maximize=True, wasserstein=False, seed=sd)
-            pi = kal.predict_kallus(res.theta, LV.reshape(-1, 1))[:, 1]
+            if a.paper:
+                res = kal.fit_kallus_paper(obs["X"], obs["T"], obs["Y"], wraw, n_arms=K,
+                                           Gamma=g, maximize=True, seed=sd)
+                pi = kal.predict_kallus_paper(res.theta, LV.reshape(-1, 1))[:, 1]
+            else:
+                res = kal.fit_kallus(obs["X"], obs["T"], obs["Y"], wraw, n_arms=K, Gamma=g,
+                                     maximize=True, wasserstein=False, seed=sd)
+                pi = kal.predict_kallus(res.theta, LV.reshape(-1, 1))[:, 1]
             if a.evalmode == "draws":
-                pe = kal.predict_kallus(res.theta, Xte)[:, 1]
+                pe = (kal.predict_kallus_paper(res.theta, Xte)[:, 1] if a.paper
+                      else kal.predict_kallus(res.theta, Xte)[:, 1])
                 out["val"].append(round(float(np.mean(pe * Y1t + (1 - pe) * Y0t)), 4))
             else:
                 out["val"].append(round(float(d.exact_value(pi)), 4))

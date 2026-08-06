@@ -275,3 +275,149 @@ def fit_kallus(
         maximize=bool(maximize), wasserstein=bool(wasserstein), basis=tuple(basis), epsilon=eps,
         n_iters=int(n_iters), n_restarts=int(n_restarts),
     )
+
+
+# ---------------------------------------------------------------- paper-exact (their repository)
+# Verbatim port of github.com/CausalML/confounding-robust-policy-improvement (Kallus & Zhou), the
+# code behind the KZ18 paper's experiments, clone at /scratch1/haghim/repos. Their synthetic
+# driver (methods_test.py, 'ogd-interval') fixes every choice:
+#
+#   policy         logistic sigma(theta' [x, 1])                      (logistic_pol_asgn + augment)
+#   uncertainty    per-arm ("sharp=True") self-normalised MSM box; bounds a = 1/p_hi, b = 1/p_lo
+#                  from get_bnds -- algebraically the Tan interval 1 + (w_hat-1)/Lambda,
+#                  1 + (w_hat-1)*Lambda on the raw inverse weight
+#   inner solver   find_opt_weights_shorter: sort by (coef, tiebreak b-a), ternary-search the
+#                  threshold k, weights = a below / b above, lambda = sum(w*coef)/sum(w)
+#   objective      min_theta [lambda_+ + lambda_-],  per-arm coefficient  y * t * (pi_1 - p_1)
+#                  with the CONTROL baseline p_1 = 0 and y a LOSS (lower better)
+#   gradient       sum_i y_i t_i W_i pi_1i (1-pi_1i) x_i, W = per-arm-normalised weights,
+#                  renormalised globally (their wghts_total / sum(wghts_total))
+#   outer loop     subgradient descent, eta_t = eta_0/(k+1)^0.5 with eta_0 = 1, Armijo
+#                  backtracking each round (t=1 start, x0.2 backtrack, beta=1e-4, <=20 tries,
+#                  fall back to eta_t)  [their opt_w_restarts passes step_schedule into the
+#                  logging slot positionally, so the schedule 0.5 and linesearch=True are what
+#                  actually run -- replicated as-effective, not as-intended]
+#   rounds         N_RNDS = clip(int(G^2 D^2 / 0.05^2), 50, 200) with D = ||(a-b)/sum(a)||_2 and
+#                  G = 0.25 * max|y| * p                                      (get_ogd_params)
+#   restarts       15; restart 0 starts at the CONTROL policy theta = [0,...,0,-1000], the rest
+#                  at 0.25 * randn(p)                                          (opt_w_restarts)
+#   selection      averaging=True: per restart score = MEAN of per-round lambdas and
+#                  theta_restart = MEAN of iterates (Polyak); final = restart with min mean-loss
+#
+# Their per-restart random.seed(j) seeds python's random, not numpy, so their inits are
+# effectively unseeded; here numpy is seeded per (seed, restart) for reproducibility -- the one
+# deliberate deviation, statistically immaterial.
+
+def _kzp_inner(coef, a_, b_):
+    """find_opt_weights_shorter, verbatim: max_w sum(w*coef)/sum(w) over the box [a, b]."""
+    sort_inds = np.lexsort((b_ - a_, coef))
+    a_ = a_[sort_inds]; coef_s = coef[sort_inds]; b_ = b_[sort_inds]
+    n = len(coef_s)
+    weights = np.zeros(n)
+
+    def rnd_k_val(k):
+        k = int(np.floor(k))
+        return (np.sum(a_[:k] * coef_s[:k]) + np.sum(b_[k:] * coef_s[k:])) / \
+               (np.sum(a_[:k]) + np.sum(b_[k:]))
+
+    left, right = 0, n - 1
+    k = 1
+    while True:
+        if abs(right - left) < 2.1:
+            k = np.floor((left + right) / 2)
+            break
+        lt = left + (right - left) / 3
+        rt = right - (right - left) / 3
+        if rnd_k_val(lt) < rnd_k_val(rt):
+            left = lt
+        else:
+            right = rt
+    k = int(k)
+    lda = (np.sum(a_[:k] * coef_s[:k]) + np.sum(b_[k:] * coef_s[k:])) / \
+          (np.sum(a_[:k]) + np.sum(b_[k:]))
+    weights[sort_inds[:k]] = a_[:k]
+    weights[sort_inds[k:]] = b_[k:]
+    return lda, weights, float(np.sum(weights))
+
+
+def _kzp_lambda(th, x_aug, y_loss, t_sgn, a_, b_):
+    """lambda_+ + lambda_- and the globally renormalised weights at theta (control baseline)."""
+    pi1 = 1.0 / (1.0 + np.exp(-np.clip(x_aug @ th, -600, 600)))
+    w_tot = np.zeros(len(t_sgn))
+    lda = 0.0
+    for sgn in (1.0, -1.0):
+        m = t_sgn == sgn
+        l, w, ws = _kzp_inner(sgn * y_loss[m] * pi1[m], a_[m], b_[m])
+        lda += l
+        w_tot[m] = w / ws
+    return lda, w_tot / np.sum(w_tot), pi1
+
+
+def fit_kallus_paper(X, T, Y, ips_weights, *, n_arms: int = 2, Gamma: float,
+                     maximize: bool = True, seed: int = 0, n_restarts: int = 15):
+    """Kallus & Zhou, their code verbatim (see block comment). Returns a KallusResult whose
+    theta is on the AUGMENTED basis [x, 1]; deploy with predict_kallus_paper."""
+    if n_arms != 2:
+        raise ValueError("the paper pipeline is binary-treatment (their K=2 driver).")
+    X = np.asarray(X, dtype=float)
+    T = np.asarray(T).astype(int).ravel()
+    if X.ndim != 2:
+        X = X.reshape(len(T), -1)
+    y_loss = (-np.asarray(Y, float) if maximize else np.asarray(Y, float)).ravel()
+    w_hat = np.asarray(ips_weights, dtype=float).ravel()
+    if np.any(w_hat < 1.0 - 1e-9):
+        raise ValueError("pass RAW inverse weights (>= 1), as their get_bnds does (1/e form).")
+    G = float(Gamma)
+    a_ = 1.0 + (w_hat - 1.0) / G                     # get_bnds: 1/p_hi
+    b_ = 1.0 + (w_hat - 1.0) * G                     # get_bnds: 1/p_lo
+    t_sgn = np.where(T == 1, 1.0, -1.0)
+    n = X.shape[0]
+    x_aug = np.hstack([X, np.ones((n, 1))])
+    p = x_aug.shape[1]
+
+    # get_ogd_params, verbatim (D on the bounds, G_ on the loss scale)
+    D = float(np.linalg.norm((a_ - b_) / np.sum(a_)))
+    G_ = float(np.linalg.norm(0.25 * np.max(np.abs(y_loss)) * X.shape[1]))   # their self.x = raw d
+    N_RNDS = int(np.clip(int(G_ ** 2 * D ** 2 / 0.05 ** 2), 50, 200))
+
+    rng = np.random.default_rng(seed)
+    th_ctrl = np.zeros(p); th_ctrl[-1] = -1000.0     # their DEFAULT_POL: the control policy
+    best_th, best_ls = None, np.inf
+    for j in range(n_restarts):
+        th = th_ctrl.copy() if j == 0 else rng.standard_normal(p) * 0.25
+        losses = np.zeros(N_RNDS); thts = np.zeros((N_RNDS, p))
+        for k in range(N_RNDS):
+            eta_t = 1.0 / np.sqrt(k + 1.0)
+            lda, W, pi1 = _kzp_lambda(th, x_aug, y_loss, t_sgn, a_, b_)
+            subgrad = ((y_loss * t_sgn * W * pi1 * (1.0 - pi1))[:, None] * x_aug).sum(axis=0)
+            # Armijo backtracking on lambda (their ArmijoLineSearch: beta=1e-4, tfactor=0.2)
+            d = -subgrad
+            slope = float(subgrad @ d)
+            step = eta_t
+            if slope < 0.0:
+                tt = 1.0; ok = False
+                for _ in range(20):
+                    if _kzp_lambda(th + tt * d, x_aug, y_loss, t_sgn, a_, b_)[0] \
+                            <= lda + tt * 1e-4 * slope:
+                        ok = True; break
+                    tt *= 0.2
+                step = tt if ok else eta_t
+            th = th - step * subgrad
+            losses[k] = lda; thts[k] = th
+        ls_j = float(np.mean(losses))                # averaging=True: mean loss, Polyak theta
+        if ls_j < best_ls:
+            best_ls, best_th = ls_j, thts.mean(axis=0)
+    return KallusResult(theta=best_th.reshape(1, -1), objective_value=best_ls, n_arms=2,
+                        Gamma=G, maximize=bool(maximize), wasserstein=False,
+                        basis=("kz18-paper",), epsilon=None, n_iters=int(N_RNDS),
+                        n_restarts=int(n_restarts))
+
+
+def predict_kallus_paper(theta, X):
+    """pi(1|x) for a fit_kallus_paper theta (augmented basis). Returns (n, 2) like predict_kallus."""
+    th = np.asarray(theta, float).ravel()
+    X = np.atleast_2d(np.asarray(X, float))
+    if X.shape[1] != len(th) - 1:
+        X = X.T
+    p1 = 1.0 / (1.0 + np.exp(-np.clip(np.hstack([X, np.ones((X.shape[0], 1))]) @ th, -600, 600)))
+    return np.column_stack([1.0 - p1, p1])
