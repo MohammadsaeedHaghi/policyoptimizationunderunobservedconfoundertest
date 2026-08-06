@@ -26,21 +26,35 @@ def _load(p, n):
     sp = importlib.util.spec_from_file_location(n, p); m = importlib.util.module_from_spec(sp)
     sys.modules[n] = m; sp.loader.exec_module(m); return m
 d = _load(HERE / "dgp_g15.py", "kmz_rep_d")
-MC["SharpIPW-O-X"] = "#9467bd"   # legacy key; plug-in no longer plotted
 MC["Hess-efficient"] = "#8c564b"
-HESSD = (json.load(open(ROOT / "assets/grand/hess_for_reports.json")).get("km") or {})
+HESSD = (json.load(open(ROOT / "assets/grand/hess_paper_for_reports.json")).get("km") or {})
+# Hess at THEIR OWN n=5000 (the paper's operating point) -- quoted as a caveat wherever the
+# n=400 number appears, because their five-network pipeline is data-hungry.
+try:
+    HESS5K = json.load(open(ROOT / "assets/grand/hess_paper_km5000.json"))["4.4817"]
+except Exception:
+    HESS5K = None
 
 def J(fn):
     try: return json.load(open(HERE / fn))
     except Exception: return None
 EVD = {}
-XX = J("../grand/xx_kmz.json") or {}
+# X-X at MATCHED L (xxL_kmz.json: L in {inf, 3, 1}); the old xx_kmz.json carried the
+# no-lipschitz solve only (~0.35), which overstated the O-W-vs-X-X gap by ~5x.
+_XXL = J("../grand/xxL_kmz.json") or {}
+if _XXL:
+    _best = {m: max(d, key=d.get) for m, d in _XXL["mean"].items()}      # best L per method
+    XX = {"methods": list(_XXL["mean"]),
+          "mean": {m: _XXL["mean"][m][_best[m]] for m in _XXL["mean"]},
+          "sd": {m: _XXL["sd"][m][_best[m]] for m in _XXL["mean"]},
+          "bestL": _best, "byL": _XXL["mean"]}
+else:
+    XX = J("../grand/xx_kmz.json") or {}
 CM = {ce: J(f"kmz_main_ce{ce}.json") for ce in ("1.0", "1.5", "2.0")}
 CC = J("kmz_cap30_ce1.0.json")
 GST = {"05": J("kmz_g05.json"), "10": J("kmz_g10.json")}
 N1K = J("kmz_n1000.json")
 KAL = J("kmz_kallus.json")
-SH = J("kmz_sharp.json")
 REFS = J("kmz_refs.json")
 GSTAR = 4.4817
 GKEY = "4.4817"
@@ -103,12 +117,8 @@ if C0:
     parts = [ch]
     if CC:
         sl_c = [ser(m, gl, [CC["surface"][m][g]["3"] for g in CC["gammas"]]) for m in CC["methods"]]
-        try:
-            _hc = json.load(open(HERE.parent / "grand/hess_capped.json"))["km"]
-            sl_c.append(ser("Hess-efficient", [float(g) for g in _hc["gammas"]], _hc["mean"],
-                            lab="Hess et al. (efficient, capped)"))
-        except Exception as _e:
-            print("capped Hess series unavailable:", _e)
+        # No capped Hess overlay: the only capped series came from the superseded custom
+        # trainer; a paper-exact capped run for KMZ does not exist yet.
         parts.append(vline_chart(sl_c, "CAPPED 30%: average test outcome vs Gamma at L = 3", "test E[Y]",
                                  hlines=[("capped oracle", "#111", REFS["oracle_cap30"], "5 4")],
                                  xticks=gl))
@@ -125,11 +135,9 @@ if C0:
         # UNCAPPED numbers go ONLY in the uncapped widget. Applying them to the capped panel
         # plotted an unconstrained policy against capped references, which is why it appeared to
         # beat the capped oracle: it was not paying the 30% budget.
-        try:
-            _HCAP = json.load(open(ROOT / "assets/grand/hess_capped.json"))["km"]
-            _hxc = {g: v for g, v in zip(_HCAP["gammas"], _HCAP["mean"])}
-        except Exception:
-            _hxc = None
+        # capped overlay REMOVED: it came from the superseded custom trainer, and a paper-exact
+        # capped Hess run for KMZ does not exist yet -- better absent than wrong.
+        _hxc = None
         for _w in EVD:
             _is_cap = "cap" in _w
             if _is_cap and _hxc: EVD[_w].setdefault("extra", {})["Hess-efficient"] = _hxc
@@ -175,7 +183,9 @@ if C0:
                        f"<td>{r['IPW-O-X']:.3f}</td><td>{r['DoublyRobust-O-X']:.3f}</td></tr>")
     xx_rows = []
     for _m in (XX.get("methods") or []):
-        xx_rows.append(f"<tr><td>{_m}</td><td>{XX['mean'][_m]:.3f}</td><td>{XX['sd'][_m]:.3f}</td></tr>")
+        _lb = XX.get("bestL", {}).get(_m, "")
+        xx_rows.append(f"<tr><td>{_m}{' (L=' + _lb + ')' if _lb else ''}</td>"
+                       f"<td>{XX['mean'][_m]:.3f}</td><td>{XX['sd'][_m]:.3f}</td></tr>")
     T2.append(f"""
 <h2>1. Average test outcome (5 seeds; &Gamma; grid with the matched &Gamma;* flagged)</h2>
 <p class="muted">Tick methods to overlay; the static pair below shows every series at L = 3.</p>
@@ -191,6 +201,13 @@ if C0:
 <th>DR-O-X</th><th>DR-O-W</th></tr>
 {''.join(st_rows)}
 </table></div>
+<p class="muted">Hess et al. runs the authors' own pipeline verbatim (their repository:
+{{64,32}} ReLU networks for every nuisance and the policy, Adam lr 10<sup>&minus;3</sup>,
+batch 64, &le;300 epochs, patience 10, disjoint 50/50 split). It is data-hungry: at this
+report's shared n&nbsp;=&nbsp;400 it scores {HESSD["mean"][HESSD["gammas"].index("4.4817")]:.3f}
+at the matched &Gamma;&#9733;, but {HESS5K["mean"]:.3f}&nbsp;&plusmn;&nbsp;{HESS5K["sd"]:.3f}
+at its own paper's n&nbsp;=&nbsp;5000 &mdash; a size the LP methods cannot run at
+(n&sup2; transport variables). Both numbers belong in any citation.</p>
 <h2>3. Ablations at the matched &Gamma;* = 4.48, L = 3</h2>
 <div class="tw"><table>
 <tr><th>setting</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th></tr>
@@ -270,7 +287,7 @@ if C0:
 <h2>1. Learned policy vs x -- uncapped</h2>
 <p>Raw per-unit support policy (seed 0) above; Shapley-deployed pi(x) below. The oracle's
 oscillating interior structure is the test: an unconfounded fit under-treats the positive regions.</p>""")
-    _add_hess_curves(PD, "km")
+    # _add_hess_curves(PD, "km")  -- old-learner curves; superseded by the paper pipeline
     if XX and XX.get("curves"):
         for _w in PD:
             if PD[_w].get("kind") != "2d": continue
