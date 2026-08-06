@@ -98,6 +98,18 @@ report's shared n&nbsp;=&nbsp;400 it scores 0.205
 at the matched &Gamma;&#9733;, but 1.192&nbsp;&plusmn;&nbsp;0.040
 at its own paper's n&nbsp;=&nbsp;5000 &mdash; a size the LP methods cannot run at
 (n&sup2; transport variables). Both numbers belong in any citation.</p>
+<p class="muted"><b>Kallus's row is the reference policy, not the estimator.</b> Their
+method minimises worst-case regret against a reference, whose own regret is zero by construction
+&mdash; so under real confounding the certified-safe optimum <i>is</i> the reference, and their
+synthetic driver anchors it to <span class="mono">ctrl_p_1</span> (never-treat), the worst constant
+on this benchmark. Re-running their code with the other references their repository ships:
+reference = control &rarr; <b>&minus;1.010</b> (never-treat, exactly) at every
+&Gamma;&nbsp;&ge;&nbsp;2; reference = treat-all (their <span class="mono">tmnt_p_1</span>) &rarr;
+<b>+1.035</b> (all-treat, exactly); reference = the logging policy &rarr; &asymp;&nbsp;+0.35. A
+2.05-point swing from the anchor alone, with the estimator unchanged. The table above reports
+their driver's protocol; this note is why that number should not be read as estimator quality.
+At &Gamma;&nbsp;=&nbsp;1 the floor stops binding and the method drifts with the noisy point
+estimate instead (&minus;0.42 / &minus;0.04 / &minus;0.16).</p>
 <h2>3. Ablations at the matched &Gamma;* = 4.48, L = 3</h2>
 <div class="tw"><table>
 <tr><th>setting</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th></tr>

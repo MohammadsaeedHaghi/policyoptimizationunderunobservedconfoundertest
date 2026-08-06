@@ -340,21 +340,28 @@ def _kzp_inner(coef, a_, b_):
     return lda, weights, float(np.sum(weights))
 
 
-def _kzp_lambda(th, x_aug, y_loss, t_sgn, a_, b_):
-    """lambda_+ + lambda_- and the globally renormalised weights at theta (control baseline)."""
+def _kzp_lambda(th, x_aug, y_loss, t_sgn, a_, b_, p1=None):
+    """lambda_+ + lambda_- and the globally renormalised weights at theta.
+
+    ``p1`` is the reference policy's treat-probability vector (their BASELINE_POL hook):
+    None = control (their driver's choice), so the coefficient collapses to sgn * y * pi1.
+    The reference has no theta-gradient, so the subgradient formula is unchanged.
+    """
     pi1 = 1.0 / (1.0 + np.exp(-np.clip(x_aug @ th, -600, 600)))
+    diff = pi1 if p1 is None else pi1 - p1
     w_tot = np.zeros(len(t_sgn))
     lda = 0.0
     for sgn in (1.0, -1.0):
         m = t_sgn == sgn
-        l, w, ws = _kzp_inner(sgn * y_loss[m] * pi1[m], a_[m], b_[m])
+        l, w, ws = _kzp_inner(sgn * y_loss[m] * diff[m], a_[m], b_[m])
         lda += l
         w_tot[m] = w / ws
     return lda, w_tot / np.sum(w_tot), pi1
 
 
 def fit_kallus_paper(X, T, Y, ips_weights, *, n_arms: int = 2, Gamma: float,
-                     maximize: bool = True, seed: int = 0, n_restarts: int = 15):
+                     maximize: bool = True, seed: int = 0, n_restarts: int = 15,
+                     baseline: str = "ctrl"):
     """Kallus & Zhou, their code verbatim (see block comment). Returns a KallusResult whose
     theta is on the AUGMENTED basis [x, 1]; deploy with predict_kallus_paper."""
     if n_arms != 2:
@@ -380,15 +387,32 @@ def fit_kallus_paper(X, T, Y, ips_weights, *, n_arms: int = 2, Gamma: float,
     G_ = float(np.linalg.norm(0.25 * np.max(np.abs(y_loss)) * X.shape[1]))   # their self.x = raw d
     N_RNDS = int(np.clip(int(G_ ** 2 * D ** 2 / 0.05 ** 2), 50, 200))
 
+    # Reference policy (their BASELINE_POL hook; the synthetic driver picks ctrl_p_1). The floor
+    # of the regret objective is the reference itself, so this choice anchors the method:
+    #   ctrl     p1 = 0            (their driver; floor = never-treat)
+    #   all      p1 = 1            (their tmnt_p_1; floor = treat-everyone)
+    #   nominal  p1 = e_hat(x)     (the logging policy, from the passed inverse weights)
+    # Restart 0 mirrors their give_initial convention: it starts AT the reference where the
+    # logistic class can represent it (ctrl/all via a +-1000 intercept; nominal via zeros).
+    if baseline == "ctrl":
+        p1 = None
+        th0_ref = np.zeros(p); th0_ref[-1] = -1000.0
+    elif baseline == "all":
+        p1 = np.ones(n)
+        th0_ref = np.zeros(p); th0_ref[-1] = 1000.0
+    elif baseline == "nominal":
+        p1 = np.where(T == 1, 1.0 / w_hat, 1.0 - 1.0 / w_hat)
+        th0_ref = np.zeros(p)
+    else:
+        raise ValueError("baseline must be 'ctrl', 'all' or 'nominal'.")
     rng = np.random.default_rng(seed)
-    th_ctrl = np.zeros(p); th_ctrl[-1] = -1000.0     # their DEFAULT_POL: the control policy
     best_th, best_ls = None, np.inf
     for j in range(n_restarts):
-        th = th_ctrl.copy() if j == 0 else rng.standard_normal(p) * 0.25
+        th = th0_ref.copy() if j == 0 else rng.standard_normal(p) * 0.25
         losses = np.zeros(N_RNDS); thts = np.zeros((N_RNDS, p))
         for k in range(N_RNDS):
             eta_t = 1.0 / np.sqrt(k + 1.0)
-            lda, W, pi1 = _kzp_lambda(th, x_aug, y_loss, t_sgn, a_, b_)
+            lda, W, pi1 = _kzp_lambda(th, x_aug, y_loss, t_sgn, a_, b_, p1)
             subgrad = ((y_loss * t_sgn * W * pi1 * (1.0 - pi1))[:, None] * x_aug).sum(axis=0)
             # Armijo backtracking on lambda (their ArmijoLineSearch: beta=1e-4, tfactor=0.2)
             d = -subgrad
@@ -397,7 +421,7 @@ def fit_kallus_paper(X, T, Y, ips_weights, *, n_arms: int = 2, Gamma: float,
             if slope < 0.0:
                 tt = 1.0; ok = False
                 for _ in range(20):
-                    if _kzp_lambda(th + tt * d, x_aug, y_loss, t_sgn, a_, b_)[0] \
+                    if _kzp_lambda(th + tt * d, x_aug, y_loss, t_sgn, a_, b_, p1)[0] \
                             <= lda + tt * 1e-4 * slope:
                         ok = True; break
                     tt *= 0.2
@@ -409,7 +433,7 @@ def fit_kallus_paper(X, T, Y, ips_weights, *, n_arms: int = 2, Gamma: float,
             best_ls, best_th = ls_j, thts.mean(axis=0)
     return KallusResult(theta=best_th.reshape(1, -1), objective_value=best_ls, n_arms=2,
                         Gamma=G, maximize=bool(maximize), wasserstein=False,
-                        basis=("kz18-paper",), epsilon=None, n_iters=int(N_RNDS),
+                        basis=("kz18-paper", baseline), epsilon=None, n_iters=int(N_RNDS),
                         n_restarts=int(n_restarts))
 
 
