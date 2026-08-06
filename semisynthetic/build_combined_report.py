@@ -582,7 +582,9 @@ KM_KAL = _J(_MSM / "kmz_kallus.json")
 KM_KALB = {b: _J(_MSM / ("kmz_kallus_base_%s.json" % b)) for b in ("all", "nominal")}
 KM_H15 = _J(_GRD / "hess_paper_km_g15.json")
 KM_K15 = _J(_MSM / "kmz_kallus_g15.json")
-KMZ_SWEEP_G = ["1", "2", "4.4817", "8", "15"]        # the requested display grid
+KM_H50 = _J(_GRD / "hess_paper_km_g50.json")
+KM_K50 = _J(_MSM / "kmz_kallus_g50.json")
+KMZ_SWEEP_G = ["1", "2", "4.4817", "8", "15", "50"]      # the requested display grid
 KMGK = "4.4817"
 
 KMZ_MATH = "".join([
@@ -752,6 +754,8 @@ def _kmz_tab():
         hx = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])}
         if KM_H15:
             hx["15"] = KM_H15["mean"]
+        if KM_H50:
+            hx["50"] = KM_H50["mean"]
         cells_ = []
         for g in gks:
             if g in hx:
@@ -766,6 +770,8 @@ def _kmz_tab():
                                             KM_KAL["regimes"]["uncap"]["mean"]["Kallus"])}
         if KM_K15:
             kx["15"] = KM_K15["regimes"]["uncap"]["mean"]["Kallus"][0]
+        if KM_K50:
+            kx["50"] = KM_K50["regimes"]["uncap"]["mean"]["Kallus"][0]
         cells_ = []
         for g in gks:
             if g in kx:
@@ -781,7 +787,8 @@ def _kmz_tab():
     sweep_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method "
                  "(best L per cell)</th>" + hdrs + "</tr>"
                  + "".join(r[1] for r in sw_rows) + "</table></div>")
-    GC15 = {"1": "#0a7d33", "2": "#5b8c1a", "4.4817": "#b07105", "8": "#c0392b", "15": "#7d1f6a"}
+    GC15 = {"1": "#0a7d33", "2": "#5b8c1a", "4.4817": "#b07105", "8": "#c0392b",
+            "15": "#7d1f6a", "50": "#334155"}
     sw_methods = [m for m in ["IPW-O-W", "DR-O-W", "IPW-O-X", "DR-O-X", "Hajek-O-X", "IPW-X-X",
                               "DR-X-X", "Direct-X-X", "Hess (paper)", "Kallus (paper)"]
                   if any((m, g) in sw_stats for g in gks)]
@@ -804,6 +811,78 @@ def _kmz_tab():
 
 (_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART,
  KMZ_SWEEP, KMZ_SWEEPCH) = _kmz_tab()
+
+
+# ------------------------------------------------ semi tab: Gamma mis-specification sweep
+# DGP held at gamma = 1 (true Gamma* = 7.389); the solvers' Gamma swept over
+# {1, 2, matched, 15, 50}. 125 cells (5 datasets x 5 draws x 5 seeds), c_eps = 1,
+# L in {inf, 3, 1}, authors'-code baselines per Gamma. Read from gsweep/ at build time.
+import glob as _gl
+
+
+def _gsweep():
+    fs = sorted(_gl.glob(str(HERE / "gsweep" / "*.json")))
+    if not fs:
+        return "", ""
+    cells = [json.loads(Path(f).read_text()) for f in fs]
+    gg = cells[0]["ggrid"]; matched = cells[0]["matched"]
+    meths = ["IPW-O-W", "DoublyRobust-O-W", "Hajek-O-W",
+             "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]
+    SH2 = {"DoublyRobust-O-W": "DR-O-W", "DoublyRobust-O-X": "DR-O-X"}
+
+    def nz(v, c):
+        R = c["refs"]; bc = max(R["never_treat"], R["all_treat"])
+        return (v - bc) / (R["oracle"] - bc)
+
+    st, rows = {}, []
+    for m in meths:
+        cells_html = []
+        for g in gg:
+            vs = [nz(max(c["grid"][g][m].values()), c) for c in cells
+                  if m in c["grid"].get(g, {}) and c["grid"][g][m]]
+            if vs:
+                st[(SH2.get(m, m), g)] = (float(np.mean(vs)), float(np.std(vs)))
+                cells_html.append("<td>%.3f <span class='sd'>&plusmn;%.2f</span></td>"
+                                  % (np.mean(vs), np.std(vs)))
+            else:
+                cells_html.append("<td>&mdash;</td>")
+        rows.append((st.get((SH2.get(m, m), matched), (0,))[0],
+                     "<tr%s><td class='l'>%s</td>%s</tr>"
+                     % (" class='hl'" if m.endswith("O-W") else "", SH2.get(m, m),
+                        "".join(cells_html))))
+    for bm in ("SharpHess", "Kallus"):
+        lbl = "Hess (paper)" if bm == "SharpHess" else "Kallus (paper)"
+        cells_html = []
+        for g in gg:
+            vs = [nz(c["baselines"][g][bm], c) for c in cells
+                  if bm in c.get("baselines", {}).get(g, {})]
+            if vs:
+                st[(lbl, g)] = (float(np.mean(vs)), float(np.std(vs)))
+                cells_html.append("<td>%.3f <span class='sd'>&plusmn;%.2f</span></td>"
+                                  % (np.mean(vs), np.std(vs)))
+            else:
+                cells_html.append("<td>&mdash;</td>")
+        rows.append((st.get((lbl, matched), (-9,))[0],
+                     "<tr><td class='l'>%s</td>%s</tr>" % (lbl, "".join(cells_html))))
+    rows.sort(key=lambda t: -t[0])
+    hdr = "".join("<th>&Gamma; = %s%s</th>" % (g, " (matched)" if g == matched else "")
+                  for g in gg)
+    tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method (best L, "
+           "c<sub>&epsilon;</sub>=1)</th>" + hdr + "</tr>"
+           + "".join(r[1] for r in rows) + "</table></div>")
+    GC = {"1": "#0a7d33", "2": "#5b8c1a", matched: "#b07105", "15": "#c0392b", "50": "#334155"}
+    ms = [m for m in ["IPW-O-W", "DR-O-W", "Hajek-O-W", "IPW-O-X", "DR-O-X", "Hajek-O-X",
+                      "Hess (paper)", "Kallus (paper)"] if any((m, g) in st for g in gg)]
+    ch = barchart(st, "Gamma mis-specification at DGP gamma = 1 -- pooled normalised value, "
+                  "125 cells", methods=ms, series=gg,
+                  colors={g: GC.get(g, "#64748b") for g in gg},
+                  labels=lambda g: "Gamma = %s%s" % (g, " (matched)" if g == matched else ""),
+                  note="whisker = sd across the 25 (dataset, draw) x 5 seed cells")
+    return tbl, ch
+
+
+GSWEEP_TBL, GSWEEP_CH = _gsweep()
+
 
 nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -944,6 +1023,18 @@ five independent CATE draws, which is the dominant source of uncertainty here.</
 <h2>SharpHess instantiations
 <span class="hsub">&mdash; the authors' own pipeline vs the k-NN diagnostic</span></h2>
 {hess_tbl}
+
+<h2>&Gamma; mis-specification <span class="hsub">&mdash; DGP fixed at &gamma; = 1
+(true &Gamma;* = 7.39); the solvers' &Gamma; swept over 1, 2, matched, 15, 50</span></h2>
+{GSWEEP_CH}
+{GSWEEP_TBL}
+<p class="muted">The robustness hyperparameter swept off its matched value: &Gamma; = 1 is the
+plain point estimate, &Gamma; = 50 assumes ~7&times; the true confounding. X-X and naive are
+&Gamma;-free and unchanged from the tables above. 125 cells: 5 datasets &times; 5 DGP draws
+&times; 5 split seeds, c<sub>&epsilon;</sub> = 1, best L per cell. <b>Normalisation note:</b>
+this table averages per-cell ratios (each cell normalised by its own references), while the
+pooled tables above divide pooled means &mdash; the two differ by design (about 0.12 at the
+matched point), so compare within this table, not across to the pooled one.</p>
 
 <h2>Which method wins <span class="hsub">&mdash; confounded cells only (&gamma; &gt; 0)</span></h2>
 {win_tbl}
