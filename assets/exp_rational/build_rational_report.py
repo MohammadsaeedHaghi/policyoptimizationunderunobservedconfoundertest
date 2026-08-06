@@ -26,7 +26,7 @@ OX = ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]
 XX = ["IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"]
 ORDER = OW + OX + XX + ["naive", "Kallus", "SharpHess-kNN", "SharpHess"]
 LBL = {"DoublyRobust-O-W": "DR-O-W", "DoublyRobust-O-X": "DR-O-X", "DoublyRobust-X-X": "DR-X-X",
-       "SharpHess": "Hess (neural)", "SharpHess-kNN": "Hess (k-NN)", "naive": "naive plug-in"}
+       "SharpHess": "Hess (paper)", "SharpHess-kNN": "Hess (k-NN, diagnostic)", "naive": "naive plug-in"}
 CFGLBL = {"nocouple": "alpha = 0  (recommended)", "base": "alpha = 1", "a15": "a = 1.5",
           "a3": "a = 3", "delta2": "delta = 2", "b0_5": "beta0 = 5",
           "sw34": "a=1, delta=2, beta0=5", "sw35": "a=3, delta=2, beta0=5",
@@ -353,13 +353,16 @@ rather than a knife edge.</p>
 outcome, so there is nothing to be robust against and a naive plug-in scores 0.986. Shifting the
 level alone is not enough either &mdash; what matters is whether the apparent treatment effect
 crosses zero in the wrong place.</p>
-<p><b>Which Hess to report.</b> Two arms are shown. The paper specifies a
-{{64,64,32}} ReLU network for every nuisance, but every benchmark here projects the covariates
-onto a scalar index, and in one dimension local averaging is near-optimal while a three-layer
-64-wide network is the wrong tool &mdash; across 110 paired cells the neural arm loses to k-NN by
-0.682. The k-NN arm is therefore the <i>fair</i> instantiation of their estimator in this setting
-and is the one to read as the Hess baseline; reporting only the neural arm would flatter our
-method for the wrong reason.</p>
+<p><b>The Hess baseline is the authors' own code, verbatim.</b> "Hess (paper)" runs the exact
+pipeline of their repository (<span class="mono">konstantinhess/Efficient_sharp_policy_learning</span>):
+a disjoint 50/50 nuisance/policy split, {{64,32}} ReLU networks for every nuisance and for the
+policy &mdash; the repository differs from the paper's own Table&nbsp;5 there &mdash; trained with
+Adam at lr 10<sup>&minus;3</sup>, batch 64, at most 300 epochs, early stopping with patience 10.
+The k-NN row is retained only as a diagnostic of nuisance sensitivity, not as a rival method. Two
+properties of the aligned baseline to keep in mind: its seed-to-seed variance at n&nbsp;=&nbsp;400
+is large (&plusmn;0.4&ndash;0.6, against &plusmn;0.07 for IPW-O-W), and it is data-hungry &mdash;
+on the KMZ benchmark it scores 0.21 at our shared n&nbsp;=&nbsp;400 but 1.19 at the paper's own
+n&nbsp;=&nbsp;5000.</p>
 <p class="muted">Generated from the saved cells in <span class="mono">assets/exp_rational/</span>
 &mdash; {sum(len(v) for v in cells.values())} confirmation cells and
 {sum(len(v) for v in base.values())} baseline cells. No number on this page is hardcoded.</p>

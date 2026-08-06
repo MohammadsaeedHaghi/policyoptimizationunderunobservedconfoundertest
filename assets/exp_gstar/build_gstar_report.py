@@ -688,7 +688,7 @@ _OX = ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]
 _XX = ["IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"]
 _ORD = _OW + _OX + _XX + ["naive", "Kallus", "SharpHess-kNN", "SharpHess"]
 _LBL = {"DoublyRobust-O-W": "DR-O-W", "DoublyRobust-O-X": "DR-O-X", "DoublyRobust-X-X": "DR-X-X",
-        "SharpHess": "Hess (neural)", "SharpHess-kNN": "Hess (k-NN)"}
+        "SharpHess": "Hess (paper)", "SharpHess-kNN": "Hess (k-NN, diagnostic)"}
 
 _cells, _base = _coll.defaultdict(list), _coll.defaultdict(dict)
 for _f in _glob.glob(str(_RD / "confirm" / "*_s*.json")):
@@ -812,12 +812,13 @@ optimised Hess with k-NN nuisances is a genuine competitor and takes three of th
 than a lucky one, and O-W is also about seven times more stable there
 (&plusmn;0.074 against &plusmn;0.544). A 54-configuration smoke sweep passed 39, so this is a broad
 region rather than a knife edge.</p>
-<p class="muted"><b>On the Hess instantiation.</b> Two arms are shown. The paper specifies a
-{{64,64,32}} ReLU network for every nuisance, but every benchmark here projects the covariates onto
-a scalar index, and on one dimension local averaging is near-optimal while a three-layer 64-wide
-network is the wrong tool &mdash; the neural arm loses to k-NN by a paired 0.682 over 110 cells.
-The k-NN arm is therefore the <i>fair</i> instantiation of their estimator in this setting, and is
-the one to read as the Hess baseline.</p>
+<p class="muted"><b>On the Hess instantiation.</b> "Hess (paper)" is the authors'
+repository pipeline verbatim ({{64,32}} ReLU networks for every nuisance and the policy &mdash;
+their code differs from their Table&nbsp;5 &mdash; Adam lr 10<sup>&minus;3</sup>, batch 64,
+&le;300 epochs, patience 10, disjoint 50/50 split). The k-NN row is a nuisance-sensitivity
+diagnostic, not a rival method. The aligned baseline carries large seed-to-seed variance at
+n&nbsp;=&nbsp;400 and is data-hungry: on KMZ it scores 0.21 at n&nbsp;=&nbsp;400 against 1.19 at
+the paper's own n&nbsp;=&nbsp;5000.</p>
 """
 
 TABS = f"""

@@ -643,16 +643,14 @@ throughout &mdash; Hess's Eq.&nbsp;15 reproduces the AIPW score at &Gamma;&nbsp;
 9e&minus;16 on both nuisance paths, and Kallus's sign convention is exact
 (|&Delta;&theta;|&nbsp;=&nbsp;0).
 <br><br>
-SharpHess now uses the paper's Table-5 nuisances: every head is a {{64,64,32}} ReLU net trained with
-Adam at lr&nbsp;1e&minus;3, 300 epochs, batch&nbsp;64, early-stopping patience&nbsp;10. Checked
-against population ground truth, the net is the <i>most accurate</i> propensity estimator
-(RMSE&nbsp;0.037 vs k-NN's 0.070 and 0.125) &mdash; but its <i>truncated-mean</i> regressions are
-10&ndash;17&times; worse (0.708 vs 0.041 at &gamma;&nbsp;=&nbsp;2), because the target
-Y&middot;1{{Y&nbsp;&le;&nbsp;q(x)}} is discontinuous and Y&sup0; here is two-valued, so a smooth
-regression averages away what an empirical k-NN quantile reproduces exactly. Those terms carry the
-c&plusmn; weights that grow with &Gamma;, which is why the neural nuisances help at
-&gamma;&nbsp;=&nbsp;0 and hurt when confounding is strong. Both arms are reported below; neither is
-tuned to the outcome.
+SharpHess is now the authors' repository pipeline <b>verbatim</b>
+(<span class="mono">konstantinhess/Efficient_sharp_policy_learning</span>): disjoint 50/50
+nuisance/policy split, {{64,32}} ReLU networks for every nuisance and the policy &mdash; their code
+differs from their own Table&nbsp;5 &mdash; Adam lr&nbsp;1e&minus;3, batch&nbsp;64, &le;300 epochs,
+early stopping patience&nbsp;10, loss = the estimated bound with nuisances frozen. The k-NN row is
+kept only as a nuisance-sensitivity diagnostic. Earlier arms are preserved in the result files
+(<span class="mono">hess_nn_customopt</span>, <span class="mono">hess_knn</span>,
+<span class="mono">hess_k50</span>, <span class="mono">hess_legacy</span>).
 <br><br>
 <b>Caveat on the high-&gamma; rows:</b> &alpha;<sup>+</sup>&nbsp;=&nbsp;&Gamma;/(1+&Gamma;) reaches
 0.982 at &gamma;&nbsp;=&nbsp;2 and 0.9997 at &gamma;&nbsp;=&nbsp;4, so the conditional quantile
@@ -691,8 +689,8 @@ means the method is worse than not learning a policy at all. The whisker is the 
 five independent CATE draws, which is the dominant source of uncertainty here.</p>
 {CHARTS}
 
-<h2>Nuisance estimator for SharpHess
-<span class="hsub">&mdash; the paper's neural instantiation vs the k-NN one used before</span></h2>
+<h2>SharpHess instantiations
+<span class="hsub">&mdash; the authors' own pipeline vs the k-NN diagnostic</span></h2>
 {hess_tbl}
 
 <h2>Which method wins <span class="hsub">&mdash; confounded cells only (&gamma; &gt; 0)</span></h2>
