@@ -288,7 +288,8 @@ def policy_2d_dataset(RJ):
     if sup and "_X" in sup:
         dta["supX"] = [round(float(x), 3) for x in sup["_X"]]
         dta["sup"] = {m: {g: {l: [int(round(float(v) * 100)) for v in sup[m][g][l]]
-                              for l in RJ["Lgrid"] if l in sup[m][g]} for g in RJ["gammas"]}
+                              for l in RJ["Lgrid"] if l in sup[m][g]}
+                          for g in RJ["gammas"] if g in sup[m]}
                       for m in RJ["methods"]}
     return dta
 

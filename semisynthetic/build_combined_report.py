@@ -580,6 +580,9 @@ KM_HESS = (_J(_GRD / "hess_paper_for_reports.json") or {}).get("km")
 KM_H5K = _J(_GRD / "hess_paper_km5000.json")
 KM_KAL = _J(_MSM / "kmz_kallus.json")
 KM_KALB = {b: _J(_MSM / ("kmz_kallus_base_%s.json" % b)) for b in ("all", "nominal")}
+KM_H15 = _J(_GRD / "hess_paper_km_g15.json")
+KM_K15 = _J(_MSM / "kmz_kallus_g15.json")
+KMZ_SWEEP_G = ["1", "2", "4.4817", "8", "15"]        # the requested display grid
 KMGK = "4.4817"
 
 KMZ_MATH = "".join([
@@ -725,16 +728,82 @@ def _kmz_tab():
                   "policy</th><th>value at matched &Gamma;</th><th class='l'>&nbsp;</th></tr>"
                   + "".join(kb) + "</table></div>")
 
+    # ---- Gamma sweep: the requested grid, best L per (method, Gamma) ----
+    gks = [g for g in KMZ_SWEEP_G if g in surf["IPW-O-W"]]
+    sw_stats = {}
+    sw_rows = []
+    for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
+        cells_ = []
+        for g in gks:
+            v = max(surf[m][g].values())
+            sw_stats[(LBL2[m], g)] = (nz(v), 0.0)
+            cells_.append("<td>%.3f</td>" % v)
+        sw_rows.append((max(surf[m][gks[0]].values()),
+                        "<tr%s><td class='l'>%s</td>%s</tr>"
+                        % (" class='hl'" if m.endswith("O-W") else "", LBL2[m], "".join(cells_))))
+    if KM_XX:
+        for m, dd in KM_XX["mean"].items():
+            v = max(dd.values()); lbl = m.replace("DoublyRobust", "DR")
+            for g in gks:
+                sw_stats[(lbl, g)] = (nz(v), 0.0)
+            sw_rows.append((v, "<tr><td class='l'>%s <span class='hsub'>(&Gamma;-free)</span></td>"
+                            "%s</tr>" % (lbl, ("<td>%.3f</td>" % v) * len(gks))))
+    if KM_HESS:
+        hx = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])}
+        if KM_H15:
+            hx["15"] = KM_H15["mean"]
+        cells_ = []
+        for g in gks:
+            if g in hx:
+                sw_stats[("Hess (paper)", g)] = (nz(hx[g]), 0.0)
+                cells_.append("<td>%.3f</td>" % hx[g])
+            else:
+                cells_.append("<td>&mdash;</td>")
+        sw_rows.append((hx.get(gks[0], -9),
+                        "<tr><td class='l'>Hess (paper)</td>%s</tr>" % "".join(cells_)))
+    if KM_KAL:
+        kx = {("%g" % g): v for g, v in zip(KM_KAL["gammas"],
+                                            KM_KAL["regimes"]["uncap"]["mean"]["Kallus"])}
+        if KM_K15:
+            kx["15"] = KM_K15["regimes"]["uncap"]["mean"]["Kallus"][0]
+        cells_ = []
+        for g in gks:
+            if g in kx:
+                sw_stats[("Kallus (paper)", g)] = (nz(kx[g]), 0.0)
+                cells_.append("<td>%.3f</td>" % kx[g])
+            else:
+                cells_.append("<td>&mdash;</td>")
+        sw_rows.append((kx.get(gks[0], -9),
+                        "<tr><td class='l'>Kallus (paper)</td>%s</tr>" % "".join(cells_)))
+    sw_rows.sort(key=lambda t: -t[0])
+    hdrs = "".join("<th>&Gamma; = %s%s</th>"
+                   % (g, " (matched)" if g == KMGK else "") for g in gks)
+    sweep_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method "
+                 "(best L per cell)</th>" + hdrs + "</tr>"
+                 + "".join(r[1] for r in sw_rows) + "</table></div>")
+    GC15 = {"1": "#0a7d33", "2": "#5b8c1a", "4.4817": "#b07105", "8": "#c0392b", "15": "#7d1f6a"}
+    sw_methods = [m for m in ["IPW-O-W", "DR-O-W", "IPW-O-X", "DR-O-X", "Hajek-O-X", "IPW-X-X",
+                              "DR-X-X", "Direct-X-X", "Hess (paper)", "Kallus (paper)"]
+                  if any((m, g) in sw_stats for g in gks)]
+    sweep_chart = barchart(sw_stats, "KMZ across Gamma -- normalised value, best L per cell",
+                           methods=sw_methods, series=gks,
+                           colors={g: GC15.get(g, "#64748b") for g in gks},
+                           labels=lambda g: ("Gamma = %s%s"
+                                             % (g, " (matched)" if g == KMGK else "")),
+                           note="0 = best constant policy, 1 = oracle; X-X and naive are "
+                                "Gamma-free")
+
     ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
     chart = barchart(stats, "KMZ at the matched Gamma* = 4.4817, n=400 -- normalised value",
                      methods=ordered, series=["kmz"], colors={"kmz": "#4a4a2d"},
                      labels=lambda k: "matched Gamma*",
                      note="0 = best constant policy (all-treat), 1 = oracle; whisker = "
                           "across-seed sd where stored")
-    return R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart
+    return R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart, sweep_tbl, sweep_chart
 
 
-_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART = _kmz_tab()
+(_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART,
+ KMZ_SWEEP, KMZ_SWEEPCH) = _kmz_tab()
 
 nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -964,6 +1033,16 @@ repository's {{64,32}}/Adam pipeline (data-hungry &mdash; 0.205 at this shared n
 their own n=5000, a size the LP methods cannot reach because of the n&sup2; transport variables);
 Kallus via their <span class="mono">grad_descent_sharp</span>/Armijo/15-restart protocol,
 bit-validated against their repository.</p>
+
+<h2>Across &Gamma; <span class="hsub">&mdash; &Gamma; = 1, 2, matched, 8, 15; best L per
+cell</span></h2>
+{KMZ_SWEEPCH}
+{KMZ_SWEEP}
+<p class="muted">&Gamma; = 1 collapses every box to the point estimate; &Gamma; = 15 is
+&asymp;&nbsp;3&times; the matched value, i.e. deliberate over-robustness. Mild over-statement of
+&Gamma; costs little here (the surface peaks slightly ABOVE the matched value), while
+under-statement costs more &mdash; and the Kallus row pins to its reference at every
+&Gamma;&nbsp;&ge;&nbsp;2 regardless.</p>
 
 <h2>Transport margin by L <span class="hsub">&mdash; the zero-coupling prediction,
 verified</span></h2>
