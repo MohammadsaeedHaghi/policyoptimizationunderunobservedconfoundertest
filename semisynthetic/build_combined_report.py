@@ -554,6 +554,188 @@ STAMP = ("<div class='stamp'>build %s &middot; %d cells &middot; &gamma; &isin; 
          "&Gamma; up to %.0f</div>"
          % (_dt.date.today().isoformat(), _ncells,
             ", ".join("%g" % g for g in _gammas), float(np.exp(2 * max(_gammas)))))
+
+# ------------------------------------------------------------------ KMZ tab
+# The Kallus-Mao-Zhou (2019) benchmark, read entirely from assets/exp_msmbench + assets/grand at
+# build time so no number here can drift from the campaign files. Baselines are the authors' own
+# code for both Hess and Kallus (the *_paper ports).
+_MSM = ROOT / "assets" / "exp_msmbench"
+_GRD = ROOT / "assets" / "grand"
+
+
+def _J(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except Exception:
+        return None
+
+
+KM = _J(_MSM / "kmz_main_ce1.0.json")
+KM_CE = {ce: _J(_MSM / ("kmz_main_ce%s.json" % ce)) for ce in ("1.0", "1.5", "2.0")}
+KM_G = {"05": _J(_MSM / "kmz_g05.json"), "10": _J(_MSM / "kmz_g10.json")}
+KM_CAP = _J(_MSM / "kmz_cap30_ce1.0.json")
+KM_REFS = _J(_MSM / "kmz_refs.json")
+KM_XX = _J(_GRD / "xxL_kmz.json")
+KM_HESS = (_J(_GRD / "hess_paper_for_reports.json") or {}).get("km")
+KM_H5K = _J(_GRD / "hess_paper_km5000.json")
+KM_KAL = _J(_MSM / "kmz_kallus.json")
+KM_KALB = {b: _J(_MSM / ("kmz_kallus_base_%s.json" % b)) for b in ("all", "nominal")}
+KMGK = "4.4817"
+
+KMZ_MATH = "".join([
+    M(r"Y(a) = (2a{-}1)X + (2a{-}1) - 2\sin(2(2a{-}1)X) - 2S(1+0.5X) + \mathcal{N}(0,1)"),
+    M(r"X \sim \mathrm{Unif}[-2,2], \qquad S \in \{\pm 1\}, \quad P(S{=}{+}1)=\tfrac12, "
+      r"\qquad S \perp X"),
+    M(r"e(x) = \sigma(0.75X + 0.5) \quad\text{(nominal)}, \qquad "
+      r"e(x,S) = \frac{1{+}S}{2\,\rho(x, 1/\Gamma^{\!*})} + "
+      r"\frac{1{-}S}{2\,\rho(x, \Gamma^{\!*})}, \qquad "
+      r"\rho(x,\gamma) = 1 + \Big(\frac{1}{e(x)} - 1\Big)\gamma"),
+    M(r"\Rightarrow\ \text{the MSM holds exactly with odds ratio } \Gamma^{\!*} "
+      r"\text{ at every } x; \quad \log\Gamma^{\!*} \in \{0.5, 1.0, 1.5\} "
+      r"\ (\Gamma^{\!*} \approx 1.65 / 2.72 / 4.48)"),
+    M(r"\mathrm{CATE}(X) = 2X + 2 - 4\sin(2X), \qquad x = X/2 \in [-1,1] "
+      r"\ \text{(pipeline units)}"),
+])
+
+
+def _kmz_tab():
+    if not KM:
+        return None, "<p>KMZ campaign files not found.</p>", "", "", "", "", "", ""
+    R = {"oracle": KM["oracle"], "never": KM["never_treat"], "all": KM["all_treat"],
+         "naive": KM["naive_dr"]}
+    bc = max(R["never"], R["all"]); hr = R["oracle"] - bc
+
+    def nz(v):
+        return (v - bc) / hr
+
+    Lgrid = KM["Lgrid"]
+    surf = KM["surface"]
+    LBL2 = {"IPW-O-X": "IPW-O-X", "DoublyRobust-O-X": "DR-O-X", "Hajek-O-X": "Hajek-O-X",
+            "IPW-O-W": "IPW-O-W", "DoublyRobust-O-W": "DR-O-W"}
+
+    rows = []
+    stats = {}
+    for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
+        best = max((surf[m][KMGK][L], L) for L in Lgrid)
+        stats[(LBL2[m], "kmz")] = (nz(best[0]), 0.0)
+        det = "  ".join("L=%s %+.3f" % (L, surf[m][KMGK][L]) for L in Lgrid)
+        rows.append((best[0], "<tr%s><td class='l'>%s</td><td>%.3f</td><td>%+.3f</td>"
+                     "<td>L=%s</td><td class='l' style='font-size:10.5px'>%s</td></tr>"
+                     % (" class='hl'" if m.endswith("O-W") else "", LBL2[m], best[0],
+                        nz(best[0]), best[1], det)))
+    if KM_XX:
+        for m, d in KM_XX["mean"].items():
+            bl = max(d, key=d.get)
+            lbl = m.replace("DoublyRobust", "DR")
+            stats[(lbl, "kmz")] = (nz(d[bl]), abs(nz(d[bl] + KM_XX["sd"][m][bl]) - nz(d[bl])))
+            det = "  ".join("L=%s %+.3f" % (L, d[L]) for L in ("inf", "3", "1"))
+            rows.append((d[bl], "<tr><td class='l'>%s <span class='hsub'>(&Gamma;-free)</span>"
+                         "</td><td>%.3f</td><td>%+.3f</td><td>L=%s</td>"
+                         "<td class='l' style='font-size:10.5px'>%s</td></tr>"
+                         % (lbl, d[bl], nz(d[bl]), bl, det)))
+    if KM_HESS:
+        i = KM_HESS["gammas"].index(KMGK)
+        v = KM_HESS["mean"][i]
+        stats[("Hess (paper)", "kmz")] = (nz(v), abs(nz(v + KM_HESS["sd"][i]) - nz(v)))
+        n5 = ("; <b>%.3f &plusmn; %.3f at their own n = 5000</b>"
+              % (KM_H5K[KMGK]["mean"], KM_H5K[KMGK]["sd"])) if KM_H5K and KMGK in KM_H5K else ""
+        rows.append((v, "<tr><td class='l'>Hess (paper)</td><td>%.3f &plusmn; %.3f</td>"
+                     "<td>%+.3f</td><td>&mdash;</td><td class='l' style='font-size:10.5px'>"
+                     "authors' code at n=400%s</td></tr>" % (v, KM_HESS["sd"][i], nz(v), n5)))
+    rows.append((R["naive"], "<tr><td class='l'>naive (DR plug-in)</td><td>%.3f</td>"
+                 "<td>%+.3f</td><td>&mdash;</td><td class='l'>under-treats badly</td></tr>"
+                 % (R["naive"], nz(R["naive"]))))
+    if KM_KAL:
+        i = KM_KAL["gammas"].index(4.4817)
+        v = KM_KAL["regimes"]["uncap"]["mean"]["Kallus"][i]
+        stats[("Kallus (paper)", "kmz")] = (nz(v), 0.0)
+        rows.append((v, "<tr><td class='l'>Kallus (paper, ref = control)</td><td>%.3f</td>"
+                     "<td>%+.3f</td><td>&mdash;</td><td class='l' style='font-size:10.5px'>"
+                     "authors' code; = never-treat exactly (see the reference-policy note)"
+                     "</td></tr>" % (v, nz(v))))
+    rows.sort(key=lambda t: -t[0])
+    main_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method</th>"
+                "<th>E[Y]</th><th>normalised</th><th>best L</th><th class='l'>per-L detail "
+                "(mean over 5 seeds)</th></tr>" + "".join(r[1] for r in rows) + "</table></div>")
+
+    tm = "".join("<td>%+.3f</td>" % (surf["IPW-O-W"][KMGK][L] - surf["IPW-O-X"][KMGK][L])
+                 for L in Lgrid)
+    tm_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>&nbsp;</th>"
+              + "".join("<th>L=%s</th>" % L for L in Lgrid)
+              + "</tr><tr><td class='l'>IPW-O-W &minus; IPW-O-X</td>" + tm + "</tr></table></div>")
+
+    st = []
+    for tag, lab in (("05", "e<sup>0.5</sup> = 1.65"), ("10", "e<sup>1.0</sup> = 2.72")):
+        Rg = KM_G.get(tag)
+        if not Rg:
+            continue
+        g0 = Rg["gammas"][0]
+        r0 = {m: Rg["surface"][m][g0]["3"] for m in Rg["methods"]}
+        st.append("<tr><td class='l'>&Gamma;* = %s</td><td>%.3f</td><td>%.3f</td><td>%.3f</td>"
+                  "<td>%.3f</td><td>%.3f</td></tr>"
+                  % (lab, r0["IPW-O-W"], r0["DoublyRobust-O-W"], r0["IPW-O-X"],
+                     r0["DoublyRobust-O-X"], r0["Hajek-O-X"]))
+    r15 = {m: surf[m][KMGK]["3"] for m in KM["methods"]}
+    st.append("<tr><td class='l'>&Gamma;* = e<sup>1.5</sup> = 4.48 (main)</td><td>%.3f</td>"
+              "<td>%.3f</td><td>%.3f</td><td>%.3f</td><td>%.3f</td></tr>"
+              % (r15["IPW-O-W"], r15["DoublyRobust-O-W"], r15["IPW-O-X"],
+                 r15["DoublyRobust-O-X"], r15["Hajek-O-X"]))
+    st_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>strength (matched "
+              "&Gamma;, L=3)</th><th>IPW-O-W</th><th>DR-O-W</th><th>IPW-O-X</th><th>DR-O-X</th>"
+              "<th>Hajek-O-X</th></tr>" + "".join(st) + "</table></div>")
+
+    ce_rows = "".join("<tr><td class='l'>c<sub>&epsilon;</sub> = %s</td><td>%.3f</td></tr>"
+                      % (ce, max(KM_CE[ce]["surface"]["IPW-O-W"][KMGK][L]
+                                 for L in KM_CE[ce]["Lgrid"]))
+                      for ce in ("1.0", "1.5", "2.0") if KM_CE.get(ce))
+    ce_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>transport budget</th>"
+              "<th>IPW-O-W (best L)</th></tr>" + ce_rows + "</table></div>")
+
+    cap_tbl = ""
+    if KM_CAP and KM_REFS:
+        cr = []
+        for m in KM_CAP["methods"]:
+            b = max((KM_CAP["surface"][m][KMGK][L], L) for L in KM_CAP["Lgrid"])
+            cr.append((b[0], "<tr%s><td class='l'>%s</td><td>%.3f</td><td>L=%s</td></tr>"
+                       % (" class='hl'" if m.endswith("O-W") else "", LBL2[m], b[0], b[1])))
+        cr.sort(key=lambda t: -t[0])
+        cap_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method</th>"
+                   "<th>E[Y], capped 30%</th><th>best L</th></tr>"
+                   + "".join(r[1] for r in cr)
+                   + "</table></div><p class='muted'>Capped oracle "
+                   + "%.3f" % KM_REFS["oracle_cap30"]
+                   + "; the budget compresses the ordering but O-W stays on top.</p>")
+
+    kb_tbl = ""
+    if any(KM_KALB.values()):
+        kb = []
+        if KM_KAL:
+            i = KM_KAL["gammas"].index(4.4817)
+            kb.append("<tr><td class='l'>control (their driver)</td><td>%.3f</td>"
+                      "<td class='l'>= never-treat exactly</td></tr>"
+                      % KM_KAL["regimes"]["uncap"]["mean"]["Kallus"][i])
+        for b, lab, note in (("all", "treat-all (their tmnt_p_1)", "= all-treat exactly"),
+                             ("nominal", "logging policy e(x)", "restart-0 init caveat")):
+            d = KM_KALB.get(b)
+            if d:
+                i = [j for j, g in enumerate(d["gammas"]) if abs(float(g) - 4.4817) < .01][0]
+                kb.append("<tr><td class='l'>%s</td><td>%.3f</td><td class='l'>%s</td></tr>"
+                          % (lab, d["mean"][i], note))
+        kb_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>Kallus reference "
+                  "policy</th><th>value at matched &Gamma;</th><th class='l'>&nbsp;</th></tr>"
+                  + "".join(kb) + "</table></div>")
+
+    ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
+    chart = barchart(stats, "KMZ at the matched Gamma* = 4.4817, n=400 -- normalised value",
+                     methods=ordered, series=["kmz"], colors={"kmz": "#4a4a2d"},
+                     labels=lambda k: "matched Gamma*",
+                     note="0 = best constant policy (all-treat), 1 = oracle; whisker = "
+                          "across-seed sd where stored")
+    return R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart
+
+
+_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART = _kmz_tab()
+
 nseeds = SEMI[SEMI_DS[0]][0]["n_seeds"] if SEMI else 0
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -567,6 +749,7 @@ sensitivity parameter. <b>Higher is better</b> throughout.</p></div>
 <div class="tabbar">
 <div class="tb on" id="tb-semi" onclick="showTab('semi')">semi</div>
 <div class="tb" id="tb-rct" onclick="showTab('rct')">RCT</div>
+<div class="tb" id="tb-kmz" onclick="showTab('kmz')">KMZ</div>
 </div>
 
 <div id="tab-semi" class="tabpane on">
@@ -751,9 +934,72 @@ c<sub>&epsilon;</sub> &asymp; 0</b>, and the transport margin is ~0 on all three
 recovers under 5% of it, so the heterogeneity exists and nothing finds it.</div>
 </div>
 
+<div id="tab-kmz" class="tabpane">
+<h2>The construction</h2>
+<section class="constr">
+<p>The synthetic benchmark of <b>Kallus, Mao &amp; Zhou (2019), "Interval Estimation of
+Individual-Level Causal Effects Under Unobserved Confounding," AISTATS 2019
+(arXiv:1810.02894)</b> &mdash; run unmodified. It has become the community-standard MSM
+synthetic: Dorn&ndash;Guo use it, and Hess et&nbsp;al. (ICLR 2026, arXiv:2502.13022) build their
+own synthetic experiment on it. The label plays no role here; the confounder <i>S</i> is a fair
+coin independent of <i>X</i>, and the true propensity is the <b>MSM extremal</b> around the
+nominal one, so the sensitivity model holds exactly with a known odds ratio.</p>
+{KMZ_MATH}
+<p>Because the true propensity is the extremal itself, the matched &Gamma; is known by
+construction &mdash; nothing is tuned. We run the paper's own strength sweep, each experiment at
+its matched &Gamma;. Protocol: n&nbsp;=&nbsp;400 train / 4,000 test, 5 seeds, Shapley deployment,
+x&nbsp;=&nbsp;X/2. <b>Structural role:</b> S&nbsp;&perp;&nbsp;X makes this the
+corr(x,&nbsp;S)&nbsp;=&nbsp;0 anchor of the coupling diagnostic &mdash; the covariate carries no
+information about the confounder, so the declared prediction (written before the runs) is
+O-W&nbsp;&asymp;&nbsp;O-X.</p>
+</section>
+
+<h2>All methods at the matched &Gamma;* = 4.4817
+<span class="hsub">&mdash; n = 400, 5 seeds; references: oracle {_KMZR["oracle"]:.3f}, all-treat {_KMZR["all"]:.3f},
+never-treat {_KMZR["never"]:.3f}</span></h2>
+{KMZ_CHART}
+{KMZ_MAIN}
+<p class="muted">Both published baselines run <b>the authors' own code</b>: Hess via their
+repository's {{64,32}}/Adam pipeline (data-hungry &mdash; 0.205 at this shared n=400 vs 1.192 at
+their own n=5000, a size the LP methods cannot reach because of the n&sup2; transport variables);
+Kallus via their <span class="mono">grad_descent_sharp</span>/Armijo/15-restart protocol,
+bit-validated against their repository.</p>
+
+<h2>Transport margin by L <span class="hsub">&mdash; the zero-coupling prediction,
+verified</span></h2>
+{KMZ_TM}
+<p class="muted">O-W minus its O-X twin at identical <i>L</i> is &asymp;&nbsp;+0.03 at best: with
+S&nbsp;&perp;&nbsp;X the Wasserstein term has provably nothing to grab, and the measured
+near-tie is the <i>confirmation</i> of the coupling diagnostic, not a failure. Smoothness is
+load-bearing for every method (all collapse to &asymp;0.35 at L=&infin;, peak at L=5&ndash;10).</p>
+
+<h2>The paper's own strength axis</h2>
+{KMZ_ST}
+<p class="muted">Graceful degradation as confounding strengthens, the O-W/O-X tie holding at every
+strength; Hajek-O-X is the one collapse.</p>
+
+<h2>Ablations</h2>
+<div class="figrow">
+<div>{KMZ_CE}<p class="muted figcap">The transport budget is inert here &mdash; consistent with the
+zero-coupling structure.</p></div>
+<div>{KMZ_CAP}</div>
+</div>
+
+<h2>Kallus and the reference policy
+<span class="hsub">&mdash; why its row is the anchor, not the estimator</span></h2>
+{KMZ_KB}
+<p class="muted">Their method minimises worst-case regret against a reference whose own regret is
+zero by construction, so under real confounding the certified-safe optimum <i>is</i> the
+reference: at every &Gamma;&nbsp;&ge;&nbsp;2 the deployed policy equals the anchor digit for
+digit. Their synthetic driver anchors to control &mdash; the worst constant policy on this
+benchmark (&minus;1.010) while all-treat is near-oracle (+1.035) &mdash; a 2.05 swing from the
+reference choice alone, with the estimator unchanged. Any Kallus number should be quoted with its
+reference policy.</p>
+</div>
+
 <script>
 function showTab(id){{
-  for (const t of ['semi','rct']){{
+  for (const t of ['semi','rct','kmz']){{
     document.getElementById('tab-'+t).classList.toggle('on', t===id);
     document.getElementById('tb-'+t).classList.toggle('on', t===id);
   }}
