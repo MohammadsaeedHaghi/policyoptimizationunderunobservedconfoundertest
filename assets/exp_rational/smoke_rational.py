@@ -146,7 +146,7 @@ def run_cell(cfg: Cfg, seed: int, n_train: int, n_test: int):
 def main():
     ap = argparse.ArgumentParser()
     for k, v in Cfg().as_dict().items():
-        ap.add_argument("--" + k, type=float, default=v)
+        ap.add_argument("--" + k, type=type(v), default=v)
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--single-seed", type=int, default=-1,
                     help="run ONE seed and dump the raw cell; lets a SLURM array "

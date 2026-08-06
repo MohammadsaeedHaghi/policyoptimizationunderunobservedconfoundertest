@@ -342,6 +342,11 @@ class _MLP:
             return (1.0 / (1.0 + np.exp(-np.clip(out, -40, 40))) - y) / n
         if self.loss == "mse":
             return 2.0 * (out - y) / n
+        if self.loss == "policy":
+            # y holds the per-unit score gap g(1)-g(0); minimise -mean(gap * sigma(out)), which is
+            # their Lightning training_step returning the estimated bound with nuisances frozen.
+            pp = 1.0 / (1.0 + np.exp(-np.clip(out, -40, 40)))
+            return (-y * pp * (1.0 - pp)) / n
         r = y - out                                    # pinball at level alpha
         return np.where(r > 0, -self.alpha, 1.0 - self.alpha) / n
 
@@ -352,6 +357,9 @@ class _MLP:
             return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
         if self.loss == "mse":
             return float(np.mean((out - y) ** 2))
+        if self.loss == "policy":
+            pp = 1.0 / (1.0 + np.exp(-np.clip(out, -40, 40)))
+            return float(-np.mean(y * pp))
         r = y - out
         return float(np.mean(np.maximum(self.alpha * r, (self.alpha - 1.0) * r)))
 
@@ -461,3 +469,93 @@ def test_gamma1_is_aipw_nn(n=1500, seed=0, tol=1e-8):
     print("Gamma=1 vs AIPW (nn nuisances): max abs diff = %.3e -> %s"
           % (err, "PASS" if err < tol else "FAIL"))
     return err < tol
+
+
+# --------------------------------------------------------------------- paper-exact (their code)
+# Everything below replicates github.com/konstantinhess/Efficient_sharp_policy_learning, which is
+# the ground truth for "aligned with the paper" and differs from the paper's own Table 5 in one
+# place: every network there -- propensity, quantile, truncated-outcome AND the policy -- is a
+# {64, 32} TWO-hidden-layer ReLU MLP, not the table's {64,64,32}. Their protocol, verbatim:
+#   * disjoint 50/50 nuisance/policy split (config nuisance_split: 0.5)
+#   * quantile and outcome nets take (X, one-hot A) JOINTLY (one net across arms)
+#   * truncated-mean target is Y * 1{Y <=/>= qhat(X,A)} with the quantile net FROZEN
+#   * no propensity clipping (a 1e-6 numerical floor here, nothing statistical)
+#   * policy: {64,32} net trained by Adam lr 1e-3, batch 64, <=300 epochs, early stopping
+#     patience 10 on a 20% val split, loss = the estimated bound itself, nuisances frozen
+PAPER_HIDDEN = (64, 32)
+
+
+def _onehot_cat(X, a_idx, K=2):
+    X = np.atleast_2d(np.asarray(X, float))
+    if X.shape[0] == 1 and X.shape[1] != np.size(a_idx) and np.size(a_idx) > 1:
+        X = X.T
+    A = np.zeros((X.shape[0], K)); A[np.arange(X.shape[0]), np.asarray(a_idx).astype(int)] = 1.0
+    return np.hstack([X, A])
+
+
+def nuisances_nn_paper(X_tr, T_tr, Y_tr, X_ev, alpha_plus, seed=0, K=2, **hp):
+    """eta = {e, F^-1(alpha+), mu^+, mubar^+} exactly as their nuisance_models.py builds them."""
+    X_tr = np.atleast_2d(np.asarray(X_tr, float))
+    if X_tr.shape[0] == 1: X_tr = X_tr.T
+    X_ev = np.atleast_2d(np.asarray(X_ev, float))
+    if X_ev.shape[0] == 1: X_ev = X_ev.T
+    T_tr = np.asarray(T_tr).astype(int).ravel(); Y_tr = np.asarray(Y_tr, float).ravel()
+    n_ev = X_ev.shape[0]
+    kw = dict(hidden=PAPER_HIDDEN, lr=1e-3, epochs=300, batch=64, patience=10, val_frac=0.2)
+    kw.update(hp)
+
+    e = np.zeros((n_ev, 2))
+    e1 = _MLP("bce", seed=seed, **kw).fit(X_tr, (T_tr == 1).astype(float)).predict_proba(X_ev)
+    e[:, 1] = np.clip(e1, 1e-6, 1 - 1e-6); e[:, 0] = 1.0 - e[:, 1]
+
+    Ztr = _onehot_cat(X_tr, T_tr, K)
+    qn = _MLP("pinball", alpha=float(alpha_plus), seed=seed + 17, **kw).fit(Ztr, Y_tr)
+    q_tr = qn.predict(Ztr)
+    lo_t = Y_tr * (Y_tr <= q_tr)                      # masks from the FROZEN quantile net
+    hi_t = Y_tr * (Y_tr >= q_tr)
+    lon = _MLP("mse", seed=seed + 31, **kw).fit(Ztr, lo_t)
+    hin = _MLP("mse", seed=seed + 53, **kw).fit(Ztr, hi_t)
+
+    q = np.zeros((n_ev, 2)); mu_lo = np.zeros((n_ev, 2)); mu_hi = np.zeros((n_ev, 2))
+    for a in range(K):
+        Zev = _onehot_cat(X_ev, np.full(n_ev, a), K)
+        q[:, a] = qn.predict(Zev)
+        mu_lo[:, a] = lon.predict(Zev)
+        mu_hi[:, a] = hin.predict(Zev)
+    return {"e": e, "q": q, "mu_lo": mu_lo, "mu_hi": mu_hi}
+
+
+def hess_paper(X, T, Y, Gamma, seed=0, maximize=True, standardize=True):
+    """The complete paper pipeline: split -> neural nuisances -> Eq.15 scores -> policy net.
+
+    Returns an opaque policy object for `apply_hess_paper`. Sign handling matches `fit_scores`:
+    with maximize=True the estimator runs on -Y and the scores are negated, so the policy net
+    MAXIMISES the sharp lower bound of the value on our reward scale.
+    """
+    X = np.atleast_2d(np.asarray(X, float))
+    if X.shape[0] == 1: X = X.T
+    T = np.asarray(T).astype(int).ravel()
+    Yp = -np.asarray(Y, float).ravel() if maximize else np.asarray(Y, float).ravel()
+    if standardize:                                   # their data_gen standardises the outcome
+        sd = float(np.std(Yp)) or 1.0
+        Yp = (Yp - float(np.mean(Yp))) / sd
+    n = X.shape[0]
+    a_plus = float(Gamma) / (1.0 + float(Gamma))
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(n)
+    A, B = perm[: n // 2], perm[n // 2:]              # disjoint halves: nuisance | policy
+
+    eta = nuisances_nn_paper(X[A], T[A], Yp[A], X[B], a_plus, seed=seed)
+    g = scores(Yp[B], T[B], eta, Gamma)
+    if maximize:
+        g = -g
+    gap = g[:, 1] - g[:, 0]
+    net = _MLP("policy", hidden=PAPER_HIDDEN, lr=1e-3, epochs=300, batch=64, patience=10,
+               val_frac=0.2, seed=seed + 71).fit(X[B], gap)
+    return {"net": net, "n_policy": int(len(B)), "gap_sd": float(np.std(gap))}
+
+
+def apply_hess_paper(pol, Xnew):
+    Xn = np.atleast_2d(np.asarray(Xnew, float))
+    if Xn.shape[1] != len(pol["net"].mu_): Xn = Xn.T
+    return pol["net"].predict_proba(Xn)

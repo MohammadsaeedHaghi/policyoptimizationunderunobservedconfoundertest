@@ -53,10 +53,30 @@ class Cfg:
     beta0: float = 2.0      # baseline (prognostic) dependence on S
     bx: float = 0.0         # baseline dependence on x
     bsx: float = 0.0        # x-VARYING part of the prognostic effect: Y0 gets (beta0 + bsx x) S
+    shape: str = "linear"   # "linear": benefit rises in x. "peak": benefit is single-peaked in x.
+    xe: float = 0.55        # "peak" only: where the propensity crosses 1/2, i.e. where the
+                            # S-composition of the two arms differs most and the bias is worst
     sigma: float = 0.6      # outcome noise sd
 
     def as_dict(self):
         return asdict(self)
+
+
+def _drive(x, cfg):
+    """The scalar both the benefit and the assignment respond to.
+
+    "linear" is the original: benefit and treatment probability both rise in x.
+
+    "peak" makes both SINGLE-PEAKED in x -- treatment helps moderate cases most, and the decision
+    maker treats moderate cases most, so the decision maker is still right. The reason to want this
+    is that a CAPPED comparison ranks units and takes the top slice, so it is sensitive only to the
+    ORDER, and under "linear" the confounding shifts the level while leaving the order intact
+    (measured Spearman between apparent and true effect: 0.9994). Every method then picks the same
+    top-k and the capped benchmark cannot separate them. Peaking the benefit at the centre while
+    the propensity crosses 1/2 out at +-xe puts the worst confounding OFF the benefit peak, so the
+    apparent ranking genuinely differs from the true one.
+    """
+    return 1.0 - 2.0 * np.abs(x) if cfg.shape == "peak" else x
 
 
 def draw(n, seed, cfg: Cfg):
@@ -64,18 +84,20 @@ def draw(n, seed, cfg: Cfg):
     rng = np.random.default_rng(seed)
     x = rng.uniform(-1.0, 1.0, size=n)
     S = np.where(rng.uniform(size=n) < _sig(cfg.alpha * x), 1.0, -1.0)
-    e = _sig(cfg.a * x + 0.5 * np.log(cfg.Gstar) * S)          # NO clipping -> Gamma* exact
+    _d = _drive(x, cfg)
+    _off = (cfg.a * (1.0 - 2.0 * cfg.xe)) if cfg.shape == "peak" else 0.0
+    e = _sig(cfg.a * _d - _off + 0.5 * np.log(cfg.Gstar) * S)  # NO clipping -> Gamma* exact
     T = (rng.uniform(size=n) < e).astype(int)
     # (beta0 + bsx x) S makes the SELECTION BIAS x-varying. With bsx = 0 the hidden signal shifts
     # the level only, the apparent CATE ordering in x survives, and a naive analyst still finds the
     # right threshold -- which is why bsx = 0 configs are too easy. A non-zero bsx tilts the
     # apparent CATE slope and can move the naive decision boundary off the true one.
     Y0 = (cfg.beta0 + cfg.bsx * x) * S + cfg.bx * x + rng.normal(0, cfg.sigma, n)
-    cate = cfg.kappa * (x - cfg.x0) + cfg.delta * S
+    cate = cfg.kappa * (_d - cfg.x0) + cfg.delta * S
     Y1 = Y0 + cate + rng.normal(0, cfg.sigma, n)
     Y = np.where(T == 1, Y1, Y0)
     # what an x-measurable policy can hope to know: E[CATE | x]
-    cate_cond = cfg.kappa * (x - cfg.x0) + cfg.delta * np.tanh(cfg.alpha * x / 2.0)
+    cate_cond = cfg.kappa * (_d - cfg.x0) + cfg.delta * np.tanh(cfg.alpha * x / 2.0)
     return {"x": x, "S": S, "e": e, "T": T, "Y": Y, "Y0": Y0, "Y1": Y1,
             "cate": cate, "cate_cond": cate_cond}
 
@@ -91,12 +113,16 @@ def check(cfg: Cfg, n=200000, seed=0, tol=1e-10):
     q = np.argsort(x)
     ecorr = float(np.corrcoef(x, d["e"])[0, 1])
     ccorr = float(np.corrcoef(x, d["cate_cond"])[0, 1])
+    # THE rationality test: does the decision maker treat more where treating helps more? Under
+    # "peak" both e and the benefit are symmetric in x, so corr with x is ~0 for both and says
+    # nothing; corr(e, benefit) is the statement that actually matters and covers both shapes.
+    rcorr = float(np.corrcoef(d["e"], d["cate_cond"])[0, 1])
     bc = max(d["Y0"].mean(), d["Y1"].mean())
     orc = (d["cate_cond"] > 0).astype(float)
     orv = float(np.mean(orc * d["Y1"] + (1 - orc) * d["Y0"]))
     return {"gamma_odds_max_err": err, "gamma_exact": err < tol,
             "corr_x_e": ecorr, "corr_x_cate": ccorr,
-            "rational": ecorr > 0 and ccorr > 0,
+            "corr_e_benefit": rcorr, "rational": rcorr > 0,
             "e_min": float(d["e"].min()), "e_max": float(d["e"].max()),
             "P_T1": float(d["T"].mean()), "frac_treat_oracle": float(orc.mean()),
             "oracle": orv, "never": float(d["Y0"].mean()), "all": float(d["Y1"].mean()),

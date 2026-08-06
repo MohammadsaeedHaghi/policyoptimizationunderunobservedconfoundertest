@@ -43,7 +43,7 @@ def _load(rel, fn):
 def main():
     ap = argparse.ArgumentParser()
     for k, v in Cfg().as_dict().items():
-        ap.add_argument("--" + k, type=float, default=v)
+        ap.add_argument("--" + k, type=type(v), default=v)
     ap.add_argument("--single-seed", type=int, required=True)
     ap.add_argument("--n-train", type=int, default=400)
     ap.add_argument("--n-test", type=int, default=4000)
@@ -87,16 +87,24 @@ def main():
     except Exception as ex:
         print("FAIL Kallus: %s" % str(ex)[:120], flush=True)
 
-    for tag, nu in (("SharpHess", "nn"), ("SharpHess-kNN", "knn")):
-        try:
-            kw = dict(Gamma=G, n_folds=2, maximize=True, seed=sd, nuisance=nu)
-            if nu == "knn": kw["k"] = 15
-            scores = H.fit_scores(X, T, Y, **kw)
-            th = H.learn_policy_parametric(X, scores, seed=sd, maximize=True)
-            pe = H.apply_policy(th, Xt)
-            out[tag] = {"value": ev(pe), "pe_mean": float(pe.mean()), "pe_sd": float(pe.std())}
-        except Exception as ex:
-            print("FAIL %s: %s" % (tag, str(ex)[:120]), flush=True)
+    # SharpHess = PAPER-EXACT (their repo's recipe end to end); the k-NN arm stays as a
+    # clearly-labelled diagnostic only.
+    try:
+        pol = H.hess_paper(X, T, Y, Gamma=G, seed=sd, maximize=True)
+        pe = np.clip(H.apply_hess_paper(pol, Xt), 0.0, 1.0)
+        out["SharpHess"] = {"value": ev(pe), "pe_mean": float(pe.mean()),
+                            "pe_sd": float(pe.std()), "recipe": "paper-exact"}
+    except Exception as ex:
+        print("FAIL SharpHess(paper): %s" % str(ex)[:120], flush=True)
+    try:
+        scores = H.fit_scores(X, T, Y, Gamma=G, n_folds=2, maximize=True, seed=sd,
+                              nuisance="knn", k=15)
+        th = H.learn_policy_parametric(X, scores, seed=sd, maximize=True)
+        pe = H.apply_policy(th, Xt)
+        out["SharpHess-kNN"] = {"value": ev(pe), "pe_mean": float(pe.mean()),
+                                "pe_sd": float(pe.std())}
+    except Exception as ex:
+        print("FAIL SharpHess-kNN: %s" % str(ex)[:120], flush=True)
 
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump({"tag": a.tag, "cfg": cfg.as_dict(), "seed": sd, "n_train": a.n_train,
