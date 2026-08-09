@@ -807,6 +807,8 @@ def _kmz_tab():
         DSH = {"IPW-O-W": ("#1f77b4", "", "circle"), "DR-O-W": ("#d62728", "", "circle"),
                "IPW-O-X": ("#1f77b4", "6 4", "square"), "DR-O-X": ("#d62728", "6 4", "square"),
                "Hajek-O-X": ("#0a7d33", "6 4", "square"),
+               "IPW-X-X": ("#1f77b4", "2 3", "otri"), "DR-X-X": ("#d62728", "2 3", "otri"),
+               "Direct-X-X": ("#64748b", "2 3", "otri"),
                "Hess (paper)": ("#7d1f6a", "", "diamond"),
                "Kallus (paper)": ("#8c564b", "", "tri")}
 
@@ -819,11 +821,19 @@ def _kmz_tab():
             if shape == "diamond":
                 return ('<rect x="%.1f" y="%.1f" width="5.2" height="5.2" fill="%s" '
                         'transform="rotate(45 %.1f %.1f)"/>' % (x - 2.6, y - 2.6, col, x, y))
+            if shape == "otri":
+                return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="#fff" '
+                        'stroke="%s" stroke-width="1.6"/>'
+                        % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
             return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="%s"/>'
                     % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
 
         for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
             series.append((LBL2[m], [max(surf[m][g].values()) for g in gks], True))
+        if KM_XX:
+            for m, dd in KM_XX["mean"].items():
+                series.append((m.replace("DoublyRobust", "DR"),
+                               [max(dd.values())] * len(gks), True))
         hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
         if KM_H15: hx2["15"] = KM_H15["mean"]
         if KM_H50: hx2["50"] = KM_H50["mean"]
@@ -837,8 +847,8 @@ def _kmz_tab():
             series.append(("Kallus (paper)", [kx2[g] for g in gks], True))
 
         pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
-              '<text x="%d" y="18" class="ct">KMZ: O-W, O-X, Hess, Kallus across the solver '
-              'Gamma (best L per point; n=400, 5 seeds)</text>' % pL]
+              '<text x="%d" y="18" class="ct">KMZ: all methods across the solver Gamma '
+              '(X-X are Gamma-free flats; best L per point; n=400, 5 seeds)</text>' % pL]
         for lab, col, yv, dsh in (("oracle", "#111", R["oracle"], "5 4"),
                                   ("all-treat", "#555", R["all"], "3 3"),
                                   ("never-treat", "#555", R["never"], "3 3")):
@@ -1221,7 +1231,7 @@ Kallus via their <span class="mono">grad_descent_sharp</span>/Armijo/15-restart 
 bit-validated against their repository.</p>
 
 <h2>Across &Gamma; <span class="hsub">&mdash; the full grid 1 &hellip; 50; the solver's &Gamma;
-varies, the DGP stays fixed; O-W, O-X, Hess, Kallus; best L per point</span></h2>
+varies, the DGP stays fixed; X-X are &Gamma;-free flat lines; best L per point</span></h2>
 {KMZ_SWEEPCH}
 {KMZ_SWEEP}
 <p class="muted">&Gamma; = 1 collapses every box to the point estimate; &Gamma; = 15 is
