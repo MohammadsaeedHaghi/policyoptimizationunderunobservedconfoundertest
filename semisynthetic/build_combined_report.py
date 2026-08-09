@@ -802,10 +802,26 @@ def _kmz_tab():
         ylo, yhi = -1.12, 1.55
         Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
         series = []
-        DSH = {"IPW-O-W": ("#0a7d33", ""), "DR-O-W": ("#0a7d33", "7 4"),
-               "IPW-O-X": ("#b07105", ""), "DR-O-X": ("#b07105", "7 4"),
-               "Hajek-O-X": ("#b07105", "2 3"),
-               "Hess (paper)": ("#7d1f6a", ""), "Kallus (paper)": ("#8c564b", "")}
+        # colour = estimator; dash + marker shape = uncertainty set (documented in the
+        # "read me" tab): O-W solid/filled circle, O-X dashed/open square
+        DSH = {"IPW-O-W": ("#1f77b4", "", "circle"), "DR-O-W": ("#d62728", "", "circle"),
+               "IPW-O-X": ("#1f77b4", "6 4", "square"), "DR-O-X": ("#d62728", "6 4", "square"),
+               "Hajek-O-X": ("#0a7d33", "6 4", "square"),
+               "Hess (paper)": ("#7d1f6a", "", "diamond"),
+               "Kallus (paper)": ("#8c564b", "", "tri")}
+
+        def _mk(x, y, col, shape):
+            if shape == "circle":
+                return '<circle cx="%.1f" cy="%.1f" r="3" fill="%s"/>' % (x, y, col)
+            if shape == "square":
+                return ('<rect x="%.1f" y="%.1f" width="5.6" height="5.6" fill="#fff" '
+                        'stroke="%s" stroke-width="1.6"/>' % (x - 2.8, y - 2.8, col))
+            if shape == "diamond":
+                return ('<rect x="%.1f" y="%.1f" width="5.2" height="5.2" fill="%s" '
+                        'transform="rotate(45 %.1f %.1f)"/>' % (x - 2.6, y - 2.6, col, x, y))
+            return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="%s"/>'
+                    % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
+
         for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
             series.append((LBL2[m], [max(surf[m][g].values()) for g in gks], True))
         hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
@@ -834,28 +850,29 @@ def _kmz_tab():
             pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>' % (pL, Y_(t), W - pR, Y_(t)))
             pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%g</text>' % (pL - 6, Y_(t) + 3.5, t))
         gm = gks.index(KMGK)
-        pp.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#0a7d33" stroke-width="1.2" '
-                  'stroke-dasharray="3 3" opacity="0.7"/>' % (X_(gm), pT, X_(gm), H - pB))
+        pp.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#888" stroke-width="1.2" '
+                  'stroke-dasharray="3 3" opacity="0.8"/>' % (X_(gm), pT, X_(gm), H - pB))
         for i, g in enumerate(gks):
             pp.append('<text x="%.1f" y="%d" class="tk" text-anchor="middle">%s%s</text>'
                       % (X_(i), H - pB + 16, g if g != KMGK else "4.48",
                          "*" if g == KMGK else ""))
         cbs = []
         for si, (lbl, vals, mark) in enumerate(series):
-            col, dsh = DSH.get(lbl, ("#000", ""))
+            col, dsh, shp = DSH.get(lbl, ("#000", "", "circle"))
             pts = " ".join("%.1f,%.1f" % (X_(i), Y_(v)) for i, v in enumerate(vals))
             g = ['<g id="swg%d">' % si,
                  '<polyline points="%s" fill="none" stroke="%s" stroke-width="2"%s/>'
                  % (pts, col, (' stroke-dasharray="%s"' % dsh) if dsh else "")]
             if mark:
                 for i, v in enumerate(vals):
-                    g.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="%s"/>' % (X_(i), Y_(v), col))
+                    g.append(_mk(X_(i), Y_(v), col, shp))
             g.append('</g>')
             pp.append("".join(g))
-            sw = ('<svg width="30" height="12" viewBox="0 0 30 12" style="flex:none">'
-                  '<line x1="1" y1="6" x2="29" y2="6" stroke="%s" stroke-width="2.4"%s/>'
-                  '<circle cx="15" cy="6" r="2.6" fill="%s"/></svg>'
-                  % (col, (' stroke-dasharray="%s"' % dsh) if dsh else "", col))
+            sw = ('<svg width="30" height="14" viewBox="0 0 30 14" style="flex:none">'
+                  '<line x1="1" y1="7" x2="29" y2="7" stroke="%s" stroke-width="2.4"%s/>'
+                  '%s</svg>'
+                  % (col, (' stroke-dasharray="%s"' % dsh) if dsh else "",
+                     _mk(15, 7, col, shp)))
             cbs.append('<label style="display:inline-flex;align-items:center;gap:5px;'
                        'margin:0 14px 4px 0;cursor:pointer;font-size:13px">'
                        '<input type="checkbox" checked onchange="document.getElementById'
@@ -975,6 +992,7 @@ sensitivity parameter. <b>Higher is better</b> throughout.</p></div>
 <div class="tb on" id="tb-semi" onclick="showTab('semi')">semi</div>
 <div class="tb" id="tb-rct" onclick="showTab('rct')">RCT</div>
 <div class="tb" id="tb-kmz" onclick="showTab('kmz')">KMZ</div>
+<div class="tb" id="tb-readme" onclick="showTab('readme')">read me</div>
 </div>
 
 <div id="tab-semi" class="tabpane on">
@@ -1244,9 +1262,59 @@ reference choice alone, with the estimator unchanged. Any Kallus number should b
 reference policy.</p>
 </div>
 
+<div id="tab-readme" class="tabpane">
+<h2>Read me <span class="hsub">&mdash; how the plots encode the methods</span></h2>
+<p>Every method is named <b>Estimator&ndash;UncertaintySet</b>. The estimator says how the policy
+value is estimated from the observational data; the uncertainty set says which set of inverse
+propensity weights the adversary may choose from. In the line charts these two axes are encoded
+independently: <b>colour = estimator</b>, <b>line style and marker shape = uncertainty set</b>.
+So all IPW curves share one colour regardless of set, and all O-W curves share one line
+style/marker regardless of estimator.</p>
+
+<h2>Colour &mdash; the estimator</h2>
+<table class="dt">
+<tr><th class="l">estimator</th><th class="l">colour</th><th class="l">sample</th></tr>
+<tr><td class="l">IPW</td><td class="l">blue</td>
+<td class="l"><svg width="34" height="14" viewBox="0 0 34 14"><line x1="2" y1="7" x2="32" y2="7" stroke="#1f77b4" stroke-width="3"/></svg></td></tr>
+<tr><td class="l">DoublyRobust (DR)</td><td class="l">red</td>
+<td class="l"><svg width="34" height="14" viewBox="0 0 34 14"><line x1="2" y1="7" x2="32" y2="7" stroke="#d62728" stroke-width="3"/></svg></td></tr>
+<tr><td class="l">Hajek</td><td class="l">green</td>
+<td class="l"><svg width="34" height="14" viewBox="0 0 34 14"><line x1="2" y1="7" x2="32" y2="7" stroke="#0a7d33" stroke-width="3"/></svg></td></tr>
+<tr><td class="l">Direct</td><td class="l">slate grey</td>
+<td class="l"><svg width="34" height="14" viewBox="0 0 34 14"><line x1="2" y1="7" x2="32" y2="7" stroke="#64748b" stroke-width="3"/></svg></td></tr>
+<tr><td class="l">Hess (published baseline, authors' code)</td><td class="l">purple</td>
+<td class="l"><svg width="34" height="14" viewBox="0 0 34 14"><line x1="2" y1="7" x2="32" y2="7" stroke="#7d1f6a" stroke-width="3"/></svg></td></tr>
+<tr><td class="l">Kallus (published baseline, authors' code)</td><td class="l">brown</td>
+<td class="l"><svg width="34" height="14" viewBox="0 0 34 14"><line x1="2" y1="7" x2="32" y2="7" stroke="#8c564b" stroke-width="3"/></svg></td></tr>
+</table>
+
+<h2>Line style + marker &mdash; the uncertainty set</h2>
+<table class="dt">
+<tr><th class="l">set</th><th class="l">meaning</th><th class="l">style</th><th class="l">sample (shown here in IPW blue)</th></tr>
+<tr><td class="l">O-W</td><td class="l">odds box &cap; Wasserstein ball (the headline method)</td>
+<td class="l">solid line, filled circle</td>
+<td class="l"><svg width="40" height="14" viewBox="0 0 40 14"><line x1="2" y1="7" x2="38" y2="7" stroke="#1f77b4" stroke-width="2.4"/><circle cx="20" cy="7" r="3" fill="#1f77b4"/></svg></td></tr>
+<tr><td class="l">O-X</td><td class="l">odds box only (box twin of O-W)</td>
+<td class="l">dashed line, open square</td>
+<td class="l"><svg width="40" height="14" viewBox="0 0 40 14"><line x1="2" y1="7" x2="38" y2="7" stroke="#1f77b4" stroke-width="2.4" stroke-dasharray="6 4"/><rect x="17.2" y="4.2" width="5.6" height="5.6" fill="#fff" stroke="#1f77b4" stroke-width="1.6"/></svg></td></tr>
+<tr><td class="l">X-X</td><td class="l">non-robust point estimate (&Gamma;-free)</td>
+<td class="l">dotted line, open triangle</td>
+<td class="l"><svg width="40" height="14" viewBox="0 0 40 14"><line x1="2" y1="7" x2="38" y2="7" stroke="#1f77b4" stroke-width="2.4" stroke-dasharray="2 3"/><path d="M 20 3.6 L 16.8 10 L 23.2 10 Z" fill="#fff" stroke="#1f77b4" stroke-width="1.6"/></svg></td></tr>
+<tr><td class="l">&mdash; (baselines)</td><td class="l">Hess / Kallus have their own published sets</td>
+<td class="l">solid line; filled diamond (Hess), filled triangle (Kallus)</td>
+<td class="l"><svg width="64" height="14" viewBox="0 0 64 14"><line x1="2" y1="7" x2="28" y2="7" stroke="#7d1f6a" stroke-width="2.4"/><rect x="12.4" y="4.4" width="5.2" height="5.2" fill="#7d1f6a" transform="rotate(45 15 7)"/><line x1="36" y1="7" x2="62" y2="7" stroke="#8c564b" stroke-width="2.4"/><path d="M 49 3.6 L 45.8 9.6 L 52.2 9.6 Z" fill="#8c564b"/></svg></td></tr>
+</table>
+
+<p class="muted">This code is used in the per-&Gamma; line chart on the KMZ tab (use its
+checkboxes to show or hide individual methods). Reference lines (oracle, all-treat, never-treat)
+are thin black/grey dashes and the matched &Gamma; is marked by a grey vertical dashed line.
+Bar charts elsewhere in the report list methods explicitly on their axes, so they keep their own
+per-panel colours.</p>
+</div>
+
 <script>
 function showTab(id){{
-  for (const t of ['semi','rct','kmz']){{
+  for (const t of ['semi','rct','kmz','readme']){{
     document.getElementById('tab-'+t).classList.toggle('on', t===id);
     document.getElementById('tb-'+t).classList.toggle('on', t===id);
   }}
