@@ -1001,17 +1001,135 @@ swDraw();
 
     sweep_lines = _lines()
 
+    # ---- interactive 3-D surface: Gamma x L x E[Y], drag to rotate ----
+    def _surf3d():
+        CES = [ce for ce in ("1.0", "1.5", "2.0") if KM_CE.get(ce)]
+        SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb;'
+                  'border-radius:4px;background:#fff;cursor:pointer')
+        Ls = list(KM["Lgrid"])
+        S3 = {}
+        zlo, zhi = 1e9, -1e9
+        for ce in CES:
+            S3[ce] = {}
+            for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X",
+                      "Hajek-O-X"]:
+                src = KM_CE[ce]["surface"][m] if m.endswith("O-W") else surf[m]
+                gam = [g for g in gks if g in src]
+                z = [[src[g][L] for L in Ls] for g in gam]
+                S3[ce][LBL2[m]] = {"g": gam, "z": z}
+                for row in z:
+                    zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
+        zlo, zhi = zlo - 0.05, zhi + 0.05
+        msel = ('<select id="s3m" onchange="s3draw()" style="%s">%s</select>'
+                % (SELSTY, "".join('<option value="%s"%s>%s</option>'
+                                   % (LBL2[m], " selected" if m == "IPW-O-W" else "", LBL2[m])
+                                   for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X",
+                                             "DoublyRobust-O-X", "Hajek-O-X"])))
+        cesel = ('<select id="s3ce" onchange="s3draw()" style="%s">%s</select>'
+                 % (SELSTY, "".join('<option value="%s"%s>c_eps = %s%s</option>'
+                                    % (ce, " selected" if ce == "1.0" else "", ce,
+                                       " (tight)" if ce == "1.0" else "")
+                                    for ce in CES)))
+        ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
+               'flex-wrap:wrap;gap:6px"><span class="hsub">method:</span>%s'
+               '<span class="hsub">c<sub>&epsilon;</sub>:</span>%s'
+               '<span class="hsub">drag the plot to rotate; colour = height; '
+               'X-X / Hess / Kallus have no (&Gamma;, L) surface; '
+               'O-W at c<sub>&epsilon;</sub> &gt; 1 stops at &Gamma; = 8</span></div>'
+               % (msel, cesel))
+        js = """
+<script>
+var S3=%s, S3L=%s, S3ZLO=%f, S3ZHI=%f;
+var s3yaw=0.65, s3pit=0.42, s3drag=null;
+function s3el(i){return document.getElementById(i);}
+function s3rgb(t){
+ t=Math.max(0,Math.min(1,t));var r,g,b,u;
+ if(t<0.5){u=t*2;r=59+u*162;g=76+u*145;b=192+u*29;}
+ else{u=(t-0.5)*2;r=221-u*41;g=221-u*217;b=221-u*183;}
+ return 'rgb('+Math.round(r)+','+Math.round(g)+','+Math.round(b)+')';
+}
+function s3draw(){
+ var D=S3[s3el('s3ce').value][s3el('s3m').value];
+ var G=D.g, Z=D.z, nL=S3L.length, ng=G.length;
+ var cy=Math.cos(s3yaw), sy=Math.sin(s3yaw), cp=Math.cos(s3pit), sp=Math.sin(s3pit);
+ var W=980,H=560,CX=W/2,CY=H/2+14,SC=230;
+ function P(x,y,z){
+  var zn=((z-S3ZLO)/(S3ZHI-S3ZLO)*2-1)*0.62;
+  var xr=x*cy-y*sy, yr=x*sy+y*cy;
+  return [CX+SC*xr, CY-SC*(zn*cp+yr*sp), yr*cp-zn*sp];
+ }
+ function xs(i){return ng>1?-1+2*i/(ng-1):0;}
+ function ys(j){return nL>1?-1+2*j/(nL-1):0;}
+ var out=[];
+ var base=[P(-1,-1,S3ZLO),P(1,-1,S3ZLO),P(1,1,S3ZLO),P(-1,1,S3ZLO)];
+ out.push('<path d="M'+base.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('L')+'Z" fill="#f4f4f2" stroke="#999" stroke-width="0.8"/>');
+ var zt;
+ for(zt=Math.ceil(S3ZLO*2)/2; zt<=S3ZHI; zt+=0.5){
+  var a=P(-1,-1,zt);
+  out.push('<text x="'+(a[0]-6).toFixed(1)+'" y="'+(a[1]+3).toFixed(1)+'" class="tk" text-anchor="end">'+zt.toFixed(1)+'</text>');
+ }
+ var zx0=P(-1,-1,S3ZLO), zx1=P(-1,-1,S3ZHI);
+ out.push('<line x1="'+zx0[0].toFixed(1)+'" y1="'+zx0[1].toFixed(1)+'" x2="'+zx1[0].toFixed(1)+'" y2="'+zx1[1].toFixed(1)+'" stroke="#666" stroke-width="1"/>');
+ var quads=[];
+ for(var i=0;i+1<ng;i++)for(var j=0;j+1<nL;j++){
+  var p=[P(xs(i),ys(j),Z[i][j]),P(xs(i+1),ys(j),Z[i+1][j]),
+         P(xs(i+1),ys(j+1),Z[i+1][j+1]),P(xs(i),ys(j+1),Z[i][j+1])];
+  var za=(Z[i][j]+Z[i+1][j]+Z[i+1][j+1]+Z[i][j+1])/4;
+  quads.push([(p[0][2]+p[1][2]+p[2][2]+p[3][2])/4,p,za]);
+ }
+ quads.sort(function(a,b){return b[0]-a[0];});
+ for(var q=0;q<quads.length;q++){
+  var pp=quads[q][1];
+  out.push('<path d="M'+pp.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('L')+'Z" fill="'+s3rgb((quads[q][2]-S3ZLO)/(S3ZHI-S3ZLO))+'" fill-opacity="0.93" stroke="#444" stroke-width="0.6"/>');
+ }
+ for(var i2=0;i2<ng;i2++){
+  var t=P(xs(i2),-1.16,S3ZLO);
+  out.push('<text x="'+t[0].toFixed(1)+'" y="'+t[1].toFixed(1)+'" class="tk" text-anchor="middle">'+(G[i2]=='4.4817'?'4.48*':G[i2])+'</text>');
+ }
+ for(var j2=0;j2<nL;j2++){
+  var t2=P(1.14,ys(j2),S3ZLO);
+  out.push('<text x="'+t2[0].toFixed(1)+'" y="'+t2[1].toFixed(1)+'" class="tk" text-anchor="start">'+S3L[j2]+'</text>');
+ }
+ var tg=P(0,-1.42,S3ZLO), tl=P(1.45,0,S3ZLO);
+ out.push('<text x="'+tg[0].toFixed(1)+'" y="'+tg[1].toFixed(1)+'" class="al" text-anchor="middle">Gamma (* = matched)</text>');
+ out.push('<text x="'+tl[0].toFixed(1)+'" y="'+tl[1].toFixed(1)+'" class="al" text-anchor="middle">L</text>');
+ out.push('<text x="'+(zx1[0]).toFixed(1)+'" y="'+(zx1[1]-8).toFixed(1)+'" class="al" text-anchor="middle">E[Y]</text>');
+ s3el('s3svg').innerHTML=out.join('');
+}
+function s3down(e){s3drag=[e.clientX,e.clientY];e.preventDefault();}
+function s3move(e){
+ if(!s3drag)return;
+ s3yaw+=(e.clientX-s3drag[0])*0.008;
+ s3pit=Math.max(0.05,Math.min(1.35,s3pit+(e.clientY-s3drag[1])*0.006));
+ s3drag=[e.clientX,e.clientY];s3draw();
+}
+document.addEventListener('mouseup',function(){s3drag=null;});
+document.addEventListener('mousemove',s3move);
+s3el('s3svg').addEventListener('mousedown',s3down);
+s3el('s3svg').addEventListener('touchstart',function(e){var t=e.touches[0];s3down({clientX:t.clientX,clientY:t.clientY,preventDefault:function(){e.preventDefault();}});},{passive:false});
+s3el('s3svg').addEventListener('touchmove',function(e){var t=e.touches[0];s3move({clientX:t.clientX,clientY:t.clientY});e.preventDefault();},{passive:false});
+document.addEventListener('touchend',function(){s3drag=null;});
+s3draw();
+</script>"""
+        js = js % (json.dumps(S3), json.dumps(Ls), zlo, zhi)
+        return ('<figure class="fig">%s<div class="scrollx chartbox">'
+                '<svg id="s3svg" viewBox="0 0 980 560" class="chart" '
+                'style="cursor:grab;touch-action:none"></svg></div>%s</figure>' % (ctl, js))
+
+    surf3d = _surf3d()
+
     ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
     chart = barchart(stats, "KMZ at the matched Gamma* = 4.4817, n=400 -- normalised value",
                      methods=ordered, series=["kmz"], colors={"kmz": "#4a4a2d"},
                      labels=lambda k: "matched Gamma*",
                      note="0 = best constant policy (all-treat), 1 = oracle; whisker = "
                           "across-seed sd where stored")
-    return R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart, sweep_tbl, sweep_lines
+    return (R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart, sweep_tbl,
+            sweep_lines, surf3d)
 
 
 (_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART,
- KMZ_SWEEP, KMZ_SWEEPCH) = _kmz_tab()
+ KMZ_SWEEP, KMZ_SWEEPCH, KMZ_3D) = _kmz_tab()
 
 
 # ------------------------------------------------ semi tab: Gamma mis-specification sweep
@@ -1331,6 +1449,10 @@ bit-validated against their repository.</p>
 varies, the DGP stays fixed; X-X are &Gamma;-free flat lines; best L per point</span></h2>
 {KMZ_SWEEPCH}
 {KMZ_SWEEP}
+
+<h3>&Gamma; &times; L &times; E[Y] <span class="hsub">&mdash; the same surface in 3-D;
+drag to rotate</span></h3>
+{KMZ_3D}
 <p class="muted">&Gamma; = 1 collapses every box to the point estimate; &Gamma; = 15 is
 &asymp;&nbsp;3&times; the matched value, i.e. deliberate over-robustness. Mild over-statement of
 &Gamma; costs little here (the surface peaks slightly ABOVE the matched value), while
