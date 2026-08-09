@@ -883,11 +883,10 @@ def _kmz_tab():
                   '%s</svg>'
                   % (s["col"], (' stroke-dasharray="%s"' % s["dsh"]) if s["dsh"] else "",
                      _mk(15, 7, s["col"], s["shape"])))
-            cbs.append('<label style="display:inline-flex;align-items:center;gap:5px;'
-                       'margin:0 14px 4px 0;cursor:pointer;font-size:13px">'
-                       '<input type="checkbox" checked onchange="document.getElementById'
-                       "('swg%d').style.display=this.checked?'':'none'\">%s %s</label>"
-                       % (si, sw, s["lbl"]))
+            cbs.append('<label style="display:flex;align-items:center;gap:6px;'
+                       'padding:2px 0;cursor:pointer;font-size:13px">'
+                       '<input type="checkbox" data-i="%d" checked onchange="swTogM(%d,this)">'
+                       '%s %s</label>' % (si, si, sw, s["lbl"]))
         LOPTS = ["best"] + list(KM["Lgrid"])
         SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb;'
                   'border-radius:4px;background:#fff;cursor:pointer')
@@ -904,17 +903,26 @@ def _kmz_tab():
                           % (ce, " selected" if ce == "1.0" else "", ce,
                              " (tight)" if ce == "1.0" else "")
                           for ce in CES)))
-        ctl = ('<div style="margin:6px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
-               'show:</span>%s</div>'
-               '<div style="margin:4px 0 2px 58px;display:flex;align-items:center;flex-wrap:wrap;'
-               'gap:4px"><span class="hsub" style="margin-right:6px">Lipschitz L:</span>%s'
-               '<span class="hsub" style="margin-right:6px;margin-left:12px">'
+        mdd = ('<details id="swmdd" style="display:inline-block;position:relative;font-size:13px">'
+               '<summary style="list-style:none;cursor:pointer;border:1px solid #bbb;'
+               'border-radius:4px;padding:2px 10px;background:#fff;user-select:none">'
+               'methods (<span id="swmcnt">%d</span>/%d) &#9662;</summary>'
+               '<div style="position:absolute;z-index:30;top:calc(100%% + 4px);left:0;'
+               'background:#fff;border:1px solid #bbb;border-radius:6px;'
+               'box-shadow:0 4px 14px rgba(0,0,0,.18);padding:8px 14px;white-space:nowrap">'
+               '<div style="margin-bottom:4px"><a href="javascript:swAllM(true)">all</a>'
+               ' &middot; <a href="javascript:swAllM(false)">none</a></div>%s</div></details>'
+               % (len(series), len(series), "".join(cbs)))
+        ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
+               'flex-wrap:wrap;gap:4px">%s'
+               '<span class="hsub" style="margin-right:6px;margin-left:12px">Lipschitz L:</span>'
+               '%s<span class="hsub" style="margin-right:6px;margin-left:6px">'
                'c<sub>&epsilon;</sub>:</span>%s'
                '<span class="hsub">(X-X was solved only at L = inf, 3, 1 &mdash; its lines hide '
                'at other L; c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only, '
                'and &Gamma; = 15, 50 exist only at c<sub>&epsilon;</sub> = 1.0; Hess/Kallus '
                'have neither knob)</span></div>'
-               % ("".join(cbs), lop, cop))
+               % (mdd, lop, cop))
         pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
         pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
         pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">Gamma assumed by the solver '
@@ -938,6 +946,23 @@ function swMk(x,y,c,shp){
  var f=(shp=='otri')?'#fff':c;
  var st=(shp=='otri')?' stroke="'+c+'" stroke-width="1.6"':'';
  return '<path d="M '+x.toFixed(1)+' '+(y-3.4).toFixed(1)+' L '+(x-3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' L '+(x+3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' Z" fill="'+f+'"'+st+'/>';
+}
+function swTogM(i,cb){
+ document.getElementById('swg'+i).style.display=cb.checked?'':'none';
+ swCntM();
+}
+function swAllM(v){
+ var cbs=document.querySelectorAll('#swmdd input[type=checkbox]');
+ for(var i=0;i<cbs.length;i++){
+  cbs[i].checked=v;
+  document.getElementById('swg'+cbs[i].getAttribute('data-i')).style.display=v?'':'none';
+ }
+ swCntM();
+}
+function swCntM(){
+ var cbs=document.querySelectorAll('#swmdd input[type=checkbox]'),n=0;
+ for(var i=0;i<cbs.length;i++)if(cbs[i].checked)n++;
+ document.getElementById('swmcnt').textContent=n;
 }
 function swBest(row){var b=null;for(var k in row){if(b===null||row[k]>b)b=row[k];}return b;}
 function swVal(s,g,L,ce){
