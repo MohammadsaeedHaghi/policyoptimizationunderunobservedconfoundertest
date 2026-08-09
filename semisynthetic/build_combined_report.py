@@ -584,7 +584,7 @@ KM_H15 = _J(_GRD / "hess_paper_km_g15.json")
 KM_K15 = _J(_MSM / "kmz_kallus_g15.json")
 KM_H50 = _J(_GRD / "hess_paper_km_g50.json")
 KM_K50 = _J(_MSM / "kmz_kallus_g50.json")
-KMZ_SWEEP_G = ["1", "2", "4.4817", "8", "15", "50"]      # the requested display grid
+KMZ_SWEEP_G = ["1", "2", "3", "4.4817", "6", "8", "15", "50"]   # the full computed grid
 KMGK = "4.4817"
 
 KMZ_MATH = "".join([
@@ -800,13 +800,98 @@ def _kmz_tab():
                            note="0 = best constant policy, 1 = oracle; X-X and naive are "
                                 "Gamma-free")
 
+    # ---- per-Gamma LINE chart, every method ----
+    def _lines():
+        W, H = 1080, 480
+        pL, pR, pT, pB = 58, 200, 34, 56
+        xs = list(range(len(gks)))
+        X_ = lambda i: pL + i * (W - pL - pR) / (len(gks) - 1)
+        ylo, yhi = -1.12, 1.55
+        Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
+        FLAT_XX = ({m.replace("DoublyRobust", "DR"): max(d.values())
+                    for m, d in KM_XX["mean"].items()} if KM_XX else {})
+        series = []
+        DSH = {"IPW-O-W": ("#0a7d33", ""), "DR-O-W": ("#0a7d33", "7 4"),
+               "IPW-O-X": ("#b07105", ""), "DR-O-X": ("#b07105", "7 4"),
+               "Hajek-O-X": ("#b07105", "2 3"),
+               "IPW-X-X": ("#64748b", ""), "DR-X-X": ("#64748b", "7 4"),
+               "Direct-X-X": ("#64748b", "2 3"),
+               "naive": ("#94a3b8", "1 3"),
+               "Hess (paper)": ("#7d1f6a", ""), "Kallus (paper)": ("#8c564b", "")}
+        for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
+            series.append((LBL2[m], [max(surf[m][g].values()) for g in gks], True))
+        for lbl, v in FLAT_XX.items():
+            series.append((lbl, [v] * len(gks), False))
+        series.append(("naive", [R["naive"]] * len(gks), False))
+        hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
+        if KM_H15: hx2["15"] = KM_H15["mean"]
+        if KM_H50: hx2["50"] = KM_H50["mean"]
+        if hx2 and all(g in hx2 for g in gks):
+            series.append(("Hess (paper)", [hx2[g] for g in gks], True))
+        kx2 = ({("%g" % g): v for g, v in zip(KM_KAL["gammas"],
+                KM_KAL["regimes"]["uncap"]["mean"]["Kallus"])} if KM_KAL else {})
+        if KM_K15: kx2["15"] = KM_K15["regimes"]["uncap"]["mean"]["Kallus"][0]
+        if KM_K50: kx2["50"] = KM_K50["regimes"]["uncap"]["mean"]["Kallus"][0]
+        if kx2 and all(g in kx2 for g in gks):
+            series.append(("Kallus (paper)", [kx2[g] for g in gks], True))
+
+        pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
+              '<text x="%d" y="18" class="ct">KMZ: every method across Gamma '
+              '(best L per point; n=400, 5 seeds)</text>' % pL]
+        for lab, col, yv, dsh in (("oracle", "#111", R["oracle"], "5 4"),
+                                  ("all-treat", "#555", R["all"], "3 3"),
+                                  ("never-treat", "#555", R["never"], "3 3")):
+            pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="1.2" '
+                      'stroke-dasharray="%s" opacity="0.65"/>' % (pL, Y_(yv), W - pR, Y_(yv), col, dsh))
+            pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="start">%s %.2f</text>'
+                      % (W - pR + 6, Y_(yv) + 3.5, lab, yv))
+        for t in (-1.0, -0.5, 0.0, 0.5, 1.0):
+            pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>' % (pL, Y_(t), W - pR, Y_(t)))
+            pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%g</text>' % (pL - 6, Y_(t) + 3.5, t))
+        gm = gks.index(KMGK)
+        pp.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#0a7d33" stroke-width="1.2" '
+                  'stroke-dasharray="3 3" opacity="0.7"/>' % (X_(gm), pT, X_(gm), H - pB))
+        for i, g in enumerate(gks):
+            pp.append('<text x="%.1f" y="%d" class="tk" text-anchor="middle">%s%s</text>'
+                      % (X_(i), H - pB + 16, g if g != KMGK else "4.48",
+                         "*" if g == KMGK else ""))
+        legy = pT + 8
+        for lbl, vals, mark in series:
+            col, dsh = DSH.get(lbl, ("#000", ""))
+            pts = " ".join("%.1f,%.1f" % (X_(i), Y_(v)) for i, v in enumerate(vals))
+            pp.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2"%s/>'
+                      % (pts, col, (' stroke-dasharray="%s"' % dsh) if dsh else ""))
+            if mark:
+                for i, v in enumerate(vals):
+                    pp.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="%s"/>' % (X_(i), Y_(v), col))
+            lx = W - pR + 6
+            pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="2"%s/>'
+                      % (lx + 84, legy - 3, lx + 108, legy - 3, col,
+                         (' stroke-dasharray="%s"' % dsh) if dsh else ""))
+            pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="start">%s</text>'
+                      % (lx + 112, legy, lbl))
+            legy += 15
+        pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
+        pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
+        pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">Gamma assumed by the solver '
+                  '(* = matched Gamma) -- ordinal spacing</text>'
+                  % ((pL + W - pR) // 2, H - 8))
+        ym = (pT + H - pB) // 2
+        pp.append('<text x="15" y="%d" class="al" text-anchor="middle" '
+                  'transform="rotate(-90 15 %d)">average test outcome E[Y]</text>' % (ym, ym))
+        pp.append('</svg>')
+        return ('<figure class="fig"><div class="scrollx chartbox">%s</div></figure>'
+                % "".join(pp))
+
+    sweep_lines = _lines()
+
     ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
     chart = barchart(stats, "KMZ at the matched Gamma* = 4.4817, n=400 -- normalised value",
                      methods=ordered, series=["kmz"], colors={"kmz": "#4a4a2d"},
                      labels=lambda k: "matched Gamma*",
                      note="0 = best constant policy (all-treat), 1 = oracle; whisker = "
                           "across-seed sd where stored")
-    return R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart, sweep_tbl, sweep_chart
+    return R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart, sweep_tbl, sweep_lines
 
 
 (_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART,
@@ -1125,8 +1210,8 @@ their own n=5000, a size the LP methods cannot reach because of the n&sup2; tran
 Kallus via their <span class="mono">grad_descent_sharp</span>/Armijo/15-restart protocol,
 bit-validated against their repository.</p>
 
-<h2>Across &Gamma; <span class="hsub">&mdash; &Gamma; = 1, 2, matched, 8, 15; best L per
-cell</span></h2>
+<h2>Across &Gamma; <span class="hsub">&mdash; the full grid 1 &hellip; 50, every method;
+best L per point</span></h2>
 {KMZ_SWEEPCH}
 {KMZ_SWEEP}
 <p class="muted">&Gamma; = 1 collapses every box to the point estimate; &Gamma; = 15 is
