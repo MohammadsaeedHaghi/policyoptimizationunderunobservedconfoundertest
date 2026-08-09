@@ -889,27 +889,31 @@ def _kmz_tab():
                        "('swg%d').style.display=this.checked?'':'none'\">%s %s</label>"
                        % (si, sw, s["lbl"]))
         LOPTS = ["best"] + list(KM["Lgrid"])
-        lop = "".join('<label style="display:inline-flex;align-items:center;gap:3px;'
-                      'margin:0 10px 4px 0;cursor:pointer;font-size:13px">'
-                      '<input type="radio" name="swL" value="%s"%s onchange="swDraw()">%s</label>'
-                      % (L, " checked" if L == "best" else "",
-                         "best per point" if L == "best" else L)
-                      for L in LOPTS)
-        cop = "".join('<label style="display:inline-flex;align-items:center;gap:3px;'
-                      'margin:0 10px 4px 0;cursor:pointer;font-size:13px">'
-                      '<input type="radio" name="swce" value="%s"%s onchange="swDraw()">%s</label>'
-                      % (ce, " checked" if ce == "1.0" else "",
-                         ce + (" (tight)" if ce == "1.0" else ""))
-                      for ce in CES)
+        SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb;'
+                  'border-radius:4px;background:#fff;cursor:pointer')
+        lop = ('<select id="swLsel" onchange="swDraw()" style="%s">%s</select>'
+               % (SELSTY,
+                  "".join('<option value="%s"%s>%s</option>'
+                          % (L, " selected" if L == "best" else "",
+                             "best per point" if L == "best" else
+                             ("L = inf" if L == "inf" else "L = " + L))
+                          for L in LOPTS)))
+        cop = ('<select id="swcesel" onchange="swDraw()" style="%s">%s</select>'
+               % (SELSTY,
+                  "".join('<option value="%s"%s>c_eps = %s%s</option>'
+                          % (ce, " selected" if ce == "1.0" else "", ce,
+                             " (tight)" if ce == "1.0" else "")
+                          for ce in CES)))
         ctl = ('<div style="margin:6px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
                'show:</span>%s</div>'
-               '<div style="margin:2px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
-               'Lipschitz L:</span>%s<span class="hsub">(X-X was solved only at L = inf, 3, 1 '
-               '&mdash; its lines hide at other L; Hess/Kallus have no L)</span></div>'
-               '<div style="margin:2px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
-               'c<sub>&epsilon;</sub>:</span>%s<span class="hsub">(scales the Wasserstein '
-               'radius, so O-W only; &Gamma; = 15, 50 were solved only at c<sub>&epsilon;</sub>'
-               ' = 1.0, so O-W truncates at &Gamma; = 8 otherwise)</span></div>'
+               '<div style="margin:4px 0 2px 58px;display:flex;align-items:center;flex-wrap:wrap;'
+               'gap:4px"><span class="hsub" style="margin-right:6px">Lipschitz L:</span>%s'
+               '<span class="hsub" style="margin-right:6px;margin-left:12px">'
+               'c<sub>&epsilon;</sub>:</span>%s'
+               '<span class="hsub">(X-X was solved only at L = inf, 3, 1 &mdash; its lines hide '
+               'at other L; c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only, '
+               'and &Gamma; = 15, 50 exist only at c<sub>&epsilon;</sub> = 1.0; Hess/Kallus '
+               'have neither knob)</span></div>'
                % ("".join(cbs), lop, cop))
         pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
         pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
@@ -945,8 +949,8 @@ function swVal(s,g,L,ce){
  return (L in srf[g])?srf[g][L]:null;
 }
 function swDraw(){
- var L=document.querySelector('input[name=swL]:checked').value;
- var ce=document.querySelector('input[name=swce]:checked').value;
+ var L=document.getElementById('swLsel').value;
+ var ce=document.getElementById('swcesel').value;
  for(var i=0;i<SW.length;i++){
   var s=SW[i],parts=[],pts=[];
   for(var k=0;k<SWGK.length;k++){
