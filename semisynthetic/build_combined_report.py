@@ -797,13 +797,11 @@ def _kmz_tab():
     def _lines():
         W, H = 1080, 480
         pL, pR, pT, pB = 58, 120, 34, 56
-        xs = list(range(len(gks)))
         X_ = lambda i: pL + i * (W - pL - pR) / (len(gks) - 1)
         ylo, yhi = -1.12, 1.55
         Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
-        series = []
         # colour = estimator; dash + marker shape = uncertainty set (documented in the
-        # "read me" tab): O-W solid/filled circle, O-X dashed/open square
+        # "read me" tab): O-W solid/filled circle, O-X dashed/open square, X-X dotted/open tri
         DSH = {"IPW-O-W": ("#1f77b4", "", "circle"), "DR-O-W": ("#d62728", "", "circle"),
                "IPW-O-X": ("#1f77b4", "6 4", "square"), "DR-O-X": ("#d62728", "6 4", "square"),
                "Hajek-O-X": ("#0a7d33", "6 4", "square"),
@@ -828,27 +826,38 @@ def _kmz_tab():
             return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="%s"/>'
                     % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
 
+        # ---- series data handed to the page's JS: kind decides how (L, c_eps) apply ----
+        # ow: data[ce][gamma][L]; ox: data[gamma][L] (epsilon-invariant, verified equal
+        # across the ce files); xx: data[L] (Gamma-free); fixed: data[gamma] (Hess/Kallus,
+        # no L, no epsilon)
+        CES = [ce for ce in ("1.0", "1.5", "2.0") if KM_CE.get(ce)]
+        series = []
         for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
-            series.append((LBL2[m], [max(surf[m][g].values()) for g in gks], True))
+            if m.endswith("O-W"):
+                series.append({"lbl": LBL2[m], "kind": "ow",
+                               "data": {ce: KM_CE[ce]["surface"][m] for ce in CES}})
+            else:
+                series.append({"lbl": LBL2[m], "kind": "ox", "data": surf[m]})
         if KM_XX:
             for m, dd in KM_XX["mean"].items():
-                series.append((m.replace("DoublyRobust", "DR"),
-                               [max(dd.values())] * len(gks), True))
+                series.append({"lbl": m.replace("DoublyRobust", "DR"), "kind": "xx", "data": dd})
         hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
         if KM_H15: hx2["15"] = KM_H15["mean"]
         if KM_H50: hx2["50"] = KM_H50["mean"]
-        if hx2 and all(g in hx2 for g in gks):
-            series.append(("Hess (paper)", [hx2[g] for g in gks], True))
+        if hx2:
+            series.append({"lbl": "Hess (paper)", "kind": "fixed", "data": hx2})
         kx2 = ({("%g" % g): v for g, v in zip(KM_KAL["gammas"],
                 KM_KAL["regimes"]["uncap"]["mean"]["Kallus"])} if KM_KAL else {})
         if KM_K15: kx2["15"] = KM_K15["regimes"]["uncap"]["mean"]["Kallus"][0]
         if KM_K50: kx2["50"] = KM_K50["regimes"]["uncap"]["mean"]["Kallus"][0]
-        if kx2 and all(g in kx2 for g in gks):
-            series.append(("Kallus (paper)", [kx2[g] for g in gks], True))
+        if kx2:
+            series.append({"lbl": "Kallus (paper)", "kind": "fixed", "data": kx2})
+        for s in series:
+            s["col"], s["dsh"], s["shape"] = DSH.get(s["lbl"], ("#000", "", "circle"))
 
         pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
               '<text x="%d" y="18" class="ct">KMZ: all methods across the solver Gamma '
-              '(X-X are Gamma-free flats; best L per point; n=400, 5 seeds)</text>' % pL]
+              '(n=400, 5 seeds; pick L and c_eps below)</text>' % pL]
         for lab, col, yv, dsh in (("oracle", "#111", R["oracle"], "5 4"),
                                   ("all-treat", "#555", R["all"], "3 3"),
                                   ("never-treat", "#555", R["never"], "3 3")):
@@ -867,29 +876,41 @@ def _kmz_tab():
                       % (X_(i), H - pB + 16, g if g != KMGK else "4.48",
                          "*" if g == KMGK else ""))
         cbs = []
-        for si, (lbl, vals, mark) in enumerate(series):
-            col, dsh, shp = DSH.get(lbl, ("#000", "", "circle"))
-            pts = " ".join("%.1f,%.1f" % (X_(i), Y_(v)) for i, v in enumerate(vals))
-            g = ['<g id="swg%d">' % si,
-                 '<polyline points="%s" fill="none" stroke="%s" stroke-width="2"%s/>'
-                 % (pts, col, (' stroke-dasharray="%s"' % dsh) if dsh else "")]
-            if mark:
-                for i, v in enumerate(vals):
-                    g.append(_mk(X_(i), Y_(v), col, shp))
-            g.append('</g>')
-            pp.append("".join(g))
+        for si, s in enumerate(series):
+            pp.append('<g id="swg%d"></g>' % si)   # filled in by swDraw()
             sw = ('<svg width="30" height="14" viewBox="0 0 30 14" style="flex:none">'
                   '<line x1="1" y1="7" x2="29" y2="7" stroke="%s" stroke-width="2.4"%s/>'
                   '%s</svg>'
-                  % (col, (' stroke-dasharray="%s"' % dsh) if dsh else "",
-                     _mk(15, 7, col, shp)))
+                  % (s["col"], (' stroke-dasharray="%s"' % s["dsh"]) if s["dsh"] else "",
+                     _mk(15, 7, s["col"], s["shape"])))
             cbs.append('<label style="display:inline-flex;align-items:center;gap:5px;'
                        'margin:0 14px 4px 0;cursor:pointer;font-size:13px">'
                        '<input type="checkbox" checked onchange="document.getElementById'
                        "('swg%d').style.display=this.checked?'':'none'\">%s %s</label>"
-                       % (si, sw, lbl))
+                       % (si, sw, s["lbl"]))
+        LOPTS = ["best"] + list(KM["Lgrid"])
+        lop = "".join('<label style="display:inline-flex;align-items:center;gap:3px;'
+                      'margin:0 10px 4px 0;cursor:pointer;font-size:13px">'
+                      '<input type="radio" name="swL" value="%s"%s onchange="swDraw()">%s</label>'
+                      % (L, " checked" if L == "best" else "",
+                         "best per point" if L == "best" else L)
+                      for L in LOPTS)
+        cop = "".join('<label style="display:inline-flex;align-items:center;gap:3px;'
+                      'margin:0 10px 4px 0;cursor:pointer;font-size:13px">'
+                      '<input type="radio" name="swce" value="%s"%s onchange="swDraw()">%s</label>'
+                      % (ce, " checked" if ce == "1.0" else "",
+                         ce + (" (tight)" if ce == "1.0" else ""))
+                      for ce in CES)
         ctl = ('<div style="margin:6px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
-               'show:</span>%s</div>' % "".join(cbs))
+               'show:</span>%s</div>'
+               '<div style="margin:2px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
+               'Lipschitz L:</span>%s<span class="hsub">(X-X was solved only at L = inf, 3, 1 '
+               '&mdash; its lines hide at other L; Hess/Kallus have no L)</span></div>'
+               '<div style="margin:2px 0 2px 58px"><span class="hsub" style="margin-right:10px">'
+               'c<sub>&epsilon;</sub>:</span>%s<span class="hsub">(scales the Wasserstein '
+               'radius, so O-W only; &Gamma; = 15, 50 were solved only at c<sub>&epsilon;</sub>'
+               ' = 1.0, so O-W truncates at &Gamma; = 8 otherwise)</span></div>'
+               % ("".join(cbs), lop, cop))
         pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
         pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
         pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">Gamma assumed by the solver '
@@ -899,8 +920,55 @@ def _kmz_tab():
         pp.append('<text x="15" y="%d" class="al" text-anchor="middle" '
                   'transform="rotate(-90 15 %d)">average test outcome E[Y]</text>' % (ym, ym))
         pp.append('</svg>')
-        return ('<figure class="fig">%s<div class="scrollx chartbox">%s</div></figure>'
-                % (ctl, "".join(pp)))
+        js = """
+<script>
+var SW=%s, SWGK=%s;
+var SWX0=%.4f, SWXS=%.4f, SWY0=%.1f, SWYHI=%.4f, SWYS=%.4f;
+function swX(k){return SWX0+k*SWXS;}
+function swY(v){return SWY0+(SWYHI-v)*SWYS;}
+function swMk(x,y,c,shp){
+ x=+x; y=+y;
+ if(shp=='circle')return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+c+'"/>';
+ if(shp=='square')return '<rect x="'+(x-2.8).toFixed(1)+'" y="'+(y-2.8).toFixed(1)+'" width="5.6" height="5.6" fill="#fff" stroke="'+c+'" stroke-width="1.6"/>';
+ if(shp=='diamond')return '<rect x="'+(x-2.6).toFixed(1)+'" y="'+(y-2.6).toFixed(1)+'" width="5.2" height="5.2" fill="'+c+'" transform="rotate(45 '+x.toFixed(1)+' '+y.toFixed(1)+')"/>';
+ var f=(shp=='otri')?'#fff':c;
+ var st=(shp=='otri')?' stroke="'+c+'" stroke-width="1.6"':'';
+ return '<path d="M '+x.toFixed(1)+' '+(y-3.4).toFixed(1)+' L '+(x-3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' L '+(x+3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' Z" fill="'+f+'"'+st+'/>';
+}
+function swBest(row){var b=null;for(var k in row){if(b===null||row[k]>b)b=row[k];}return b;}
+function swVal(s,g,L,ce){
+ if(s.kind=='fixed')return (g in s.data)?s.data[g]:null;
+ if(s.kind=='xx'){if(L=='best')return swBest(s.data);return (L in s.data)?s.data[L]:null;}
+ var srf=(s.kind=='ow')?s.data[ce]:s.data;
+ if(!srf||!(g in srf))return null;
+ if(L=='best')return swBest(srf[g]);
+ return (L in srf[g])?srf[g][L]:null;
+}
+function swDraw(){
+ var L=document.querySelector('input[name=swL]:checked').value;
+ var ce=document.querySelector('input[name=swce]:checked').value;
+ for(var i=0;i<SW.length;i++){
+  var s=SW[i],parts=[],pts=[];
+  for(var k=0;k<SWGK.length;k++){
+   var v=swVal(s,SWGK[k],L,ce);
+   if(v!==null&&v!==undefined)pts.push([swX(k),swY(v)]);
+  }
+  if(pts.length){
+   var str='';
+   for(var j=0;j<pts.length;j++)str+=(j?' ':'')+pts[j][0].toFixed(1)+','+pts[j][1].toFixed(1);
+   parts.push('<polyline points="'+str+'" fill="none" stroke="'+s.col+'" stroke-width="2"'+(s.dsh?' stroke-dasharray="'+s.dsh+'"':'')+'/>');
+   for(var j2=0;j2<pts.length;j2++)parts.push(swMk(pts[j2][0],pts[j2][1],s.col,s.shape));
+  }
+  document.getElementById('swg'+i).innerHTML=parts.join('');
+ }
+}
+swDraw();
+</script>"""
+        js = js % (json.dumps(series), json.dumps(gks),
+                   float(pL), (W - pL - pR) / (len(gks) - 1),
+                   float(pT), yhi, (H - pT - pB) / (yhi - ylo))
+        return ('<figure class="fig">%s<div class="scrollx chartbox">%s</div>%s</figure>'
+                % (ctl, "".join(pp), js))
 
     sweep_lines = _lines()
 
