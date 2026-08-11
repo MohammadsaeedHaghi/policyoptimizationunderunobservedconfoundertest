@@ -603,10 +603,15 @@ def mkshape(x, y, col, shape):
 
 _ILINES_JS = """
 <script>
-var PFXSW=__DATA__, PFXGK=__GKS__;
+var PFXSW=__DATA__, PFXGK=__GKS__, PFXR=__REFS__;
 var PFXX0=__X0__, PFXXS=__XS__, PFXY0=__Y0__, PFXYHI=__YHI__, PFXYS=__YS__;
+var PFXW=__W__, PFXPR=__PR__;
 function PFXX(k){return PFXX0+k*PFXXS;}
 function PFXY(v){return PFXY0+(PFXYHI-v)*PFXYS;}
+function PFXMode(){
+ var e=document.querySelector('input[name=PFXmode]:checked');
+ return e?e.value:'test';
+}
 function PFXMk(x,y,c,shp){
  x=+x; y=+y;
  if(shp=='circle')return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+c+'"/>';
@@ -634,10 +639,12 @@ function PFXCntM(){
  document.getElementById('PFXmcnt').textContent=n;
 }
 function PFXBestV(row){var b=null;for(var k in row){if(b===null||row[k]>b)b=row[k];}return b;}
-function PFXVal(s,g,L,ce){
- if(s.kind=='fixed')return (g in s.data)?s.data[g]:null;
- if(s.kind=='xx'){if(L=='best')return PFXBestV(s.data);return (L in s.data)?s.data[L]:null;}
- var srf=(s.kind=='ow')?s.data[ce]:s.data;
+function PFXVal(s,g,L,ce,md){
+ var d=(md=='train')?s.dtr:s.data;
+ if(!d)return null;
+ if(s.kind=='fixed')return (g in d)?d[g]:null;
+ if(s.kind=='xx'){if(L=='best')return PFXBestV(d);return (L in d)?d[L]:null;}
+ var srf=(s.kind=='ow')?d[ce]:d;
  if(!srf||!(g in srf))return null;
  if(L=='best')return PFXBestV(srf[g]);
  return (L in srf[g])?srf[g][L]:null;
@@ -645,10 +652,21 @@ function PFXVal(s,g,L,ce){
 function PFXDraw(){
  var L=document.getElementById('PFXLsel').value;
  var ce=document.getElementById('PFXcesel').value;
+ var md=PFXMode();
+ var rg=document.getElementById('PFXrefs');
+ if(rg&&PFXR[md]){
+  var rp=[];
+  for(var r=0;r<PFXR[md].length;r++){
+   var rr=PFXR[md][r];
+   rp.push('<line x1="'+PFXX0.toFixed(1)+'" y1="'+PFXY(rr[2]).toFixed(1)+'" x2="'+(PFXW-PFXPR)+'" y2="'+PFXY(rr[2]).toFixed(1)+'" stroke="'+rr[1]+'" stroke-width="1.2" stroke-dasharray="'+rr[3]+'" opacity="0.65"/>');
+   rp.push('<text x="'+(PFXW-PFXPR+6)+'" y="'+(PFXY(rr[2])+3.5).toFixed(1)+'" class="tk" text-anchor="start">'+rr[0]+' '+rr[2].toFixed(2)+'</text>');
+  }
+  rg.innerHTML=rp.join('');
+ }
  for(var i=0;i<PFXSW.length;i++){
   var s=PFXSW[i],parts=[],pts=[];
   for(var k=0;k<PFXGK.length;k++){
-   var v=PFXVal(s,PFXGK[k],L,ce);
+   var v=PFXVal(s,PFXGK[k],L,ce,md);
    if(v!==null&&v!==undefined)pts.push([PFXX(k),PFXY(v)]);
   }
   if(pts.length){
@@ -665,21 +683,19 @@ PFXDraw();
 
 
 def ilines(pfx, gks, gmatch, mticklab, series, refs3, Lgrid, ceopts, title, ctlnote,
-           ylo, yhi, xaxis_lab, W=1080, H=480):
+           ylo, yhi, xaxis_lab, W=1080, H=480, refs3_train=None):
     """Interactive per-Gamma line chart. series: [{lbl, kind, data, col, dsh, shape}] where
     kind 'ow' -> data[ce][g][L]; 'ox' -> data[g][L]; 'xx' -> data[L]; 'fixed' -> data[g].
+    Any series may carry "dtr" (a train-set mirror of data); when refs3_train is given a
+    test/train toggle is rendered and the reference lines switch with it.
     refs3: [(label, colour, value, dash)] horizontal reference lines.
     ceopts: [(value, label)] for the c_eps dropdown. pfx must be a unique JS-safe prefix."""
     pL, pR, pT, pB = 58, 120, 34, 56
     X_ = lambda i: pL + i * (W - pL - pR) / (len(gks) - 1)
     Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
     pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
-          '<text x="%d" y="18" class="ct">%s</text>' % (pL, title)]
-    for lab, col, yv, dsh in refs3:
-        pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="1.2" '
-                  'stroke-dasharray="%s" opacity="0.65"/>' % (pL, Y_(yv), W - pR, Y_(yv), col, dsh))
-        pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="start">%s %.2f</text>'
-                  % (W - pR + 6, Y_(yv) + 3.5, lab, yv))
+          '<text x="%d" y="18" class="ct">%s</text>' % (pL, title),
+          '<g id="%srefs"></g>' % pfx]
     t = np.ceil(ylo * 2) / 2
     while t <= yhi:
         pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>' % (pL, Y_(t), W - pR, Y_(t)))
@@ -726,35 +742,53 @@ def ilines(pfx, gks, gmatch, mticklab, series, refs3, Lgrid, ceopts, title, ctln
            '<div style="margin-bottom:4px"><a href="javascript:%sAllM(true)">all</a>'
            ' &middot; <a href="javascript:%sAllM(false)">none</a></div>%s</div></details>'
            % (pfx, pfx, len(series), len(series), pfx, pfx, "".join(cbs)))
+    tgl = ""
+    if refs3_train is not None:
+        tgl = ('<span class="hsub" style="margin-right:4px;margin-left:12px">evaluate on:'
+               '</span>'
+               '<label style="cursor:pointer;font-size:13px;margin-right:6px">'
+               '<input type="radio" name="%smode" value="test" checked '
+               'onchange="%sDraw()"> test</label>'
+               '<label style="cursor:pointer;font-size:13px">'
+               '<input type="radio" name="%smode" value="train" onchange="%sDraw()"> '
+               'train (in-sample)</label>' % (pfx, pfx, pfx, pfx))
     ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
            'flex-wrap:wrap;gap:4px">%s'
            '<span class="hsub" style="margin-right:6px;margin-left:12px">Lipschitz L:</span>'
            '%s<span class="hsub" style="margin-right:6px;margin-left:6px">'
-           'c<sub>&epsilon;</sub>:</span>%s'
-           '<span class="hsub">%s</span></div>' % (mdd, lop, cop, ctlnote))
+           'c<sub>&epsilon;</sub>:</span>%s%s'
+           '<span class="hsub">%s</span></div>' % (mdd, lop, cop, tgl, ctlnote))
     pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
     pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
     pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">%s</text>'
               % ((pL + W - pR) // 2, H - 8, xaxis_lab))
     ym = (pT + H - pB) // 2
     pp.append('<text x="15" y="%d" class="al" text-anchor="middle" '
-              'transform="rotate(-90 15 %d)">average test outcome E[Y]</text>' % (ym, ym))
+              'transform="rotate(-90 15 %d)">average outcome E[Y]</text>' % (ym, ym))
     pp.append('</svg>')
+    refsjs = {"test": [[a_, b_, c_, d_] for a_, b_, c_, d_ in refs3],
+              "train": [[a_, b_, c_, d_] for a_, b_, c_, d_ in (refs3_train or refs3)]}
     js = (_ILINES_JS.replace("PFX", pfx)
           .replace("__DATA__", json.dumps(series)).replace("__GKS__", json.dumps(gks))
+          .replace("__REFS__", json.dumps(refsjs))
           .replace("__X0__", "%.4f" % float(pL))
           .replace("__XS__", "%.4f" % ((W - pL - pR) / (len(gks) - 1)))
           .replace("__Y0__", "%.4f" % float(pT)).replace("__YHI__", "%.4f" % yhi)
-          .replace("__YS__", "%.4f" % ((H - pT - pB) / (yhi - ylo))))
+          .replace("__YS__", "%.4f" % ((H - pT - pB) / (yhi - ylo)))
+          .replace("__W__", "%d" % W).replace("__PR__", "%d" % pR))
     return ('<figure class="fig">%s<div class="scrollx chartbox">%s</div>%s</figure>'
             % (ctl, "".join(pp), js))
 
 
 _ISURF_JS = """
 <script>
-var PFXS=__S3__, PFXL=__LS__, PFXZLO=__ZLO__, PFXZHI=__ZHI__;
+var PFXS=__S3__, PFXStr=__S3TR__, PFXL=__LS__, PFXZLO=__ZLO__, PFXZHI=__ZHI__;
 var PFXyaw=0.65, PFXpit=0.42, PFXdrag=null;
 function PFXel(i){return document.getElementById(i);}
+function PFXmd(){
+ var e=document.querySelector('input[name=PFXsmode]:checked');
+ return (e&&e.value=='train'&&PFXStr)?PFXStr:PFXS;
+}
 function PFXrgb(t){
  t=Math.max(0,Math.min(1,t));var r,g,b,u;
  if(t<0.5){u=t*2;r=59+u*162;g=76+u*145;b=192+u*29;}
@@ -762,7 +796,7 @@ function PFXrgb(t){
  return 'rgb('+Math.round(r)+','+Math.round(g)+','+Math.round(b)+')';
 }
 function PFXdraw(){
- var D=PFXS[PFXel('PFXce').value][PFXel('PFXm').value];
+ var D=PFXmd()[PFXel('PFXce').value][PFXel('PFXm').value];
  var G=D.g, Z=D.z, nL=PFXL.length, ng=G.length;
  var cy=Math.cos(PFXyaw), sy=Math.sin(PFXyaw), cp=Math.cos(PFXpit), sp=Math.sin(PFXpit);
  var W=980,H=560,CX=W/2,CY=H/2+14,SC=230;
@@ -826,9 +860,11 @@ PFXdraw();
 </script>"""
 
 
-def isurf(pfx, S3, Ls, zlo, zhi, ceopts, methods, gmatch, mticklab, ctlnote):
+def isurf(pfx, S3, Ls, zlo, zhi, ceopts, methods, gmatch, mticklab, ctlnote,
+          s3_train=None):
     """Interactive drag-to-rotate 3-D surface. S3[ce][method] = {"g": [...], "z": [[...]]}
-    (rows indexed by gamma, columns by Ls). pfx must be a unique JS-safe prefix."""
+    (rows indexed by gamma, columns by Ls). s3_train, when given, adds a test/train toggle.
+    pfx must be a unique JS-safe prefix."""
     msel = ('<select id="%sm" onchange="%sdraw()" style="%s">%s</select>'
             % (pfx, pfx, SELSTY,
                "".join('<option value="%s"%s>%s</option>'
@@ -839,17 +875,136 @@ def isurf(pfx, S3, Ls, zlo, zhi, ceopts, methods, gmatch, mticklab, ctlnote):
                 "".join('<option value="%s"%s>%s</option>'
                         % (v, " selected" if i == 0 else "", lab)
                         for i, (v, lab) in enumerate(ceopts))))
+    tgl = ""
+    if s3_train is not None:
+        tgl = ('<span class="hsub" style="margin-left:8px">evaluate on:</span>'
+               '<label style="cursor:pointer;font-size:13px">'
+               '<input type="radio" name="%ssmode" value="test" checked '
+               'onchange="%sdraw()"> test</label>'
+               '<label style="cursor:pointer;font-size:13px">'
+               '<input type="radio" name="%ssmode" value="train" onchange="%sdraw()"> '
+               'train</label>' % (pfx, pfx, pfx, pfx))
     ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
            'flex-wrap:wrap;gap:6px"><span class="hsub">method:</span>%s'
-           '<span class="hsub">c<sub>&epsilon;</sub>:</span>%s'
-           '<span class="hsub">%s</span></div>' % (msel, cesel, ctlnote))
+           '<span class="hsub">c<sub>&epsilon;</sub>:</span>%s%s'
+           '<span class="hsub">%s</span></div>' % (msel, cesel, tgl, ctlnote))
     js = (_ISURF_JS.replace("PFX", pfx)
-          .replace("__S3__", json.dumps(S3)).replace("__LS__", json.dumps(Ls))
+          .replace("__S3__", json.dumps(S3))
+          .replace("__S3TR__", json.dumps(s3_train) if s3_train is not None else "null")
+          .replace("__LS__", json.dumps(Ls))
           .replace("__ZLO__", "%f" % zlo).replace("__ZHI__", "%f" % zhi)
           .replace("__MG__", gmatch).replace("__MT__", mticklab))
     return ('<figure class="fig">%s<div class="scrollx chartbox">'
             '<svg id="%ssvg" viewBox="0 0 980 560" class="chart" '
             'style="cursor:grab;touch-action:none"></svg></div>%s</figure>' % (ctl, pfx, js))
+
+
+_IPOL_JS = """
+<script>
+var PFXD=__DATA__;
+function PFXel(i){return document.getElementById(i);}
+function PFXcurves(m,g,L,ce){
+ var s=PFXD.methods[m]; if(!s)return null;
+ var d=s.data;
+ if(s.kind=='flat')return d;
+ if(s.kind=='fixed')return (g in d)?d[g]:null;
+ if(s.kind=='xx')return (L in d)?d[L]:null;
+ if(s.kind=='ow'){d=d[ce]; if(!d)return null;}
+ if(!(g in d))return null;
+ return (L in d[g])?d[g][L]:null;
+}
+function PFXpath(xg,c,X_,Y_){
+ var p='';
+ for(var i=0;i<c.length;i++)p+=(i?' ':'')+X_(xg[i]).toFixed(1)+','+Y_(c[i]).toFixed(1);
+ return p;
+}
+function PFXdraw(){
+ var m=PFXel('PFXm').value, g=PFXel('PFXg').value, L=PFXel('PFXL').value,
+     ce=PFXel('PFXce').value, sd=PFXel('PFXsd').value;
+ var W=1080,H=430,pL=58,pR=30,pT=30,pB=52;
+ var xlo=PFXD.xlo,xhi=PFXD.xhi;
+ var X_=function(x){return pL+(x-xlo)/(xhi-xlo)*(W-pL-pR);};
+ var Y_=function(v){return pT+(1.04-v)/1.08*(H-pT-pB);};
+ var out=[];
+ for(var t=0;t<=1;t+=0.25){
+  out.push('<line x1="'+pL+'" y1="'+Y_(t).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y_(t).toFixed(1)+'" class="grid"/>');
+  out.push('<text x="'+(pL-6)+'" y="'+(Y_(t)+3.5).toFixed(1)+'" class="tk" text-anchor="end">'+t.toFixed(2)+'</text>');
+ }
+ for(var x=Math.ceil(xlo*2)/2;x<=xhi+1e-9;x+=0.5){
+  out.push('<text x="'+X_(x).toFixed(1)+'" y="'+(H-pB+16)+'" class="tk" text-anchor="middle">'+x+'</text>');
+ }
+ var s=PFXD.methods[m], col=s?s.col:'#000';
+ var xg=(s&&s.xg)?s.xg:PFXD.grid;
+ if(PFXD.oracle){
+  var oc=PFXD.oracle;
+  out.push('<polyline points="'+PFXpath(PFXD.grid,oc,X_,Y_)+'" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.7"/>');
+ }
+ var cs=PFXcurves(m,g,L,ce);
+ if(cs&&Object.keys(cs).length==0)cs=null;
+ if(!cs){
+  out.push('<text x="'+((pL+W-pR)/2)+'" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle">no stored policy for this (method, Gamma, L, c_eps) combination</text>');
+ }else{
+  var keys=Object.keys(cs);
+  if(sd=='mean'){
+   var n=PFXD.grid.length, acc=null, cnt=0;
+   for(var k=0;k<keys.length;k++){
+    var c=cs[keys[k]]; if(!c)continue;
+    out.push('<polyline points="'+PFXpath(xg,c,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="1" opacity="0.25"/>');
+    if(!acc){acc=c.slice();}else{for(var i=0;i<c.length;i++)acc[i]+=c[i];}
+    cnt++;
+   }
+   if(acc){
+    for(var i2=0;i2<acc.length;i2++)acc[i2]/=cnt;
+    out.push('<polyline points="'+PFXpath(xg,acc,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="2.6"/>');
+   }
+   out.push('<text x="'+(W-pR-4)+'" y="'+(pT+12)+'" class="tk" text-anchor="end">'+cnt+' seed'+(cnt>1?'s':'')+' (thin) + mean (bold)</text>');
+  }else{
+   var c2=cs[sd];
+   if(!c2){
+    out.push('<text x="'+((pL+W-pR)/2)+'" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle">seed '+sd+' has no stored curve here</text>');
+   }else{
+    out.push('<polyline points="'+PFXpath(xg,c2,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="2.4"/>');
+   }
+  }
+ }
+ out.push('<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>');
+ out.push('<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>');
+ out.push('<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">x (standardised index); dashed black = oracle policy</text>');
+ out.push('<text x="15" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle" transform="rotate(-90 15 '+((pT+H-pB)/2)+')">pi(x) = treatment probability</text>');
+ PFXel('PFXsvg').innerHTML=out.join('');
+}
+PFXdraw();
+</script>"""
+
+
+def ipol(pfx, data, methods_order, gks, gmatch, Lgrid, ceopts, seedkeys, title, ctlnote):
+    """Interactive policy plot pi(x) vs x. data = {"grid": [...], "xlo","xhi", "oracle": [...]
+    or None, "methods": {label: {kind, data, col, xg?}}} where kind decides the lookup:
+    ow -> data[ce][g][L][seed]; ox -> data[g][L][seed]; xx -> data[L][seed];
+    fixed -> data[g][seed]; flat -> data[seed]. Every leaf is a curve on grid (or xg)."""
+    sel = lambda i, opts: ('<select id="%s%s" onchange="%sdraw()" style="%s">%s</select>'
+                           % (pfx, i, pfx, SELSTY,
+                              "".join('<option value="%s"%s>%s</option>'
+                                      % (v, " selected" if j == 0 else "", lab)
+                                      for j, (v, lab) in enumerate(opts))))
+    msel = sel("m", [(m, m) for m in methods_order])
+    gsel = sel("g", [(g, "Gamma = %s%s" % (g, " (matched)" if g == gmatch else ""))
+                     for g in ([gmatch] + [g for g in gks if g != gmatch])])
+    lsel = sel("L", [(L, "L = inf" if L == "inf" else "L = " + L)
+                     for L in (["3"] + [L for L in Lgrid if L != "3"])])
+    cesel = sel("ce", ceopts)
+    sdsel = sel("sd", [("mean", "all seeds + mean")] + [(s, "seed " + s) for s in seedkeys])
+    ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;flex-wrap:wrap;'
+           'gap:6px"><span class="hsub">method:</span>%s<span class="hsub">&Gamma;:</span>%s'
+           '<span class="hsub">L:</span>%s<span class="hsub">c<sub>&epsilon;</sub>:</span>%s'
+           '<span class="hsub">seed:</span>%s</div>'
+           '<div style="margin:0 0 2px 58px"><span class="hsub">%s</span></div>'
+           % (msel, gsel, lsel, cesel, sdsel, ctlnote))
+    js = (_IPOL_JS.replace("PFX", pfx).replace("__DATA__", json.dumps(data)))
+    return ('<figure class="fig"><figcaption class="ct" style="margin-left:58px">%s'
+            '</figcaption>%s<div class="scrollx chartbox">'
+            '<svg id="%ssvg" viewBox="0 0 1080 430" class="chart"></svg></div>%s</figure>'
+            % (title, ctl, pfx, js))
 
 
 KM = _J(_MSM / "kmz_main_ce1.0.json")
@@ -866,6 +1021,16 @@ KM_H15 = _J(_GRD / "hess_paper_km_g15.json")
 KM_K15 = _J(_MSM / "kmz_kallus_g15.json")
 KM_H50 = _J(_GRD / "hess_paper_km_g50.json")
 KM_K50 = _J(_MSM / "kmz_kallus_g50.json")
+KM_TR = _J(_MSM / "kmz_train_values.json")          # in-sample values, from stored policies
+KM_XXTR = _J(_GRD / "xx_km_train.json")             # X-X re-solve with train+test
+KM_HCURV = {}                                        # Hess curves + train values per gamma
+for _i in range(8):
+    _d = _J(_GRD / ("hess_km_curves_%d.json" % _i))
+    if _d: KM_HCURV[_d["gamma"]] = _d
+KM_KALTR = {}                                        # Kallus refits with train values
+for _i in range(8):
+    _d = _J(_MSM / ("kallus_km_train_%d.json" % _i))
+    if _d: KM_KALTR[_d["gamma"]] = _d
 KMZ_SWEEP_G = ["1", "2", "3", "4.4817", "6", "8", "15", "50"]   # the full computed grid
 KMGK = "4.4817"
 
@@ -899,6 +1064,19 @@ def _kmz_tab():
     surf = KM["surface"]
     LBL2 = {"IPW-O-X": "IPW-O-X", "DoublyRobust-O-X": "DR-O-X", "Hajek-O-X": "Hajek-O-X",
             "IPW-O-W": "IPW-O-W", "DoublyRobust-O-W": "DR-O-W"}
+    # X-X series: the 2026-08-10 re-solve is authoritative when present -- it stores
+    # per-seed TEST and TRAIN values from the SAME solves (required for the toggle).
+    # The old xxL run's tight-L cells sit on massively degenerate LP optima, so vertex
+    # picks (and deployed values) are environment-dependent and cannot be paired with
+    # freshly computed train values.
+    if KM_XXTR:
+        XXM = KM_XXTR["test_mean"]
+        XXS = {m: {L: float(np.std(list(KM_XXTR["test"][m][L].values())))
+                   for L in KM_XXTR["test"][m]} for m in KM_XXTR["test"]}
+    elif KM_XX:
+        XXM, XXS = KM_XX["mean"], KM_XX["sd"]
+    else:
+        XXM = XXS = None
 
     rows = []
     stats = {}
@@ -910,11 +1088,11 @@ def _kmz_tab():
                      "<td>L=%s</td><td class='l' style='font-size:10.5px'>%s</td></tr>"
                      % (" class='hl'" if m.endswith("O-W") else "", LBL2[m], best[0],
                         nz(best[0]), best[1], det)))
-    if KM_XX:
-        for m, d in KM_XX["mean"].items():
+    if XXM:
+        for m, d in XXM.items():
             bl = max(d, key=d.get)
             lbl = m.replace("DoublyRobust", "DR")
-            stats[(lbl, "kmz")] = (nz(d[bl]), abs(nz(d[bl] + KM_XX["sd"][m][bl]) - nz(d[bl])))
+            stats[(lbl, "kmz")] = (nz(d[bl]), abs(nz(d[bl] + XXS[m][bl]) - nz(d[bl])))
             det = "  ".join("L=%s %+.3f" % (L, d[L]) for L in ("inf", "3", "1"))
             rows.append((d[bl], "<tr><td class='l'>%s <span class='hsub'>(&Gamma;-free)</span>"
                          "</td><td>%.3f</td><td>%+.3f</td><td>L=%s</td>"
@@ -1087,8 +1265,8 @@ def _kmz_tab():
                            "data": {ce: KM_CE[ce]["surface"][m] for ce in CES}})
         else:
             series.append({"lbl": LBL2[m], "kind": "ox", "data": surf[m]})
-    if KM_XX:
-        for m, dd in KM_XX["mean"].items():
+    if XXM:
+        for m, dd in XXM.items():
             series.append({"lbl": m.replace("DoublyRobust", "DR"), "kind": "xx", "data": dd})
     hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
     if KM_H15: hx2["15"] = KM_H15["mean"]
@@ -1103,6 +1281,38 @@ def _kmz_tab():
         series.append({"lbl": "Kallus (paper)", "kind": "fixed", "data": kx2})
     for s in series:
         s["col"], s["dsh"], s["shape"] = DSHMAP.get(s["lbl"], ("#000", "", "circle"))
+    # in-sample mirrors for the test/train toggle
+    refs3_train = None
+    if KM_TR:
+        for s in series:
+            if s["kind"] == "ow":
+                s["dtr"] = {ce: KM_TR["surface"][ce][ [m for m in LBL2 if LBL2[m] == s["lbl"]][0] ]
+                            for ce in CES if ce in KM_TR["surface"]}
+            elif s["kind"] == "ox":
+                s["dtr"] = KM_TR["surface"]["1.0"][[m for m in LBL2 if LBL2[m] == s["lbl"]][0]]
+            elif s["kind"] == "xx" and KM_XXTR:
+                s["dtr"] = KM_XXTR["train_mean"][s["lbl"].replace("DR", "DoublyRobust")]
+            elif s["lbl"] == "Hess (paper)" and KM_HCURV and \
+                    all("mean_train" in d for d in KM_HCURV.values()):
+                s["dtr"] = {g: d["mean_train"] for g, d in KM_HCURV.items()}
+            elif s["lbl"] == "Kallus (paper)" and KM_KALTR:
+                s["dtr"] = {g: d["train_mean"] for g, d in KM_KALTR.items()}
+        rtr = {k: float(np.mean([KM_TR["refs_by_seed"][s_][k]
+                                 for s_ in KM_TR["refs_by_seed"]]))
+               for k in ("oracle", "all", "never")}
+        refs3_train = [("oracle", "#111", rtr["oracle"], "5 4"),
+                       ("all-treat", "#555", rtr["all"], "3 3"),
+                       ("never-treat", "#555", rtr["never"], "3 3")]
+    allv = [-1.12, 1.55]
+    for s in series:
+        for d in (s.get("dtr"),):
+            if not d: continue
+            def _flat(o):
+                if isinstance(o, dict):
+                    for v in o.values(): yield from _flat(v)
+                elif isinstance(o, (int, float)): yield o
+            allv.extend(_flat(d))
+    ylo_, yhi_ = min(allv) - 0.05, max(allv) + 0.05
     sweep_lines = ilines(
         "sw", gks, KMGK, "4.48*", series,
         [("oracle", "#111", R["oracle"], "5 4"), ("all-treat", "#555", R["all"], "3 3"),
@@ -1112,16 +1322,19 @@ def _kmz_tab():
         "(X-X was solved only at L = inf, 3, 1 &mdash; its lines hide at other L; "
         "c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only, and "
         "&Gamma; = 15, 50 exist only at c<sub>&epsilon;</sub> = 1.0; Hess/Kallus have "
-        "neither knob)",
-        -1.12, 1.55,
-        "Gamma assumed by the solver (* = matched Gamma) -- ordinal spacing")
+        "neither knob; train = value of the same policy on its own training draw)",
+        ylo_, yhi_,
+        "Gamma assumed by the solver (* = matched Gamma) -- ordinal spacing",
+        refs3_train=refs3_train)
 
     # ---- interactive 3-D surface (shared helper isurf, JS prefix "s3") ----
     Ls = list(KM["Lgrid"])
     S3 = {}
+    S3tr = {} if KM_TR else None
     zlo, zhi = 1e9, -1e9
     for ce in CES:
         S3[ce] = {}
+        if S3tr is not None: S3tr[ce] = {}
         for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
             src = KM_CE[ce]["surface"][m] if m.endswith("O-W") else surf[m]
             gam = [g for g in gks if g in src]
@@ -1129,6 +1342,13 @@ def _kmz_tab():
             S3[ce][LBL2[m]] = {"g": gam, "z": z}
             for row in z:
                 zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
+            if S3tr is not None:
+                tsrc = KM_TR["surface"][ce if m.endswith("O-W") else "1.0"][m]
+                tgam = [g for g in gam if g in tsrc]
+                tz = [[tsrc[g][L] for L in Ls] for g in tgam]
+                S3tr[ce][LBL2[m]] = {"g": tgam, "z": tz}
+                for row in tz:
+                    zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
     zlo, zhi = zlo - 0.05, zhi + 0.05
     surf3d = isurf(
         "s3", S3, Ls, zlo, zhi, CEOPT,
@@ -1136,7 +1356,82 @@ def _kmz_tab():
                            "Hajek-O-X"]],
         "4.4817", "4.48*",
         "drag the plot to rotate; colour = height; X-X / Hess / Kallus have no "
-        "(&Gamma;, L) surface; O-W at c<sub>&epsilon;</sub> &gt; 1 stops at &Gamma; = 8")
+        "(&Gamma;, L) surface; O-W at c<sub>&epsilon;</sub> &gt; 1 stops at &Gamma; = 8",
+        s3_train=S3tr)
+
+    # ---- interactive policy plot pi(x) vs x (shared helper ipol, JS prefix "kp") ----
+    def _polfig():
+        seeds = sorted(KM["policies_by_seed"].keys())
+        P0 = KM["policies_by_seed"]
+        methods = {}
+        for m in ["IPW-O-W", "DoublyRobust-O-W"]:
+            data = {}
+            for ce in CES:
+                Pce = KM_CE[ce]["policies_by_seed"]
+                dce = {}
+                for g in gks:
+                    gd = {}
+                    for L in KM["Lgrid"]:
+                        sd_ = {s: Pce[s][m][g][L] for s in seeds
+                               if g in Pce[s][m] and L in Pce[s][m][g]}
+                        if sd_: gd[L] = sd_
+                    if gd: dce[g] = gd
+                data[ce] = dce
+            methods[LBL2[m]] = {"kind": "ow", "data": data}
+        for m in ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
+            data = {}
+            for g in gks:
+                gd = {}
+                for L in KM["Lgrid"]:
+                    sd_ = {s: P0[s][m][g][L] for s in seeds
+                           if g in P0[s][m] and L in P0[s][m][g]}
+                    if sd_: gd[L] = sd_
+                if gd: data[g] = gd
+            methods[LBL2[m]] = {"kind": "ox", "data": data}
+        if KM_XXTR and "curves" in KM_XXTR:
+            for m, dd in KM_XXTR["curves"].items():          # per-seed curves, all 5 seeds
+                methods[m.replace("DoublyRobust", "DR")] = {"kind": "xx", "data": dd}
+        elif KM_XX and "curves" in KM_XX:
+            for m, dd in KM_XX["curves"].items():
+                methods[m.replace("DoublyRobust", "DR")] = {
+                    "kind": "xx", "data": {L: {"0": c} for L, c in dd.items()}}
+        kd = {}
+        for src in (KM_KAL, KM_K15, KM_K50):
+            if src and "policy_by_seed" in src.get("regimes", {}).get("uncap", {}):
+                pb = src["regimes"]["uncap"]["policy_by_seed"]["Kallus"]
+                for s in seeds:
+                    for g, c in pb.get(s, {}).items():
+                        kd.setdefault(g, {})[s] = c
+        if kd:
+            methods["Kallus (paper)"] = {"kind": "fixed", "data": kd,
+                                         "xg": KM_KAL["grid"]}
+        import glob as _g2
+        hd = {}
+        for f in sorted(_g2.glob(str(_GRD / "hess_km_curves_*.json"))):
+            d = json.loads(Path(f).read_text())
+            hd[d["gamma"]] = d["curves"]
+        if hd:
+            methods["Hess (paper)"] = {"kind": "fixed", "data": hd}
+        methods["naive (DR)"] = {"kind": "flat",
+                                 "data": {s: P0[s]["_refs"]["naive_dr"] for s in seeds}}
+        for lbl in methods:
+            methods[lbl]["col"] = DSHMAP.get(lbl, ("#334155",))[0]
+        orc = np.mean([np.array(P0[s]["_refs"]["oracle"], float) for s in seeds], axis=0)
+        data = {"grid": KM["policy_grid"], "xlo": -1.0, "xhi": 1.0,
+                "oracle": [round(float(v), 3) for v in orc],
+                "methods": methods}
+        order = [m for m in ["IPW-O-W", "DR-O-W", "IPW-O-X", "DR-O-X", "Hajek-O-X",
+                             "IPW-X-X", "DR-X-X", "Direct-X-X", "Hess (paper)",
+                             "Kallus (paper)", "naive (DR)"] if m in methods]
+        return ipol(
+            "kp", data, order, gks, KMGK, KM["Lgrid"], CEOPT, seeds,
+            "KMZ: deployed policy pi(x) on the standardised index (n=400)",
+            "&Gamma; applies to O-X/O-W/Hess/Kallus only; L to the LP methods only "
+            "(X-X curves are stored for seed 0 at L = inf, 3, 1); c<sub>&epsilon;</sub> "
+            "moves O-W only; Hess/Kallus/naive ignore L and c<sub>&epsilon;</sub>. "
+            "Kallus curves are stored on a coarser 7-point grid.")
+
+    polfig = _polfig()
 
     ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
     chart = barchart(stats, "KMZ at the matched Gamma* = 4.4817, n=400 -- normalised value",
@@ -1144,12 +1439,52 @@ def _kmz_tab():
                      labels=lambda k: "matched Gamma*",
                      note="0 = best constant policy (all-treat), 1 = oracle; whisker = "
                           "across-seed sd where stored")
+    # train twin of the matched bar chart: SAME cells (the test-best L per method),
+    # valued on each policy's own training draw and normalised by the TRAIN references
+    if (KM_TR and KM_XXTR and KM_KALTR and KM_HCURV
+            and all("mean_train" in d for d in KM_HCURV.values())):
+        rtr2 = {k: float(np.mean([KM_TR["refs_by_seed"][s_][k]
+                                  for s_ in KM_TR["refs_by_seed"]]))
+                for k in ("oracle", "all", "never")}
+        bctr = max(rtr2["all"], rtr2["never"]); hrtr = rtr2["oracle"] - bctr
+        nzt = lambda v: (v - bctr) / hrtr
+        stats_tr = {}
+        for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X",
+                  "Hajek-O-X"]:
+            bestL = max((surf[m][KMGK][L], L) for L in Lgrid)[1]
+            stats_tr[(LBL2[m], "kmz")] = (nzt(KM_TR["surface"]["1.0"][m][KMGK][bestL]), 0.0)
+        for m, d_ in XXM.items():
+            bl = max(d_, key=d_.get)
+            pv = [nzt(v) for v in KM_XXTR["train"][m][bl].values()]
+            stats_tr[(m.replace("DoublyRobust", "DR"), "kmz")] = (
+                float(np.mean(pv)), float(np.std(pv)))
+        hv = [nzt(v) for v in KM_HCURV[KMGK]["values_train"]]
+        stats_tr[("Hess (paper)", "kmz")] = (float(np.mean(hv)), float(np.std(hv)))
+        stats_tr[("Kallus (paper)", "kmz")] = (nzt(KM_KALTR[KMGK]["train_mean"]), 0.0)
+        chart_tr = barchart(
+            stats_tr, "KMZ at the matched Gamma* = 4.4817 -- TRAIN (in-sample) value, "
+            "same cells", methods=[m for m in ordered if any(k[0] == m for k in stats_tr)],
+            series=["kmz"], colors={"kmz": "#6b4a2d"}, labels=lambda k: "matched Gamma*",
+            note="same policies as the test chart (test-best L per method), valued on "
+                 "their own training draws; 0 = best constant, 1 = oracle, both on train")
+        _tg = ('onchange="document.getElementById(\'kbc_test\').style.display='
+               "this.value=='test'?'':'none';document.getElementById('kbc_train')"
+               ".style.display=this.value=='train'?'':'none';\"")
+        chart = ('<div><div style="margin:4px 0 0 58px;font-size:13px">'
+                 '<span class="hsub" style="margin-right:6px">evaluate on:</span>'
+                 '<label style="cursor:pointer;margin-right:8px"><input type="radio" '
+                 'name="kbcmode" value="test" checked %s> test</label>'
+                 '<label style="cursor:pointer"><input type="radio" name="kbcmode" '
+                 'value="train" %s> train (in-sample)</label></div>'
+                 '<div id="kbc_test">%s</div>'
+                 '<div id="kbc_train" style="display:none">%s</div></div>'
+                 % (_tg, _tg, chart, chart_tr))
     return (R, main_tbl, tm_tbl, st_tbl, ce_tbl, cap_tbl, kb_tbl, chart, sweep_tbl,
-            sweep_lines, surf3d)
+            sweep_lines, surf3d, polfig)
 
 
 (_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART,
- KMZ_SWEEP, KMZ_SWEEPCH, KMZ_3D) = _kmz_tab()
+ KMZ_SWEEP, KMZ_SWEEPCH, KMZ_3D, KMZ_POL) = _kmz_tab()
 
 
 # ------------------------------------------------ rational-DM DGP tab
@@ -1176,6 +1511,131 @@ RAT_MATH = "".join([
       r"\ \Gamma^{\!*} = 5 \text{ exactly, no clipping; } E[\tau \mid x] = 2x, "
       r"\text{ the oracle treats } x > 0"),
 ])
+
+
+def linefig(title, series, xlab, ylab, W=880, H=340, xlo=-1.0, xhi=1.0, note="",
+            vline=None, hline=None):
+    """Small static multi-line SVG. series: [{x, y, col, dsh, lbl, w}]."""
+    pL, pR, pT, pB = 56, 168, 30, 46
+    ys = [v for s in series for v in s["y"]]
+    ylo, yhi = min(ys), max(ys)
+    pad = 0.08 * (yhi - ylo or 1.0); ylo -= pad; yhi += pad
+    X_ = lambda x: pL + (x - xlo) / (xhi - xlo) * (W - pL - pR)
+    Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
+    pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
+          '<text x="%d" y="17" class="ct">%s</text>' % (pL, title)]
+    step = max(0.25, round((yhi - ylo) / 5 / 0.25) * 0.25)
+    t = np.ceil(ylo / step) * step
+    while t <= yhi:
+        pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>'
+                  % (pL, Y_(t), W - pR, Y_(t)))
+        pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%g</text>'
+                  % (pL - 5, Y_(t) + 3.5, round(t, 2)))
+        t += step
+    for x in np.arange(np.ceil(xlo * 2) / 2, xhi + 1e-9, 0.5):
+        pp.append('<text x="%.1f" y="%d" class="tk" text-anchor="middle">%g</text>'
+                  % (X_(x), H - pB + 15, x))
+    if vline is not None:
+        pp.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#888" '
+                  'stroke-width="1.1" stroke-dasharray="3 3"/>'
+                  % (X_(vline), pT, X_(vline), H - pB))
+    if hline is not None:
+        pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="#888" '
+                  'stroke-width="1.1" stroke-dasharray="3 3"/>'
+                  % (pL, Y_(hline), W - pR, Y_(hline)))
+    ly = pT + 8
+    for s in series:
+        pts = " ".join("%.1f,%.1f" % (X_(a), Y_(b)) for a, b in zip(s["x"], s["y"]))
+        pp.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="%.1f"%s/>'
+                  % (pts, s["col"], s.get("w", 2.0),
+                     (' stroke-dasharray="%s"' % s["dsh"]) if s.get("dsh") else ""))
+        lx = W - pR + 8
+        pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" '
+                  'stroke-width="%.1f"%s/>'
+                  % (lx, ly - 3, lx + 26, ly - 3, s["col"], s.get("w", 2.0),
+                     (' stroke-dasharray="%s"' % s["dsh"]) if s.get("dsh") else ""))
+        pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="start">%s</text>'
+                  % (lx + 30, ly, s["lbl"]))
+        ly += 15
+    pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
+    pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
+    pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">%s</text>'
+              % ((pL + W - pR) // 2, H - 6, xlab))
+    ym = (pT + H - pB) // 2
+    pp.append('<text x="14" y="%d" class="al" text-anchor="middle" '
+              'transform="rotate(-90 14 %d)">%s</text>' % (ym, ym, ylab))
+    pp.append('</svg>')
+    cap = ('<figcaption class="muted" style="margin-left:56px">%s</figcaption>' % note
+           if note else "")
+    return '<figure class="fig"><div class="scrollx chartbox">%s</div>%s</figure>' % (
+        "".join(pp), cap)
+
+
+def _rat_dgp_figs():
+    """Static explainer figures for the nocouple DGP, straight from its closed forms
+    (plus one numeric panel: the APPARENT cate a naive analyst measures)."""
+    xs = np.linspace(-1, 1, 201)
+    sig = lambda z: 1.0 / (1.0 + np.exp(-z))
+    SP, SM, GREY = "#b0620b", "#2b6cb0", "#666"
+    ep, em = sig(2 * xs + 0.5 * np.log(5)), sig(2 * xs - 0.5 * np.log(5))
+    f1 = linefig(
+        "Historical treatment probability  e(x, S) = sigma(2x + (1/2)ln(5) S)",
+        [{"x": xs, "y": ep, "col": SP, "lbl": "S = +1"},
+         {"x": xs, "y": em, "col": SM, "lbl": "S = -1"},
+         {"x": xs, "y": (ep + em) / 2, "col": GREY, "dsh": "5 4",
+          "lbl": "marginal e(x) (what the analyst can estimate)"}],
+        "x", "P(T = 1 | x, S)", hline=0.5,
+        note="Treatment probability RISES in x and in S -- the decision maker treats "
+             "more where treating helps more (rational). The S-odds ratio is exactly 5 "
+             "at every x, and overlap holds without clipping (e in [0.14, 0.86]).")
+    f2 = linefig(
+        "Expected outcome under each arm  (Y0 = 2S,  Y1 = Y0 + 2x + S)",
+        [{"x": xs, "y": 2 * xs + 3, "col": SP, "lbl": "E[Y1 | x, S=+1] = 2x + 3"},
+         {"x": xs, "y": 0 * xs + 2, "col": SP, "dsh": "6 4", "lbl": "E[Y0 | x, S=+1] = 2"},
+         {"x": xs, "y": 2 * xs - 3, "col": SM, "lbl": "E[Y1 | x, S=-1] = 2x - 3"},
+         {"x": xs, "y": 0 * xs - 2, "col": SM, "dsh": "6 4", "lbl": "E[Y0 | x, S=-1] = -2"}],
+        "x", "E[Y_a | x, S]",
+        note="Solid = treated arm, dashed = control; colour = the hidden signal S. The "
+             "baseline outcome moves ONLY with S (prognostic level shift beta0 = 2), while "
+             "the benefit of treating rises in x and in S.")
+    f3 = linefig(
+        "CATE  tau(x, S) = 2x + S,   E[tau | x] = 2x",
+        [{"x": xs, "y": 2 * xs + 1, "col": SP, "lbl": "tau(x, S=+1) = 2x + 1"},
+         {"x": xs, "y": 2 * xs - 1, "col": SM, "lbl": "tau(x, S=-1) = 2x - 1"},
+         {"x": xs, "y": 2 * xs, "col": "#111", "w": 2.8, "lbl": "E[tau | x] = 2x (oracle)"}],
+        "x", "treatment effect", vline=0.0, hline=0.0,
+        note="The x-measurable oracle treats x > 0 (grey vertical line). The hidden S "
+             "shifts the individual effect by +-1 around the 2x trend.")
+    # numeric panel: what a naive analyst SEES vs the truth
+    import importlib.util as _iu
+    _sp = _iu.spec_from_file_location(
+        "dgp_rat_fig", str(ROOT / "assets" / "exp_rational" / "dgp_rational.py"))
+    _dm = _iu.module_from_spec(_sp); sys.modules["dgp_rat_fig"] = _dm
+    _sp.loader.exec_module(_dm)
+    dd = _dm.draw(400000, 7, _dm.Cfg(a=2.0, alpha=0.0, delta=1.0, beta0=2.0))
+    edges = np.linspace(-1, 1, 41); mids = (edges[:-1] + edges[1:]) / 2
+    app = np.full(len(mids), np.nan)
+    for j in range(len(mids)):
+        inb = (dd["x"] >= edges[j]) & (dd["x"] < edges[j + 1])
+        t1, t0 = inb & (dd["T"] == 1), inb & (dd["T"] == 0)
+        if t1.sum() > 30 and t0.sum() > 30:
+            app[j] = dd["Y"][t1].mean() - dd["Y"][t0].mean()
+    ok = ~np.isnan(app)
+    f4 = linefig(
+        "What the naive analyst measures:  E[Y | x, T=1] - E[Y | x, T=0]  vs the truth",
+        [{"x": mids[ok], "y": app[ok], "col": "#c0392b",
+          "lbl": "apparent CATE (naive, 400k draws)"},
+         {"x": xs, "y": 2 * xs, "col": "#111", "dsh": "6 4", "lbl": "true E[tau | x] = 2x"}],
+        "x", "difference in means", vline=0.0, hline=0.0,
+        note="Selection on S biases the comparison UPWARD everywhere: treated units are "
+             "S-rich (high Y1), controls are S-poor (low Y0). The apparent zero-crossing "
+             "sits left of the true one, so a naive analyst over-treats -- this gap is "
+             "exactly what the robust methods must survive, and its size is what "
+             "Gamma* = 5 licenses the adversary to exploit.")
+    return f1 + f2 + f3 + f4
+
+
+RAT_DGPFIGS = _rat_dgp_figs()
 
 
 def _rat_tab():
@@ -1210,6 +1670,31 @@ def _rat_tab():
             for g in RAT_GK}
     kal = {g: float(np.mean([by[(s, g)]["baselines"]["Kallus"] for s in seeds]))
            for g in RAT_GK}
+
+    # in-sample mirrors (present once the train-values rerun landed)
+    has_tr = all("grid_train" in by[(s, g)] for s in seeds for g in RAT_GK)
+    surf_tr = xx_tr = hess_tr = kal_tr = refs_tr = None
+    naive_tr = None
+    if has_tr:
+        surf_tr = {}
+        for m in RAT_OX:
+            surf_tr[m] = {g: {L: float(np.mean([by[(s, g)]["grid_train"][m]["1"][L]
+                                                for s in seeds])) for L in Ls}
+                          for g in RAT_GK}
+        for m in RAT_OW:
+            surf_tr[m] = {ce: {g: {L: float(np.mean([by[(s, g)]["grid_train"][m][ce][L]
+                                                     for s in seeds])) for L in Ls}
+                               for g in RAT_GK} for ce in RAT_CES}
+        xx_tr = {m.replace("DoublyRobust", "DR"):
+                 {L: float(np.mean([c["xx_train"][m][L] for c in g1])) for L in Ls}
+                 for m in ("IPW-X-X", "DoublyRobust-X-X", "Direct-X-X")}
+        hess_tr = {g: float(np.mean([by[(s, g)]["baselines_train"]["SharpHess"]
+                                     for s in seeds])) for g in RAT_GK}
+        kal_tr = {g: float(np.mean([by[(s, g)]["baselines_train"]["Kallus"]
+                                    for s in seeds])) for g in RAT_GK}
+        naive_tr = float(np.mean([c["naive_train"] for c in g1]))
+        refs_tr = {k: float(np.mean([c["refs_train"][k] for c in g1]))
+                   for k in ("oracle", "all", "never")}
 
     # ---- matched-Gamma table + bar chart (normalised; best cell per method) ----
     rows, stats = [], {}
@@ -1267,6 +1752,47 @@ def _rat_tab():
                      labels=lambda k: "matched Gamma*",
                      note="0 = best constant policy, 1 = the x-measurable oracle; "
                           "whisker = across-seed sd (%d seeds)" % len(seeds))
+    if has_tr:
+        bctr = max(refs_tr["all"], refs_tr["never"]); hrtr = refs_tr["oracle"] - bctr
+        nzt = lambda v: (v - bctr) / hrtr
+        stats_tr = {}
+        for m in RAT_OW:
+            best = max((surf[m][ce][RAT_MATCH][L], ce, L) for ce in RAT_CES for L in Ls)
+            pv = [nzt(by[(s, RAT_MATCH)]["grid_train"][m][best[1]][best[2]])
+                  for s in seeds]
+            stats_tr[(RAT_LBL[m], "rat")] = (float(np.mean(pv)), float(np.std(pv)))
+        for m in RAT_OX:
+            best = max((surf[m][RAT_MATCH][L], L) for L in Ls)
+            pv = [nzt(by[(s, RAT_MATCH)]["grid_train"][m]["1"][best[1]]) for s in seeds]
+            stats_tr[(RAT_LBL[m], "rat")] = (float(np.mean(pv)), float(np.std(pv)))
+        for lbl, dd in xx.items():
+            bl = max(dd, key=dd.get)
+            pv = [nzt(c["xx_train"][lbl.replace("DR", "DoublyRobust")][bl]) for c in g1]
+            stats_tr[(lbl, "rat")] = (float(np.mean(pv)), float(np.std(pv)))
+        for name, lbl in (("SharpHess", "Hess (paper)"), ("Kallus", "Kallus (paper)")):
+            pv = [nzt(by[(s, RAT_MATCH)]["baselines_train"][name]) for s in seeds]
+            stats_tr[(lbl, "rat")] = (float(np.mean(pv)), float(np.std(pv)))
+        pv = [nzt(c["naive_train"]) for c in g1]
+        stats_tr[("naive", "rat")] = (float(np.mean(pv)), float(np.std(pv)))
+        chart_tr = barchart(
+            stats_tr, "Rational-DM DGP at the matched Gamma* = 5 -- TRAIN (in-sample) "
+            "value, same cells",
+            methods=[m for m in ordered if any(k[0] == m for k in stats_tr)],
+            series=["rat"], colors={"rat": "#6b4a2d"}, labels=lambda k: "matched Gamma*",
+            note="same policies as the test chart (test-best cell per method), valued on "
+                 "their own training draws; 0 = best constant, 1 = oracle, both on train")
+        _tg = ('onchange="document.getElementById(\'rbc_test\').style.display='
+               "this.value=='test'?'':'none';document.getElementById('rbc_train')"
+               ".style.display=this.value=='train'?'':'none';\"")
+        chart = ('<div><div style="margin:4px 0 0 58px;font-size:13px">'
+                 '<span class="hsub" style="margin-right:6px">evaluate on:</span>'
+                 '<label style="cursor:pointer;margin-right:8px"><input type="radio" '
+                 'name="rbcmode" value="test" checked %s> test</label>'
+                 '<label style="cursor:pointer"><input type="radio" name="rbcmode" '
+                 'value="train" %s> train (in-sample)</label></div>'
+                 '<div id="rbc_test">%s</div>'
+                 '<div id="rbc_train" style="display:none">%s</div></div>'
+                 % (_tg, _tg, chart, chart_tr))
 
     # ---- transport margin, paired at identical (c_eps, L), matched Gamma ----
     tm = {}
@@ -1310,11 +1836,30 @@ def _rat_tab():
     series.append({"lbl": "Kallus (paper)", "kind": "fixed", "data": kal})
     for s in series:
         s["col"], s["dsh"], s["shape"] = DSHMAP.get(s["lbl"], ("#000", "", "circle"))
+    refs3_train = None
+    if has_tr:
+        for s in series:
+            m = {v: k for k, v in RAT_LBL.items()}.get(s["lbl"])
+            if s["kind"] == "ow":      s["dtr"] = surf_tr[m]
+            elif s["kind"] == "ox":    s["dtr"] = surf_tr[m]
+            elif s["kind"] == "xx":    s["dtr"] = xx_tr[s["lbl"]]
+            elif s["lbl"].startswith("Hess"):   s["dtr"] = hess_tr
+            elif s["lbl"].startswith("Kallus"): s["dtr"] = kal_tr
+        refs3_train = [("oracle", "#111", refs_tr["oracle"], "5 4"),
+                       ("all-treat", "#555", refs_tr["all"], "3 3"),
+                       ("never-treat", "#555", refs_tr["never"], "3 3")]
     allv = ([v for m in RAT_OX for g in RAT_GK for v in surf[m][g].values()]
             + [v for m in RAT_OW for ce in RAT_CES for g in RAT_GK
                for v in surf[m][ce][g].values()]
             + [v for dd in xx.values() for v in dd.values()]
             + list(hess.values()) + list(kal.values()) + [naive] + list(refs.values()))
+    if has_tr:
+        allv += ([v for m in RAT_OX for g in RAT_GK for v in surf_tr[m][g].values()]
+                 + [v for m in RAT_OW for ce in RAT_CES for g in RAT_GK
+                    for v in surf_tr[m][ce][g].values()]
+                 + [v for dd in xx_tr.values() for v in dd.values()]
+                 + list(hess_tr.values()) + list(kal_tr.values())
+                 + [naive_tr] + list(refs_tr.values()))
     ylo, yhi = min(allv) - 0.06, max(allv) + 0.06
     lines = ilines(
         "rw", RAT_GK, RAT_MATCH, "5*", series,
@@ -1325,32 +1870,89 @@ def _rat_tab():
         "pick L and c_eps below)" % len(seeds),
         "(X-X and naive are &Gamma;-free; X-X was solved on the FULL L grid here; "
         "c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only; Hess/Kallus "
-        "have neither knob)",
+        "have neither knob%s)"
+        % ("; train = value of the same policy on its own training draw" if has_tr else ""),
         ylo, yhi,
-        "Gamma assumed by the solver (* = matched Gamma) -- ordinal spacing")
+        "Gamma assumed by the solver (* = matched Gamma) -- ordinal spacing",
+        refs3_train=refs3_train)
 
     # ---- interactive 3-D surface (JS prefix "r3") ----
     S3 = {}
+    S3tr = {} if has_tr else None
     zlo, zhi = 1e9, -1e9
     for ce in RAT_CES:
         S3[ce] = {}
+        if S3tr is not None: S3tr[ce] = {}
         for m in RAT_OW[:2] + RAT_OX + [RAT_OW[2]]:
             src = surf[m][ce] if m.endswith("O-W") else surf[m]
             z = [[src[g][L] for L in Ls] for g in RAT_GK]
             S3[ce][RAT_LBL[m]] = {"g": RAT_GK, "z": z}
             for row in z:
                 zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
+            if S3tr is not None:
+                tsrc = surf_tr[m][ce] if m.endswith("O-W") else surf_tr[m]
+                tz = [[tsrc[g][L] for L in Ls] for g in RAT_GK]
+                S3tr[ce][RAT_LBL[m]] = {"g": RAT_GK, "z": tz}
+                for row in tz:
+                    zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
     zlo, zhi = zlo - 0.05, zhi + 0.05
     s3d = isurf(
         "r3", S3, Ls, zlo, zhi, RAT_CEOPT,
         [RAT_LBL[m] for m in RAT_OW[:2] + RAT_OX + [RAT_OW[2]]],
         RAT_MATCH, "5*",
         "drag the plot to rotate; colour = height; X-X / Hess / Kallus have no "
-        "(&Gamma;, L) surface; every &Gamma; was solved at every c<sub>&epsilon;</sub> here")
+        "(&Gamma;, L) surface; every &Gamma; was solved at every c<sub>&epsilon;</sub> here",
+        s3_train=S3tr)
+
+    # ---- interactive policy plot (present only once the with-policies rerun landed) ----
+    polfig = None
+    c_any = by[(seeds[0], "1")]
+    if "policies" in c_any:
+        skeys = [str(s) for s in seeds]
+        methods = {}
+        for m in RAT_OW:
+            data = {}
+            for ce in RAT_CES:
+                data[ce] = {g: {L: {str(s): by[(s, g)]["policies"][m][ce][L]
+                                    for s in seeds
+                                    if L in by[(s, g)].get("policies", {})
+                                                      .get(m, {}).get(ce, {})}
+                                for L in Ls} for g in RAT_GK}
+            methods[RAT_LBL[m]] = {"kind": "ow", "data": data}
+        for m in RAT_OX:
+            methods[RAT_LBL[m]] = {"kind": "ox", "data": {
+                g: {L: {str(s): by[(s, g)]["policies"][m]["1"][L] for s in seeds
+                        if L in by[(s, g)].get("policies", {}).get(m, {}).get("1", {})}
+                    for L in Ls} for g in RAT_GK}}
+        for m in ("IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"):
+            methods[m.replace("DoublyRobust", "DR")] = {"kind": "xx", "data": {
+                L: {str(c["seed"]): c["xx_policies"][m][L] for c in g1
+                    if L in c.get("xx_policies", {}).get(m, {})} for L in Ls}}
+        for name, lbl in (("SharpHess", "Hess (paper)"), ("Kallus", "Kallus (paper)")):
+            methods[lbl] = {"kind": "fixed", "data": {
+                g: {str(s): by[(s, g)]["baseline_policies"][name] for s in seeds
+                    if name in by[(s, g)].get("baseline_policies", {})} for g in RAT_GK}}
+        methods["naive (DR)"] = {"kind": "flat",
+                                 "data": {str(c["seed"]): c["naive_policy"] for c in g1
+                                          if "naive_policy" in c}}
+        for lbl in methods:
+            methods[lbl]["col"] = DSHMAP.get(lbl, ("#334155",))[0]
+        pdata = {"grid": c_any["policy_grid"], "xlo": -1.0, "xhi": 1.0,
+                 "oracle": c_any["oracle_policy"], "methods": methods}
+        order = [m for m in ["IPW-O-W", "DR-O-W", "Hajek-O-W", "IPW-O-X", "DR-O-X",
+                             "Hajek-O-X", "IPW-X-X", "DR-X-X", "Direct-X-X",
+                             "Hess (paper)", "Kallus (paper)", "naive (DR)"]
+                 if m in methods]
+        polfig = ipol(
+            "rp", pdata, order, RAT_GK, RAT_MATCH, Ls, RAT_CEOPT, skeys,
+            "Rational-DM DGP: deployed policy pi(x) (n=400; oracle treats x > 0)",
+            "&Gamma; applies to O-X/O-W/Hess/Kallus; L to the LP methods (X-X included "
+            "-- full L grid); c<sub>&epsilon;</sub> moves O-W only; Hess/Kallus/naive "
+            "ignore L and c<sub>&epsilon;</sub>.")
 
     return {"refs": refs, "chart": chart, "main_tbl": main_tbl, "tm": tm,
             "sweep_tbl": sweep_tbl, "lines": lines, "s3d": s3d,
-            "seeds": len(seeds), "naive": naive}
+            "seeds": len(seeds), "naive": naive, "polfig": polfig}
 
 
 _RAT = _rat_tab()
@@ -1358,6 +1960,9 @@ if _RAT:
     RAT_CHART, RAT_MAIN, RAT_LINES, RAT_3DFIG = (_RAT["chart"], _RAT["main_tbl"],
                                                  _RAT["lines"], _RAT["s3d"])
     RAT_SWEEP = _RAT["sweep_tbl"]
+    RAT_POL = _RAT["polfig"] or ("<p class='muted'>Policy curves for this DGP are being "
+                                 "recomputed with curve storage; rebuild once the "
+                                 "with-policies sweep lands.</p>")
     RAT_REFS = ("oracle %.3f, all-treat %.3f, never-treat %.3f"
                 % (_RAT["refs"]["oracle"], _RAT["refs"]["all"], _RAT["refs"]["never"]))
     RAT_TM = ("Transport margin, paired at identical (c<sub>&epsilon;</sub>, L) at the "
@@ -1366,7 +1971,7 @@ if _RAT:
               % (_RAT["tm"]["IPW-O-W"][0], _RAT["tm"]["IPW-O-W"][1],
                  _RAT["tm"]["DR-O-W"][0], _RAT["tm"]["DR-O-W"][1]))
 else:
-    RAT_CHART = RAT_MAIN = RAT_LINES = RAT_3DFIG = RAT_SWEEP = (
+    RAT_CHART = RAT_MAIN = RAT_LINES = RAT_3DFIG = RAT_SWEEP = RAT_POL = (
         "<p class='muted'>The &Gamma; sweep for this DGP is still running on SLURM; "
         "rebuild this report when assets/exp_rational/gsweep/ holds all 35 cells.</p>")
     RAT_REFS = ""; RAT_TM = ""
@@ -1694,6 +2299,11 @@ varies, the DGP stays fixed; X-X are &Gamma;-free flat lines; best L per point</
 <h3>&Gamma; &times; L &times; E[Y] <span class="hsub">&mdash; the same surface in 3-D;
 drag to rotate</span></h3>
 {KMZ_3D}
+
+<h2>Policy curves <span class="hsub">&mdash; the deployed &pi;(x) itself, per
+(method, &Gamma;, L, c<sub>&epsilon;</sub>, seed); X is one-dimensional here, so the whole
+policy is visible</span></h2>
+{KMZ_POL}
 <p class="muted">&Gamma; = 1 collapses every box to the point estimate; &Gamma; = 15 is
 &asymp;&nbsp;3&times; the matched value, i.e. deliberate over-robustness. Mild over-statement of
 &Gamma; costs little here (the surface peaks slightly ABOVE the matched value), while
@@ -1750,6 +2360,10 @@ every run), overlap stays in [0.14, 0.86], and corr(e, benefit) &gt; 0 is the pr
 rationality check. n = 400 train / 4000 test, {_RAT["seeds"]} seeds ({RAT_REFS}). The Hess k-NN diagnostic
 arm is excluded throughout; Hess and Kallus are the authors' own code.</p>
 
+<h2>The DGP in pictures <span class="hsub">&mdash; assignment, outcomes, effect, and the
+bias a naive analyst inherits</span></h2>
+{RAT_DGPFIGS}
+
 <h2>All methods at the matched &Gamma;* = 5</h2>
 {RAT_CHART}
 {RAT_MAIN}
@@ -1764,6 +2378,10 @@ fixed at &Gamma;* = 5; X-X and naive are &Gamma;-free; best cell per point</span
 <h3>&Gamma; &times; L &times; E[Y] <span class="hsub">&mdash; the same surface in 3-D;
 drag to rotate</span></h3>
 {RAT_3DFIG}
+
+<h2>Policy curves <span class="hsub">&mdash; the deployed &pi;(x) itself, per
+(method, &Gamma;, L, c<sub>&epsilon;</sub>, seed); the oracle treats x &gt; 0</span></h2>
+{RAT_POL}
 </div>
 
 <div id="tab-readme" class="tabpane">

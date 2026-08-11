@@ -76,6 +76,10 @@ def main():
     refs = {"oracle": float(np.mean(orc * Y1t + (1 - orc) * Y0t)),
             "never": float(np.mean(Y0t)), "all": float(np.mean(Y1t))}
     bc = max(refs["never"], refs["all"]); sc = refs["oracle"] - bc
+    Y0tr, Y1tr = np.asarray(tr["Y0"], float), np.asarray(tr["Y1"], float)
+    orc_tr = (tr["cate_cond"] > 0).astype(float)
+    refs_tr = {"oracle": float(np.mean(orc_tr * Y1tr + (1 - orc_tr) * Y0tr)),
+               "never": float(np.mean(Y0tr)), "all": float(np.mean(Y1tr))}
 
     w, _ = common.ipw_weights_from_data(X, T, 2)
     wraw, _ = common.ipw_weights_from_data(X, T, 2, normalize=False)
@@ -83,17 +87,29 @@ def main():
     Dm = common.pairwise_distance_matrix(X)
     G = float(a.gamma)
 
+    XG = np.linspace(-1.0, 1.0, 41)          # curve grid for the report's policy plots
+
     def val(vals):
         pe = SR._shapley_fast(Xte, *SR._W["extract"](X, vals))
         return float(np.mean(pe * Y1t + (1 - pe) * Y0t))
 
+    def curve(vals):
+        pe = SR._shapley_fast(XG, *SR._W["extract"](X, vals))
+        return [round(float(v), 3) for v in np.clip(pe, 0.0, 1.0)]
+
+    def val_tr(vals):
+        pi = np.clip(np.asarray(vals, float).ravel(), 0.0, 1.0)
+        return float(np.mean(pi * Y1tr + (1 - pi) * Y0tr))
+
     t0 = time.time()
+    pol = {}
+    gtr = {}
     grid = {}
     for m in SR.OX + SR.OW:
-        grid[m] = {}
+        grid[m] = {}; pol[m] = {}; gtr[m] = {}
         for ce in (CEPS if m in SR.OW else CEPS[:1]):
             eps = tuple(common.tight_epsilon(Dm, T, w, 2, is_distance=True, c_eps=ce))
-            ckey = "%g" % ce; grid[m][ckey] = {}
+            ckey = "%g" % ce; grid[m][ckey] = {}; pol[m][ckey] = {}; gtr[m][ckey] = {}
             for L, lk in zip(LGRID, LK):
                 try:
                     kw = dict(n_arms=2, Gamma=G, discretize=False, lipschitz=L)
@@ -106,31 +122,44 @@ def main():
                         elif m == "DoublyRobust-O-W": r = S[m](X, T, Y, w, mu, **kw)
                         else: r = S[m](X, T, Y, w, maximize=True, **kw)
                     grid[m][ckey][lk] = val(r.pi[1])
+                    pol[m][ckey][lk] = curve(r.pi[1])
+                    gtr[m][ckey][lk] = val_tr(r.pi[1])
                 except Exception as ex:
                     print("FAIL %s ce=%s L=%s: %s" % (m, ckey, lk, str(ex)[:80]), flush=True)
 
-    bl = {}
+    bl = {}; blpol = {}; bltr = {}
     try:
         r = fit_kallus(X, T, Y, wraw, n_arms=2, Gamma=G, maximize=True, seed=sd)
         pe = np.clip(predict_kallus(r.theta, Xte.reshape(-1, 1))[:, 1], 0.0, 1.0)
         bl["Kallus"] = float(np.mean(pe * Y1t + (1 - pe) * Y0t))
+        pk = np.clip(predict_kallus(r.theta, XG.reshape(-1, 1))[:, 1], 0.0, 1.0)
+        blpol["Kallus"] = [round(float(v), 3) for v in pk]
+        ptr = np.clip(predict_kallus(r.theta, X)[:, 1], 0.0, 1.0)
+        bltr["Kallus"] = float(np.mean(ptr * Y1tr + (1 - ptr) * Y0tr))
     except Exception as ex:
         print("FAIL Kallus: %s" % str(ex)[:120], flush=True)
     try:
-        pol = H.hess_paper(X, T, Y, Gamma=G, seed=sd, maximize=True)
-        pe = np.clip(H.apply_hess_paper(pol, Xte.reshape(-1, 1)), 0.0, 1.0)
+        pol_h = H.hess_paper(X, T, Y, Gamma=G, seed=sd, maximize=True)
+        pe = np.clip(H.apply_hess_paper(pol_h, Xte.reshape(-1, 1)), 0.0, 1.0)
         bl["SharpHess"] = float(np.mean(pe * Y1t + (1 - pe) * Y0t))
+        ph = np.clip(H.apply_hess_paper(pol_h, XG.reshape(-1, 1)), 0.0, 1.0)
+        blpol["SharpHess"] = [round(float(v), 3) for v in ph]
+        ptr = np.clip(H.apply_hess_paper(pol_h, X), 0.0, 1.0)
+        bltr["SharpHess"] = float(np.mean(ptr * Y1tr + (1 - ptr) * Y0tr))
     except Exception as ex:
         print("FAIL SharpHess: %s" % str(ex)[:120], flush=True)
 
     out = {"tag": "nocouple", "cfg": cfg.as_dict(), "seed": sd, "gamma": "%g" % G,
            "matched": "5", "n_train": a.n_train, "Lgrid": LK,
-           "refs": refs, "bc": bc, "sc": sc, "grid": grid, "baselines": bl}
+           "policy_grid": [round(float(v), 4) for v in XG],
+           "refs": refs, "refs_train": refs_tr, "bc": bc, "sc": sc, "grid": grid,
+           "grid_train": gtr, "baselines": bl, "baselines_train": bltr,
+           "policies": pol, "baseline_policies": blpol}
 
     if G == 1.0:      # the Gamma-free extras, once per seed
-        xx = {}
+        xx = {}; xxpol = {}; xxtr = {}
         for m in SR.XX:
-            xx[m] = {}
+            xx[m] = {}; xxpol[m] = {}; xxtr[m] = {}
             for L, lk in zip(LGRID, LK):
                 try:
                     if m == "IPW-X-X":
@@ -140,10 +169,18 @@ def main():
                     else:
                         r = S[m](X, T, Y, n_arms=2, discretize=False, lipschitz=L)
                     xx[m][lk] = val(r.pi[1])
+                    xxpol[m][lk] = curve(r.pi[1])
+                    xxtr[m][lk] = val_tr(r.pi[1])
                 except Exception as ex:
                     print("FAIL %s L=%s: %s" % (m, lk, str(ex)[:80]), flush=True)
         out["xx"] = xx
-        out["naive"] = val((mu[:, 1] - mu[:, 0] > 0).astype(float))
+        out["xx_policies"] = xxpol
+        out["xx_train"] = xxtr
+        nv = (mu[:, 1] - mu[:, 0] > 0).astype(float)
+        out["naive"] = val(nv)
+        out["naive_policy"] = curve(nv)
+        out["naive_train"] = val_tr(nv)
+        out["oracle_policy"] = [1.0 if x > 0 else 0.0 for x in XG]
 
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(out, open(a.out, "w"))
