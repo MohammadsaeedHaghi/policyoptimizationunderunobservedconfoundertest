@@ -570,6 +570,288 @@ def _J(path):
         return None
 
 
+# ---------------------------------------------------------------- shared interactive charts
+# colour = estimator; dash + marker shape = uncertainty set (documented in the "read me" tab)
+DSHMAP = {"IPW-O-W": ("#1f77b4", "", "circle"), "DR-O-W": ("#d62728", "", "circle"),
+          "Hajek-O-W": ("#0a7d33", "", "circle"),
+          "IPW-O-X": ("#1f77b4", "6 4", "square"), "DR-O-X": ("#d62728", "6 4", "square"),
+          "Hajek-O-X": ("#0a7d33", "6 4", "square"),
+          "IPW-X-X": ("#1f77b4", "2 3", "otri"), "DR-X-X": ("#d62728", "2 3", "otri"),
+          "Direct-X-X": ("#64748b", "2 3", "otri"),
+          "Hess (paper)": ("#7d1f6a", "", "diamond"),
+          "Kallus (paper)": ("#8c564b", "", "tri")}
+SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb;'
+          'border-radius:4px;background:#fff;cursor:pointer')
+
+
+def mkshape(x, y, col, shape):
+    if shape == "circle":
+        return '<circle cx="%.1f" cy="%.1f" r="3" fill="%s"/>' % (x, y, col)
+    if shape == "square":
+        return ('<rect x="%.1f" y="%.1f" width="5.6" height="5.6" fill="#fff" '
+                'stroke="%s" stroke-width="1.6"/>' % (x - 2.8, y - 2.8, col))
+    if shape == "diamond":
+        return ('<rect x="%.1f" y="%.1f" width="5.2" height="5.2" fill="%s" '
+                'transform="rotate(45 %.1f %.1f)"/>' % (x - 2.6, y - 2.6, col, x, y))
+    if shape == "otri":
+        return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="#fff" '
+                'stroke="%s" stroke-width="1.6"/>'
+                % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
+    return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="%s"/>'
+            % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
+
+
+_ILINES_JS = """
+<script>
+var PFXSW=__DATA__, PFXGK=__GKS__;
+var PFXX0=__X0__, PFXXS=__XS__, PFXY0=__Y0__, PFXYHI=__YHI__, PFXYS=__YS__;
+function PFXX(k){return PFXX0+k*PFXXS;}
+function PFXY(v){return PFXY0+(PFXYHI-v)*PFXYS;}
+function PFXMk(x,y,c,shp){
+ x=+x; y=+y;
+ if(shp=='circle')return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+c+'"/>';
+ if(shp=='square')return '<rect x="'+(x-2.8).toFixed(1)+'" y="'+(y-2.8).toFixed(1)+'" width="5.6" height="5.6" fill="#fff" stroke="'+c+'" stroke-width="1.6"/>';
+ if(shp=='diamond')return '<rect x="'+(x-2.6).toFixed(1)+'" y="'+(y-2.6).toFixed(1)+'" width="5.2" height="5.2" fill="'+c+'" transform="rotate(45 '+x.toFixed(1)+' '+y.toFixed(1)+')"/>';
+ var f=(shp=='otri')?'#fff':c;
+ var st=(shp=='otri')?' stroke="'+c+'" stroke-width="1.6"':'';
+ return '<path d="M '+x.toFixed(1)+' '+(y-3.4).toFixed(1)+' L '+(x-3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' L '+(x+3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' Z" fill="'+f+'"'+st+'/>';
+}
+function PFXTogM(i,cb){
+ document.getElementById('PFXg'+i).style.display=cb.checked?'':'none';
+ PFXCntM();
+}
+function PFXAllM(v){
+ var cbs=document.querySelectorAll('#PFXmdd input[type=checkbox]');
+ for(var i=0;i<cbs.length;i++){
+  cbs[i].checked=v;
+  document.getElementById('PFXg'+cbs[i].getAttribute('data-i')).style.display=v?'':'none';
+ }
+ PFXCntM();
+}
+function PFXCntM(){
+ var cbs=document.querySelectorAll('#PFXmdd input[type=checkbox]'),n=0;
+ for(var i=0;i<cbs.length;i++)if(cbs[i].checked)n++;
+ document.getElementById('PFXmcnt').textContent=n;
+}
+function PFXBestV(row){var b=null;for(var k in row){if(b===null||row[k]>b)b=row[k];}return b;}
+function PFXVal(s,g,L,ce){
+ if(s.kind=='fixed')return (g in s.data)?s.data[g]:null;
+ if(s.kind=='xx'){if(L=='best')return PFXBestV(s.data);return (L in s.data)?s.data[L]:null;}
+ var srf=(s.kind=='ow')?s.data[ce]:s.data;
+ if(!srf||!(g in srf))return null;
+ if(L=='best')return PFXBestV(srf[g]);
+ return (L in srf[g])?srf[g][L]:null;
+}
+function PFXDraw(){
+ var L=document.getElementById('PFXLsel').value;
+ var ce=document.getElementById('PFXcesel').value;
+ for(var i=0;i<PFXSW.length;i++){
+  var s=PFXSW[i],parts=[],pts=[];
+  for(var k=0;k<PFXGK.length;k++){
+   var v=PFXVal(s,PFXGK[k],L,ce);
+   if(v!==null&&v!==undefined)pts.push([PFXX(k),PFXY(v)]);
+  }
+  if(pts.length){
+   var str='';
+   for(var j=0;j<pts.length;j++)str+=(j?' ':'')+pts[j][0].toFixed(1)+','+pts[j][1].toFixed(1);
+   parts.push('<polyline points="'+str+'" fill="none" stroke="'+s.col+'" stroke-width="2"'+(s.dsh?' stroke-dasharray="'+s.dsh+'"':'')+'/>');
+   for(var j2=0;j2<pts.length;j2++)parts.push(PFXMk(pts[j2][0],pts[j2][1],s.col,s.shape));
+  }
+  document.getElementById('PFXg'+i).innerHTML=parts.join('');
+ }
+}
+PFXDraw();
+</script>"""
+
+
+def ilines(pfx, gks, gmatch, mticklab, series, refs3, Lgrid, ceopts, title, ctlnote,
+           ylo, yhi, xaxis_lab, W=1080, H=480):
+    """Interactive per-Gamma line chart. series: [{lbl, kind, data, col, dsh, shape}] where
+    kind 'ow' -> data[ce][g][L]; 'ox' -> data[g][L]; 'xx' -> data[L]; 'fixed' -> data[g].
+    refs3: [(label, colour, value, dash)] horizontal reference lines.
+    ceopts: [(value, label)] for the c_eps dropdown. pfx must be a unique JS-safe prefix."""
+    pL, pR, pT, pB = 58, 120, 34, 56
+    X_ = lambda i: pL + i * (W - pL - pR) / (len(gks) - 1)
+    Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
+    pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
+          '<text x="%d" y="18" class="ct">%s</text>' % (pL, title)]
+    for lab, col, yv, dsh in refs3:
+        pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="1.2" '
+                  'stroke-dasharray="%s" opacity="0.65"/>' % (pL, Y_(yv), W - pR, Y_(yv), col, dsh))
+        pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="start">%s %.2f</text>'
+                  % (W - pR + 6, Y_(yv) + 3.5, lab, yv))
+    t = np.ceil(ylo * 2) / 2
+    while t <= yhi:
+        pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>' % (pL, Y_(t), W - pR, Y_(t)))
+        pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%g</text>' % (pL - 6, Y_(t) + 3.5, t))
+        t += 0.5
+    gm = gks.index(gmatch)
+    pp.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#888" stroke-width="1.2" '
+              'stroke-dasharray="3 3" opacity="0.8"/>' % (X_(gm), pT, X_(gm), H - pB))
+    for i, g in enumerate(gks):
+        pp.append('<text x="%.1f" y="%d" class="tk" text-anchor="middle">%s</text>'
+                  % (X_(i), H - pB + 16, mticklab if g == gmatch else g))
+    cbs = []
+    for si, s in enumerate(series):
+        pp.append('<g id="%sg%d"></g>' % (pfx, si))
+        sw = ('<svg width="30" height="14" viewBox="0 0 30 14" style="flex:none">'
+              '<line x1="1" y1="7" x2="29" y2="7" stroke="%s" stroke-width="2.4"%s/>'
+              '%s</svg>'
+              % (s["col"], (' stroke-dasharray="%s"' % s["dsh"]) if s["dsh"] else "",
+                 mkshape(15, 7, s["col"], s["shape"])))
+        cbs.append('<label style="display:flex;align-items:center;gap:6px;'
+                   'padding:2px 0;cursor:pointer;font-size:13px">'
+                   '<input type="checkbox" data-i="%d" checked onchange="%sTogM(%d,this)">'
+                   '%s %s</label>' % (si, pfx, si, sw, s["lbl"]))
+    LOPTS = ["best"] + list(Lgrid)
+    lop = ('<select id="%sLsel" onchange="%sDraw()" style="%s">%s</select>'
+           % (pfx, pfx, SELSTY,
+              "".join('<option value="%s"%s>%s</option>'
+                      % (L, " selected" if L == "best" else "",
+                         "best per point" if L == "best" else
+                         ("L = inf" if L == "inf" else "L = " + L))
+                      for L in LOPTS)))
+    cop = ('<select id="%scesel" onchange="%sDraw()" style="%s">%s</select>'
+           % (pfx, pfx, SELSTY,
+              "".join('<option value="%s"%s>%s</option>'
+                      % (v, " selected" if i == 0 else "", lab)
+                      for i, (v, lab) in enumerate(ceopts))))
+    mdd = ('<details id="%smdd" style="display:inline-block;position:relative;font-size:13px">'
+           '<summary style="list-style:none;cursor:pointer;border:1px solid #bbb;'
+           'border-radius:4px;padding:2px 10px;background:#fff;user-select:none">'
+           'methods (<span id="%smcnt">%d</span>/%d) &#9662;</summary>'
+           '<div style="position:absolute;z-index:30;top:calc(100%% + 4px);left:0;'
+           'background:#fff;border:1px solid #bbb;border-radius:6px;'
+           'box-shadow:0 4px 14px rgba(0,0,0,.18);padding:8px 14px;white-space:nowrap">'
+           '<div style="margin-bottom:4px"><a href="javascript:%sAllM(true)">all</a>'
+           ' &middot; <a href="javascript:%sAllM(false)">none</a></div>%s</div></details>'
+           % (pfx, pfx, len(series), len(series), pfx, pfx, "".join(cbs)))
+    ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
+           'flex-wrap:wrap;gap:4px">%s'
+           '<span class="hsub" style="margin-right:6px;margin-left:12px">Lipschitz L:</span>'
+           '%s<span class="hsub" style="margin-right:6px;margin-left:6px">'
+           'c<sub>&epsilon;</sub>:</span>%s'
+           '<span class="hsub">%s</span></div>' % (mdd, lop, cop, ctlnote))
+    pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
+    pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
+    pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">%s</text>'
+              % ((pL + W - pR) // 2, H - 8, xaxis_lab))
+    ym = (pT + H - pB) // 2
+    pp.append('<text x="15" y="%d" class="al" text-anchor="middle" '
+              'transform="rotate(-90 15 %d)">average test outcome E[Y]</text>' % (ym, ym))
+    pp.append('</svg>')
+    js = (_ILINES_JS.replace("PFX", pfx)
+          .replace("__DATA__", json.dumps(series)).replace("__GKS__", json.dumps(gks))
+          .replace("__X0__", "%.4f" % float(pL))
+          .replace("__XS__", "%.4f" % ((W - pL - pR) / (len(gks) - 1)))
+          .replace("__Y0__", "%.4f" % float(pT)).replace("__YHI__", "%.4f" % yhi)
+          .replace("__YS__", "%.4f" % ((H - pT - pB) / (yhi - ylo))))
+    return ('<figure class="fig">%s<div class="scrollx chartbox">%s</div>%s</figure>'
+            % (ctl, "".join(pp), js))
+
+
+_ISURF_JS = """
+<script>
+var PFXS=__S3__, PFXL=__LS__, PFXZLO=__ZLO__, PFXZHI=__ZHI__;
+var PFXyaw=0.65, PFXpit=0.42, PFXdrag=null;
+function PFXel(i){return document.getElementById(i);}
+function PFXrgb(t){
+ t=Math.max(0,Math.min(1,t));var r,g,b,u;
+ if(t<0.5){u=t*2;r=59+u*162;g=76+u*145;b=192+u*29;}
+ else{u=(t-0.5)*2;r=221-u*41;g=221-u*217;b=221-u*183;}
+ return 'rgb('+Math.round(r)+','+Math.round(g)+','+Math.round(b)+')';
+}
+function PFXdraw(){
+ var D=PFXS[PFXel('PFXce').value][PFXel('PFXm').value];
+ var G=D.g, Z=D.z, nL=PFXL.length, ng=G.length;
+ var cy=Math.cos(PFXyaw), sy=Math.sin(PFXyaw), cp=Math.cos(PFXpit), sp=Math.sin(PFXpit);
+ var W=980,H=560,CX=W/2,CY=H/2+14,SC=230;
+ function P(x,y,z){
+  var zn=((z-PFXZLO)/(PFXZHI-PFXZLO)*2-1)*0.62;
+  var xr=x*cy-y*sy, yr=x*sy+y*cy;
+  return [CX+SC*xr, CY-SC*(zn*cp+yr*sp), yr*cp-zn*sp];
+ }
+ function xs(i){return ng>1?-1+2*i/(ng-1):0;}
+ function ys(j){return nL>1?-1+2*j/(nL-1):0;}
+ var out=[];
+ var base=[P(-1,-1,PFXZLO),P(1,-1,PFXZLO),P(1,1,PFXZLO),P(-1,1,PFXZLO)];
+ out.push('<path d="M'+base.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('L')+'Z" fill="#f4f4f2" stroke="#999" stroke-width="0.8"/>');
+ var zt;
+ for(zt=Math.ceil(PFXZLO*2)/2; zt<=PFXZHI; zt+=0.5){
+  var a=P(-1,-1,zt);
+  out.push('<text x="'+(a[0]-6).toFixed(1)+'" y="'+(a[1]+3).toFixed(1)+'" class="tk" text-anchor="end">'+zt.toFixed(1)+'</text>');
+ }
+ var zx0=P(-1,-1,PFXZLO), zx1=P(-1,-1,PFXZHI);
+ out.push('<line x1="'+zx0[0].toFixed(1)+'" y1="'+zx0[1].toFixed(1)+'" x2="'+zx1[0].toFixed(1)+'" y2="'+zx1[1].toFixed(1)+'" stroke="#666" stroke-width="1"/>');
+ var quads=[];
+ for(var i=0;i+1<ng;i++)for(var j=0;j+1<nL;j++){
+  var p=[P(xs(i),ys(j),Z[i][j]),P(xs(i+1),ys(j),Z[i+1][j]),
+         P(xs(i+1),ys(j+1),Z[i+1][j+1]),P(xs(i),ys(j+1),Z[i][j+1])];
+  var za=(Z[i][j]+Z[i+1][j]+Z[i+1][j+1]+Z[i][j+1])/4;
+  quads.push([(p[0][2]+p[1][2]+p[2][2]+p[3][2])/4,p,za]);
+ }
+ quads.sort(function(a,b){return b[0]-a[0];});
+ for(var q=0;q<quads.length;q++){
+  var pp=quads[q][1];
+  out.push('<path d="M'+pp.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('L')+'Z" fill="'+PFXrgb((quads[q][2]-PFXZLO)/(PFXZHI-PFXZLO))+'" fill-opacity="0.93" stroke="#444" stroke-width="0.6"/>');
+ }
+ for(var i2=0;i2<ng;i2++){
+  var t=P(xs(i2),-1.16,PFXZLO);
+  out.push('<text x="'+t[0].toFixed(1)+'" y="'+t[1].toFixed(1)+'" class="tk" text-anchor="middle">'+(G[i2]=='__MG__'?'__MT__':G[i2])+'</text>');
+ }
+ for(var j2=0;j2<nL;j2++){
+  var t2=P(1.14,ys(j2),PFXZLO);
+  out.push('<text x="'+t2[0].toFixed(1)+'" y="'+t2[1].toFixed(1)+'" class="tk" text-anchor="start">'+PFXL[j2]+'</text>');
+ }
+ var tg=P(0,-1.42,PFXZLO), tl=P(1.45,0,PFXZLO);
+ out.push('<text x="'+tg[0].toFixed(1)+'" y="'+tg[1].toFixed(1)+'" class="al" text-anchor="middle">Gamma (* = matched)</text>');
+ out.push('<text x="'+tl[0].toFixed(1)+'" y="'+tl[1].toFixed(1)+'" class="al" text-anchor="middle">L</text>');
+ out.push('<text x="'+(zx1[0]).toFixed(1)+'" y="'+(zx1[1]-8).toFixed(1)+'" class="al" text-anchor="middle">E[Y]</text>');
+ PFXel('PFXsvg').innerHTML=out.join('');
+}
+function PFXdown(e){PFXdrag=[e.clientX,e.clientY];e.preventDefault();}
+function PFXmove(e){
+ if(!PFXdrag)return;
+ PFXyaw+=(e.clientX-PFXdrag[0])*0.008;
+ PFXpit=Math.max(0.05,Math.min(1.35,PFXpit+(e.clientY-PFXdrag[1])*0.006));
+ PFXdrag=[e.clientX,e.clientY];PFXdraw();
+}
+document.addEventListener('mouseup',function(){PFXdrag=null;});
+document.addEventListener('mousemove',PFXmove);
+PFXel('PFXsvg').addEventListener('mousedown',PFXdown);
+PFXel('PFXsvg').addEventListener('touchstart',function(e){var t=e.touches[0];PFXdown({clientX:t.clientX,clientY:t.clientY,preventDefault:function(){e.preventDefault();}});},{passive:false});
+PFXel('PFXsvg').addEventListener('touchmove',function(e){var t=e.touches[0];PFXmove({clientX:t.clientX,clientY:t.clientY});e.preventDefault();},{passive:false});
+document.addEventListener('touchend',function(){PFXdrag=null;});
+PFXdraw();
+</script>"""
+
+
+def isurf(pfx, S3, Ls, zlo, zhi, ceopts, methods, gmatch, mticklab, ctlnote):
+    """Interactive drag-to-rotate 3-D surface. S3[ce][method] = {"g": [...], "z": [[...]]}
+    (rows indexed by gamma, columns by Ls). pfx must be a unique JS-safe prefix."""
+    msel = ('<select id="%sm" onchange="%sdraw()" style="%s">%s</select>'
+            % (pfx, pfx, SELSTY,
+               "".join('<option value="%s"%s>%s</option>'
+                       % (m, " selected" if i == 0 else "", m)
+                       for i, m in enumerate(methods))))
+    cesel = ('<select id="%sce" onchange="%sdraw()" style="%s">%s</select>'
+             % (pfx, pfx, SELSTY,
+                "".join('<option value="%s"%s>%s</option>'
+                        % (v, " selected" if i == 0 else "", lab)
+                        for i, (v, lab) in enumerate(ceopts))))
+    ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
+           'flex-wrap:wrap;gap:6px"><span class="hsub">method:</span>%s'
+           '<span class="hsub">c<sub>&epsilon;</sub>:</span>%s'
+           '<span class="hsub">%s</span></div>' % (msel, cesel, ctlnote))
+    js = (_ISURF_JS.replace("PFX", pfx)
+          .replace("__S3__", json.dumps(S3)).replace("__LS__", json.dumps(Ls))
+          .replace("__ZLO__", "%f" % zlo).replace("__ZHI__", "%f" % zhi)
+          .replace("__MG__", gmatch).replace("__MT__", mticklab))
+    return ('<figure class="fig">%s<div class="scrollx chartbox">'
+            '<svg id="%ssvg" viewBox="0 0 980 560" class="chart" '
+            'style="cursor:grab;touch-action:none"></svg></div>%s</figure>' % (ctl, pfx, js))
+
+
 KM = _J(_MSM / "kmz_main_ce1.0.json")
 KM_CE = {ce: _J(_MSM / ("kmz_main_ce%s.json" % ce)) for ce in ("1.0", "1.5", "2.0")}
 KM_G = {"05": _J(_MSM / "kmz_g05.json"), "10": _J(_MSM / "kmz_g10.json")}
@@ -793,330 +1075,68 @@ def _kmz_tab():
                            note="0 = best constant policy, 1 = oracle; only the "
                                 "Gamma-dependent methods (O-W, O-X, Hess, Kallus) are shown")
 
-    # ---- per-Gamma LINE chart, every method ----
-    def _lines():
-        W, H = 1080, 480
-        pL, pR, pT, pB = 58, 120, 34, 56
-        X_ = lambda i: pL + i * (W - pL - pR) / (len(gks) - 1)
-        ylo, yhi = -1.12, 1.55
-        Y_ = lambda v: pT + (yhi - v) / (yhi - ylo) * (H - pT - pB)
-        # colour = estimator; dash + marker shape = uncertainty set (documented in the
-        # "read me" tab): O-W solid/filled circle, O-X dashed/open square, X-X dotted/open tri
-        DSH = {"IPW-O-W": ("#1f77b4", "", "circle"), "DR-O-W": ("#d62728", "", "circle"),
-               "IPW-O-X": ("#1f77b4", "6 4", "square"), "DR-O-X": ("#d62728", "6 4", "square"),
-               "Hajek-O-X": ("#0a7d33", "6 4", "square"),
-               "IPW-X-X": ("#1f77b4", "2 3", "otri"), "DR-X-X": ("#d62728", "2 3", "otri"),
-               "Direct-X-X": ("#64748b", "2 3", "otri"),
-               "Hess (paper)": ("#7d1f6a", "", "diamond"),
-               "Kallus (paper)": ("#8c564b", "", "tri")}
+    # ---- per-Gamma LINE chart (shared helper ilines, JS prefix "sw") ----
+    # series kinds: ow -> data[ce][gamma][L]; ox -> data[gamma][L] (epsilon-invariant,
+    # verified equal across the ce files); xx -> data[L] (Gamma-free); fixed -> data[gamma]
+    CES = [ce for ce in ("1.0", "1.5", "2.0") if KM_CE.get(ce)]
+    CEOPT = [(ce, "c_eps = %s%s" % (ce, " (tight)" if ce == "1.0" else "")) for ce in CES]
+    series = []
+    for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
+        if m.endswith("O-W"):
+            series.append({"lbl": LBL2[m], "kind": "ow",
+                           "data": {ce: KM_CE[ce]["surface"][m] for ce in CES}})
+        else:
+            series.append({"lbl": LBL2[m], "kind": "ox", "data": surf[m]})
+    if KM_XX:
+        for m, dd in KM_XX["mean"].items():
+            series.append({"lbl": m.replace("DoublyRobust", "DR"), "kind": "xx", "data": dd})
+    hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
+    if KM_H15: hx2["15"] = KM_H15["mean"]
+    if KM_H50: hx2["50"] = KM_H50["mean"]
+    if hx2:
+        series.append({"lbl": "Hess (paper)", "kind": "fixed", "data": hx2})
+    kx2 = ({("%g" % g): v for g, v in zip(KM_KAL["gammas"],
+            KM_KAL["regimes"]["uncap"]["mean"]["Kallus"])} if KM_KAL else {})
+    if KM_K15: kx2["15"] = KM_K15["regimes"]["uncap"]["mean"]["Kallus"][0]
+    if KM_K50: kx2["50"] = KM_K50["regimes"]["uncap"]["mean"]["Kallus"][0]
+    if kx2:
+        series.append({"lbl": "Kallus (paper)", "kind": "fixed", "data": kx2})
+    for s in series:
+        s["col"], s["dsh"], s["shape"] = DSHMAP.get(s["lbl"], ("#000", "", "circle"))
+    sweep_lines = ilines(
+        "sw", gks, KMGK, "4.48*", series,
+        [("oracle", "#111", R["oracle"], "5 4"), ("all-treat", "#555", R["all"], "3 3"),
+         ("never-treat", "#555", R["never"], "3 3")],
+        KM["Lgrid"], CEOPT,
+        "KMZ: all methods across the solver Gamma (n=400, 5 seeds; pick L and c_eps below)",
+        "(X-X was solved only at L = inf, 3, 1 &mdash; its lines hide at other L; "
+        "c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only, and "
+        "&Gamma; = 15, 50 exist only at c<sub>&epsilon;</sub> = 1.0; Hess/Kallus have "
+        "neither knob)",
+        -1.12, 1.55,
+        "Gamma assumed by the solver (* = matched Gamma) -- ordinal spacing")
 
-        def _mk(x, y, col, shape):
-            if shape == "circle":
-                return '<circle cx="%.1f" cy="%.1f" r="3" fill="%s"/>' % (x, y, col)
-            if shape == "square":
-                return ('<rect x="%.1f" y="%.1f" width="5.6" height="5.6" fill="#fff" '
-                        'stroke="%s" stroke-width="1.6"/>' % (x - 2.8, y - 2.8, col))
-            if shape == "diamond":
-                return ('<rect x="%.1f" y="%.1f" width="5.2" height="5.2" fill="%s" '
-                        'transform="rotate(45 %.1f %.1f)"/>' % (x - 2.6, y - 2.6, col, x, y))
-            if shape == "otri":
-                return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="#fff" '
-                        'stroke="%s" stroke-width="1.6"/>'
-                        % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
-            return ('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="%s"/>'
-                    % (x, y - 3.4, x - 3.2, y + 2.6, x + 3.2, y + 2.6, col))
-
-        # ---- series data handed to the page's JS: kind decides how (L, c_eps) apply ----
-        # ow: data[ce][gamma][L]; ox: data[gamma][L] (epsilon-invariant, verified equal
-        # across the ce files); xx: data[L] (Gamma-free); fixed: data[gamma] (Hess/Kallus,
-        # no L, no epsilon)
-        CES = [ce for ce in ("1.0", "1.5", "2.0") if KM_CE.get(ce)]
-        series = []
+    # ---- interactive 3-D surface (shared helper isurf, JS prefix "s3") ----
+    Ls = list(KM["Lgrid"])
+    S3 = {}
+    zlo, zhi = 1e9, -1e9
+    for ce in CES:
+        S3[ce] = {}
         for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
-            if m.endswith("O-W"):
-                series.append({"lbl": LBL2[m], "kind": "ow",
-                               "data": {ce: KM_CE[ce]["surface"][m] for ce in CES}})
-            else:
-                series.append({"lbl": LBL2[m], "kind": "ox", "data": surf[m]})
-        if KM_XX:
-            for m, dd in KM_XX["mean"].items():
-                series.append({"lbl": m.replace("DoublyRobust", "DR"), "kind": "xx", "data": dd})
-        hx2 = {g: v for g, v in zip(KM_HESS["gammas"], KM_HESS["mean"])} if KM_HESS else {}
-        if KM_H15: hx2["15"] = KM_H15["mean"]
-        if KM_H50: hx2["50"] = KM_H50["mean"]
-        if hx2:
-            series.append({"lbl": "Hess (paper)", "kind": "fixed", "data": hx2})
-        kx2 = ({("%g" % g): v for g, v in zip(KM_KAL["gammas"],
-                KM_KAL["regimes"]["uncap"]["mean"]["Kallus"])} if KM_KAL else {})
-        if KM_K15: kx2["15"] = KM_K15["regimes"]["uncap"]["mean"]["Kallus"][0]
-        if KM_K50: kx2["50"] = KM_K50["regimes"]["uncap"]["mean"]["Kallus"][0]
-        if kx2:
-            series.append({"lbl": "Kallus (paper)", "kind": "fixed", "data": kx2})
-        for s in series:
-            s["col"], s["dsh"], s["shape"] = DSH.get(s["lbl"], ("#000", "", "circle"))
-
-        pp = ['<svg viewBox="0 0 %d %d" class="chart">' % (W, H),
-              '<text x="%d" y="18" class="ct">KMZ: all methods across the solver Gamma '
-              '(n=400, 5 seeds; pick L and c_eps below)</text>' % pL]
-        for lab, col, yv, dsh in (("oracle", "#111", R["oracle"], "5 4"),
-                                  ("all-treat", "#555", R["all"], "3 3"),
-                                  ("never-treat", "#555", R["never"], "3 3")):
-            pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="1.2" '
-                      'stroke-dasharray="%s" opacity="0.65"/>' % (pL, Y_(yv), W - pR, Y_(yv), col, dsh))
-            pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="start">%s %.2f</text>'
-                      % (W - pR + 6, Y_(yv) + 3.5, lab, yv))
-        for t in (-1.0, -0.5, 0.0, 0.5, 1.0):
-            pp.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" class="grid"/>' % (pL, Y_(t), W - pR, Y_(t)))
-            pp.append('<text x="%d" y="%.1f" class="tk" text-anchor="end">%g</text>' % (pL - 6, Y_(t) + 3.5, t))
-        gm = gks.index(KMGK)
-        pp.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#888" stroke-width="1.2" '
-                  'stroke-dasharray="3 3" opacity="0.8"/>' % (X_(gm), pT, X_(gm), H - pB))
-        for i, g in enumerate(gks):
-            pp.append('<text x="%.1f" y="%d" class="tk" text-anchor="middle">%s%s</text>'
-                      % (X_(i), H - pB + 16, g if g != KMGK else "4.48",
-                         "*" if g == KMGK else ""))
-        cbs = []
-        for si, s in enumerate(series):
-            pp.append('<g id="swg%d"></g>' % si)   # filled in by swDraw()
-            sw = ('<svg width="30" height="14" viewBox="0 0 30 14" style="flex:none">'
-                  '<line x1="1" y1="7" x2="29" y2="7" stroke="%s" stroke-width="2.4"%s/>'
-                  '%s</svg>'
-                  % (s["col"], (' stroke-dasharray="%s"' % s["dsh"]) if s["dsh"] else "",
-                     _mk(15, 7, s["col"], s["shape"])))
-            cbs.append('<label style="display:flex;align-items:center;gap:6px;'
-                       'padding:2px 0;cursor:pointer;font-size:13px">'
-                       '<input type="checkbox" data-i="%d" checked onchange="swTogM(%d,this)">'
-                       '%s %s</label>' % (si, si, sw, s["lbl"]))
-        LOPTS = ["best"] + list(KM["Lgrid"])
-        SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb;'
-                  'border-radius:4px;background:#fff;cursor:pointer')
-        lop = ('<select id="swLsel" onchange="swDraw()" style="%s">%s</select>'
-               % (SELSTY,
-                  "".join('<option value="%s"%s>%s</option>'
-                          % (L, " selected" if L == "best" else "",
-                             "best per point" if L == "best" else
-                             ("L = inf" if L == "inf" else "L = " + L))
-                          for L in LOPTS)))
-        cop = ('<select id="swcesel" onchange="swDraw()" style="%s">%s</select>'
-               % (SELSTY,
-                  "".join('<option value="%s"%s>c_eps = %s%s</option>'
-                          % (ce, " selected" if ce == "1.0" else "", ce,
-                             " (tight)" if ce == "1.0" else "")
-                          for ce in CES)))
-        mdd = ('<details id="swmdd" style="display:inline-block;position:relative;font-size:13px">'
-               '<summary style="list-style:none;cursor:pointer;border:1px solid #bbb;'
-               'border-radius:4px;padding:2px 10px;background:#fff;user-select:none">'
-               'methods (<span id="swmcnt">%d</span>/%d) &#9662;</summary>'
-               '<div style="position:absolute;z-index:30;top:calc(100%% + 4px);left:0;'
-               'background:#fff;border:1px solid #bbb;border-radius:6px;'
-               'box-shadow:0 4px 14px rgba(0,0,0,.18);padding:8px 14px;white-space:nowrap">'
-               '<div style="margin-bottom:4px"><a href="javascript:swAllM(true)">all</a>'
-               ' &middot; <a href="javascript:swAllM(false)">none</a></div>%s</div></details>'
-               % (len(series), len(series), "".join(cbs)))
-        ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
-               'flex-wrap:wrap;gap:4px">%s'
-               '<span class="hsub" style="margin-right:6px;margin-left:12px">Lipschitz L:</span>'
-               '%s<span class="hsub" style="margin-right:6px;margin-left:6px">'
-               'c<sub>&epsilon;</sub>:</span>%s'
-               '<span class="hsub">(X-X was solved only at L = inf, 3, 1 &mdash; its lines hide '
-               'at other L; c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only, '
-               'and &Gamma; = 15, 50 exist only at c<sub>&epsilon;</sub> = 1.0; Hess/Kallus '
-               'have neither knob)</span></div>'
-               % (mdd, lop, cop))
-        pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, H - pB, W - pR, H - pB))
-        pp.append('<line x1="%d" y1="%d" x2="%d" y2="%d" class="ax"/>' % (pL, pT, pL, H - pB))
-        pp.append('<text x="%d" y="%d" class="al" text-anchor="middle">Gamma assumed by the solver '
-                  '(* = matched Gamma) -- ordinal spacing</text>'
-                  % ((pL + W - pR) // 2, H - 8))
-        ym = (pT + H - pB) // 2
-        pp.append('<text x="15" y="%d" class="al" text-anchor="middle" '
-                  'transform="rotate(-90 15 %d)">average test outcome E[Y]</text>' % (ym, ym))
-        pp.append('</svg>')
-        js = """
-<script>
-var SW=%s, SWGK=%s;
-var SWX0=%.4f, SWXS=%.4f, SWY0=%.1f, SWYHI=%.4f, SWYS=%.4f;
-function swX(k){return SWX0+k*SWXS;}
-function swY(v){return SWY0+(SWYHI-v)*SWYS;}
-function swMk(x,y,c,shp){
- x=+x; y=+y;
- if(shp=='circle')return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+c+'"/>';
- if(shp=='square')return '<rect x="'+(x-2.8).toFixed(1)+'" y="'+(y-2.8).toFixed(1)+'" width="5.6" height="5.6" fill="#fff" stroke="'+c+'" stroke-width="1.6"/>';
- if(shp=='diamond')return '<rect x="'+(x-2.6).toFixed(1)+'" y="'+(y-2.6).toFixed(1)+'" width="5.2" height="5.2" fill="'+c+'" transform="rotate(45 '+x.toFixed(1)+' '+y.toFixed(1)+')"/>';
- var f=(shp=='otri')?'#fff':c;
- var st=(shp=='otri')?' stroke="'+c+'" stroke-width="1.6"':'';
- return '<path d="M '+x.toFixed(1)+' '+(y-3.4).toFixed(1)+' L '+(x-3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' L '+(x+3.2).toFixed(1)+' '+(y+2.6).toFixed(1)+' Z" fill="'+f+'"'+st+'/>';
-}
-function swTogM(i,cb){
- document.getElementById('swg'+i).style.display=cb.checked?'':'none';
- swCntM();
-}
-function swAllM(v){
- var cbs=document.querySelectorAll('#swmdd input[type=checkbox]');
- for(var i=0;i<cbs.length;i++){
-  cbs[i].checked=v;
-  document.getElementById('swg'+cbs[i].getAttribute('data-i')).style.display=v?'':'none';
- }
- swCntM();
-}
-function swCntM(){
- var cbs=document.querySelectorAll('#swmdd input[type=checkbox]'),n=0;
- for(var i=0;i<cbs.length;i++)if(cbs[i].checked)n++;
- document.getElementById('swmcnt').textContent=n;
-}
-function swBest(row){var b=null;for(var k in row){if(b===null||row[k]>b)b=row[k];}return b;}
-function swVal(s,g,L,ce){
- if(s.kind=='fixed')return (g in s.data)?s.data[g]:null;
- if(s.kind=='xx'){if(L=='best')return swBest(s.data);return (L in s.data)?s.data[L]:null;}
- var srf=(s.kind=='ow')?s.data[ce]:s.data;
- if(!srf||!(g in srf))return null;
- if(L=='best')return swBest(srf[g]);
- return (L in srf[g])?srf[g][L]:null;
-}
-function swDraw(){
- var L=document.getElementById('swLsel').value;
- var ce=document.getElementById('swcesel').value;
- for(var i=0;i<SW.length;i++){
-  var s=SW[i],parts=[],pts=[];
-  for(var k=0;k<SWGK.length;k++){
-   var v=swVal(s,SWGK[k],L,ce);
-   if(v!==null&&v!==undefined)pts.push([swX(k),swY(v)]);
-  }
-  if(pts.length){
-   var str='';
-   for(var j=0;j<pts.length;j++)str+=(j?' ':'')+pts[j][0].toFixed(1)+','+pts[j][1].toFixed(1);
-   parts.push('<polyline points="'+str+'" fill="none" stroke="'+s.col+'" stroke-width="2"'+(s.dsh?' stroke-dasharray="'+s.dsh+'"':'')+'/>');
-   for(var j2=0;j2<pts.length;j2++)parts.push(swMk(pts[j2][0],pts[j2][1],s.col,s.shape));
-  }
-  document.getElementById('swg'+i).innerHTML=parts.join('');
- }
-}
-swDraw();
-</script>"""
-        js = js % (json.dumps(series), json.dumps(gks),
-                   float(pL), (W - pL - pR) / (len(gks) - 1),
-                   float(pT), yhi, (H - pT - pB) / (yhi - ylo))
-        return ('<figure class="fig">%s<div class="scrollx chartbox">%s</div>%s</figure>'
-                % (ctl, "".join(pp), js))
-
-    sweep_lines = _lines()
-
-    # ---- interactive 3-D surface: Gamma x L x E[Y], drag to rotate ----
-    def _surf3d():
-        CES = [ce for ce in ("1.0", "1.5", "2.0") if KM_CE.get(ce)]
-        SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb;'
-                  'border-radius:4px;background:#fff;cursor:pointer')
-        Ls = list(KM["Lgrid"])
-        S3 = {}
-        zlo, zhi = 1e9, -1e9
-        for ce in CES:
-            S3[ce] = {}
-            for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X",
-                      "Hajek-O-X"]:
-                src = KM_CE[ce]["surface"][m] if m.endswith("O-W") else surf[m]
-                gam = [g for g in gks if g in src]
-                z = [[src[g][L] for L in Ls] for g in gam]
-                S3[ce][LBL2[m]] = {"g": gam, "z": z}
-                for row in z:
-                    zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
-        zlo, zhi = zlo - 0.05, zhi + 0.05
-        msel = ('<select id="s3m" onchange="s3draw()" style="%s">%s</select>'
-                % (SELSTY, "".join('<option value="%s"%s>%s</option>'
-                                   % (LBL2[m], " selected" if m == "IPW-O-W" else "", LBL2[m])
-                                   for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X",
-                                             "DoublyRobust-O-X", "Hajek-O-X"])))
-        cesel = ('<select id="s3ce" onchange="s3draw()" style="%s">%s</select>'
-                 % (SELSTY, "".join('<option value="%s"%s>c_eps = %s%s</option>'
-                                    % (ce, " selected" if ce == "1.0" else "", ce,
-                                       " (tight)" if ce == "1.0" else "")
-                                    for ce in CES)))
-        ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;'
-               'flex-wrap:wrap;gap:6px"><span class="hsub">method:</span>%s'
-               '<span class="hsub">c<sub>&epsilon;</sub>:</span>%s'
-               '<span class="hsub">drag the plot to rotate; colour = height; '
-               'X-X / Hess / Kallus have no (&Gamma;, L) surface; '
-               'O-W at c<sub>&epsilon;</sub> &gt; 1 stops at &Gamma; = 8</span></div>'
-               % (msel, cesel))
-        js = """
-<script>
-var S3=%s, S3L=%s, S3ZLO=%f, S3ZHI=%f;
-var s3yaw=0.65, s3pit=0.42, s3drag=null;
-function s3el(i){return document.getElementById(i);}
-function s3rgb(t){
- t=Math.max(0,Math.min(1,t));var r,g,b,u;
- if(t<0.5){u=t*2;r=59+u*162;g=76+u*145;b=192+u*29;}
- else{u=(t-0.5)*2;r=221-u*41;g=221-u*217;b=221-u*183;}
- return 'rgb('+Math.round(r)+','+Math.round(g)+','+Math.round(b)+')';
-}
-function s3draw(){
- var D=S3[s3el('s3ce').value][s3el('s3m').value];
- var G=D.g, Z=D.z, nL=S3L.length, ng=G.length;
- var cy=Math.cos(s3yaw), sy=Math.sin(s3yaw), cp=Math.cos(s3pit), sp=Math.sin(s3pit);
- var W=980,H=560,CX=W/2,CY=H/2+14,SC=230;
- function P(x,y,z){
-  var zn=((z-S3ZLO)/(S3ZHI-S3ZLO)*2-1)*0.62;
-  var xr=x*cy-y*sy, yr=x*sy+y*cy;
-  return [CX+SC*xr, CY-SC*(zn*cp+yr*sp), yr*cp-zn*sp];
- }
- function xs(i){return ng>1?-1+2*i/(ng-1):0;}
- function ys(j){return nL>1?-1+2*j/(nL-1):0;}
- var out=[];
- var base=[P(-1,-1,S3ZLO),P(1,-1,S3ZLO),P(1,1,S3ZLO),P(-1,1,S3ZLO)];
- out.push('<path d="M'+base.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('L')+'Z" fill="#f4f4f2" stroke="#999" stroke-width="0.8"/>');
- var zt;
- for(zt=Math.ceil(S3ZLO*2)/2; zt<=S3ZHI; zt+=0.5){
-  var a=P(-1,-1,zt);
-  out.push('<text x="'+(a[0]-6).toFixed(1)+'" y="'+(a[1]+3).toFixed(1)+'" class="tk" text-anchor="end">'+zt.toFixed(1)+'</text>');
- }
- var zx0=P(-1,-1,S3ZLO), zx1=P(-1,-1,S3ZHI);
- out.push('<line x1="'+zx0[0].toFixed(1)+'" y1="'+zx0[1].toFixed(1)+'" x2="'+zx1[0].toFixed(1)+'" y2="'+zx1[1].toFixed(1)+'" stroke="#666" stroke-width="1"/>');
- var quads=[];
- for(var i=0;i+1<ng;i++)for(var j=0;j+1<nL;j++){
-  var p=[P(xs(i),ys(j),Z[i][j]),P(xs(i+1),ys(j),Z[i+1][j]),
-         P(xs(i+1),ys(j+1),Z[i+1][j+1]),P(xs(i),ys(j+1),Z[i][j+1])];
-  var za=(Z[i][j]+Z[i+1][j]+Z[i+1][j+1]+Z[i][j+1])/4;
-  quads.push([(p[0][2]+p[1][2]+p[2][2]+p[3][2])/4,p,za]);
- }
- quads.sort(function(a,b){return b[0]-a[0];});
- for(var q=0;q<quads.length;q++){
-  var pp=quads[q][1];
-  out.push('<path d="M'+pp.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('L')+'Z" fill="'+s3rgb((quads[q][2]-S3ZLO)/(S3ZHI-S3ZLO))+'" fill-opacity="0.93" stroke="#444" stroke-width="0.6"/>');
- }
- for(var i2=0;i2<ng;i2++){
-  var t=P(xs(i2),-1.16,S3ZLO);
-  out.push('<text x="'+t[0].toFixed(1)+'" y="'+t[1].toFixed(1)+'" class="tk" text-anchor="middle">'+(G[i2]=='4.4817'?'4.48*':G[i2])+'</text>');
- }
- for(var j2=0;j2<nL;j2++){
-  var t2=P(1.14,ys(j2),S3ZLO);
-  out.push('<text x="'+t2[0].toFixed(1)+'" y="'+t2[1].toFixed(1)+'" class="tk" text-anchor="start">'+S3L[j2]+'</text>');
- }
- var tg=P(0,-1.42,S3ZLO), tl=P(1.45,0,S3ZLO);
- out.push('<text x="'+tg[0].toFixed(1)+'" y="'+tg[1].toFixed(1)+'" class="al" text-anchor="middle">Gamma (* = matched)</text>');
- out.push('<text x="'+tl[0].toFixed(1)+'" y="'+tl[1].toFixed(1)+'" class="al" text-anchor="middle">L</text>');
- out.push('<text x="'+(zx1[0]).toFixed(1)+'" y="'+(zx1[1]-8).toFixed(1)+'" class="al" text-anchor="middle">E[Y]</text>');
- s3el('s3svg').innerHTML=out.join('');
-}
-function s3down(e){s3drag=[e.clientX,e.clientY];e.preventDefault();}
-function s3move(e){
- if(!s3drag)return;
- s3yaw+=(e.clientX-s3drag[0])*0.008;
- s3pit=Math.max(0.05,Math.min(1.35,s3pit+(e.clientY-s3drag[1])*0.006));
- s3drag=[e.clientX,e.clientY];s3draw();
-}
-document.addEventListener('mouseup',function(){s3drag=null;});
-document.addEventListener('mousemove',s3move);
-s3el('s3svg').addEventListener('mousedown',s3down);
-s3el('s3svg').addEventListener('touchstart',function(e){var t=e.touches[0];s3down({clientX:t.clientX,clientY:t.clientY,preventDefault:function(){e.preventDefault();}});},{passive:false});
-s3el('s3svg').addEventListener('touchmove',function(e){var t=e.touches[0];s3move({clientX:t.clientX,clientY:t.clientY});e.preventDefault();},{passive:false});
-document.addEventListener('touchend',function(){s3drag=null;});
-s3draw();
-</script>"""
-        js = js % (json.dumps(S3), json.dumps(Ls), zlo, zhi)
-        return ('<figure class="fig">%s<div class="scrollx chartbox">'
-                '<svg id="s3svg" viewBox="0 0 980 560" class="chart" '
-                'style="cursor:grab;touch-action:none"></svg></div>%s</figure>' % (ctl, js))
-
-    surf3d = _surf3d()
+            src = KM_CE[ce]["surface"][m] if m.endswith("O-W") else surf[m]
+            gam = [g for g in gks if g in src]
+            z = [[src[g][L] for L in Ls] for g in gam]
+            S3[ce][LBL2[m]] = {"g": gam, "z": z}
+            for row in z:
+                zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
+    zlo, zhi = zlo - 0.05, zhi + 0.05
+    surf3d = isurf(
+        "s3", S3, Ls, zlo, zhi, CEOPT,
+        [LBL2[m] for m in ["IPW-O-W", "DoublyRobust-O-W", "IPW-O-X", "DoublyRobust-O-X",
+                           "Hajek-O-X"]],
+        "4.4817", "4.48*",
+        "drag the plot to rotate; colour = height; X-X / Hess / Kallus have no "
+        "(&Gamma;, L) surface; O-W at c<sub>&epsilon;</sub> &gt; 1 stops at &Gamma; = 8")
 
     ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
     chart = barchart(stats, "KMZ at the matched Gamma* = 4.4817, n=400 -- normalised value",
@@ -1130,6 +1150,226 @@ s3draw();
 
 (_KMZR, KMZ_MAIN, KMZ_TM, KMZ_ST, KMZ_CE, KMZ_CAP, KMZ_KB, KMZ_CHART,
  KMZ_SWEEP, KMZ_SWEEPCH, KMZ_3D) = _kmz_tab()
+
+
+# ------------------------------------------------ rational-DM DGP tab
+# nocouple config (a=2, alpha=0, delta=1, beta0=2, Gamma*=5), n=400, 5 seeds; the solver's
+# Gamma swept over {1,2,3,5*,8,15,50} x L {inf..0.5} x c_eps {1,1.5,2}; X-X on the full L
+# grid (Gamma-free); paper Kallus + paper Hess per Gamma. Hess-kNN deliberately EXCLUDED.
+RAT_GK = ["1", "2", "3", "5", "8", "15", "50"]
+RAT_MATCH = "5"
+RAT_CES = ["1", "1.5", "2"]
+RAT_CEOPT = [("1", "c_eps = 1.0 (tight)"), ("1.5", "c_eps = 1.5"), ("2", "c_eps = 2.0")]
+RAT_OX = ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]
+RAT_OW = ["IPW-O-W", "DoublyRobust-O-W", "Hajek-O-W"]
+RAT_LBL = {"IPW-O-X": "IPW-O-X", "DoublyRobust-O-X": "DR-O-X", "Hajek-O-X": "Hajek-O-X",
+           "IPW-O-W": "IPW-O-W", "DoublyRobust-O-W": "DR-O-W", "Hajek-O-W": "Hajek-O-W"}
+
+RAT_MATH = "".join([
+    M(r"x \sim \mathrm{Unif}[-1,1], \qquad S = \pm 1 \text{ with prob } \tfrac12, "
+      r"\quad S \perp x \quad\text{(the DM's private prognostic signal)}"),
+    M(r"e(x,S) = \Pr(T{=}1 \mid x, S) = \sigma\!\big(2x + \tfrac12 \ln(5)\, S\big) "
+      r"\quad\text{-- treatment probability RISES in } x \text{ and } S"),
+    M(r"Y_0 = 2S + \varepsilon_0, \qquad Y_1 = Y_0 + 2x + S + \varepsilon_1, \qquad "
+      r"\varepsilon \sim \mathcal{N}(0, 0.6^2) \ \Rightarrow\ \tau(x,S) = 2x + S"),
+    M(r"\Rightarrow\ \text{the } S\text{-odds ratio is } e^{\ln 5} = 5 \text{ at every } x: "
+      r"\ \Gamma^{\!*} = 5 \text{ exactly, no clipping; } E[\tau \mid x] = 2x, "
+      r"\text{ the oracle treats } x > 0"),
+])
+
+
+def _rat_tab():
+    import glob
+    fs = sorted(glob.glob(str(ROOT / "assets" / "exp_rational" / "gsweep"
+                              / "nocouple_s*_g*.json")))
+    if len(fs) < 35:
+        return None
+    cells = [json.loads(Path(f).read_text()) for f in fs]
+    seeds = sorted({c["seed"] for c in cells})
+    Ls = cells[0]["Lgrid"]
+    by = {(c["seed"], c["gamma"]): c for c in cells}
+    g1 = [by[(s, "1")] for s in seeds]
+
+    refs = {k: float(np.mean([c["refs"][k] for c in g1])) for k in ("oracle", "all", "never")}
+    bc = max(refs["all"], refs["never"]); sc = refs["oracle"] - bc
+    nz = lambda v: (v - bc) / sc
+
+    # seed-averaged surfaces
+    surf = {}                        # O-W: [m][ce][g][L]; O-X: [m][g][L]  (raw E[Y] means)
+    for m in RAT_OX:
+        surf[m] = {g: {L: float(np.mean([by[(s, g)]["grid"][m]["1"][L] for s in seeds]))
+                       for L in Ls} for g in RAT_GK}
+    for m in RAT_OW:
+        surf[m] = {ce: {g: {L: float(np.mean([by[(s, g)]["grid"][m][ce][L] for s in seeds]))
+                            for L in Ls} for g in RAT_GK} for ce in RAT_CES}
+    xx = {m.replace("DoublyRobust", "DR"):
+          {L: float(np.mean([c["xx"][m][L] for c in g1])) for L in Ls}
+          for m in ("IPW-X-X", "DoublyRobust-X-X", "Direct-X-X")}
+    naive = float(np.mean([c["naive"] for c in g1]))
+    hess = {g: float(np.mean([by[(s, g)]["baselines"]["SharpHess"] for s in seeds]))
+            for g in RAT_GK}
+    kal = {g: float(np.mean([by[(s, g)]["baselines"]["Kallus"] for s in seeds]))
+           for g in RAT_GK}
+
+    # ---- matched-Gamma table + bar chart (normalised; best cell per method) ----
+    rows, stats = [], {}
+    for m in RAT_OW:
+        best = max((surf[m][ce][RAT_MATCH][L], ce, L) for ce in RAT_CES for L in Ls)
+        per = [by[(s, RAT_MATCH)]["grid"][m][best[1]][best[2]] for s in seeds]
+        sd = float(np.std([(v - by[(s, RAT_MATCH)]["bc"]) / by[(s, RAT_MATCH)]["sc"]
+                           for v, s in zip(per, seeds)]))
+        lbl = RAT_LBL[m]
+        stats[(lbl, "rat")] = (nz(best[0]), sd)
+        rows.append((nz(best[0]), "<tr class='hl'><td class='l'>%s</td><td>%.3f</td>"
+                     "<td>%.3f</td><td>%.3f</td><td>%s, L=%s</td></tr>"
+                     % (lbl, best[0], nz(best[0]), sd, "c_eps=" + best[1], best[2])))
+    for m in RAT_OX:
+        best = max((surf[m][RAT_MATCH][L], L) for L in Ls)
+        per = [by[(s, RAT_MATCH)]["grid"][m]["1"][best[1]] for s in seeds]
+        sd = float(np.std([(v - by[(s, RAT_MATCH)]["bc"]) / by[(s, RAT_MATCH)]["sc"]
+                           for v, s in zip(per, seeds)]))
+        lbl = RAT_LBL[m]
+        stats[(lbl, "rat")] = (nz(best[0]), sd)
+        rows.append((nz(best[0]), "<tr><td class='l'>%s</td><td>%.3f</td><td>%.3f</td>"
+                     "<td>%.3f</td><td>&mdash;, L=%s</td></tr>"
+                     % (lbl, best[0], nz(best[0]), sd, best[1])))
+    for lbl, dd in xx.items():
+        best = max((v, L) for L, v in dd.items())
+        per = [c["xx"][lbl.replace("DR", "DoublyRobust")][best[1]] for c in g1]
+        sd = float(np.std([(v - c["bc"]) / c["sc"] for v, c in zip(per, g1)]))
+        stats[(lbl, "rat")] = (nz(best[0]), sd)
+        rows.append((nz(best[0]), "<tr><td class='l'>%s <span class='hsub'>(&Gamma;-free)"
+                     "</span></td><td>%.3f</td><td>%.3f</td><td>%.3f</td><td>&mdash;, L=%s"
+                     "</td></tr>" % (lbl, best[0], nz(best[0]), sd, best[1])))
+    for lbl, dd in (("Hess (paper)", hess), ("Kallus (paper)", kal)):
+        per = [by[(s, RAT_MATCH)]["baselines"][lbl.split(" ")[0].replace("Hess", "SharpHess")]
+               for s in seeds]
+        sd = float(np.std([(v - by[(s, RAT_MATCH)]["bc"]) / by[(s, RAT_MATCH)]["sc"]
+                           for v, s in zip(per, seeds)]))
+        stats[(lbl, "rat")] = (nz(dd[RAT_MATCH]), sd)
+        rows.append((nz(dd[RAT_MATCH]), "<tr><td class='l'>%s</td><td>%.3f</td><td>%.3f</td>"
+                     "<td>%.3f</td><td>&mdash;</td></tr>"
+                     % (lbl, dd[RAT_MATCH], nz(dd[RAT_MATCH]), sd)))
+    sd_n = float(np.std([(c["naive"] - c["bc"]) / c["sc"] for c in g1]))
+    stats[("naive", "rat")] = (nz(naive), sd_n)
+    rows.append((nz(naive), "<tr><td class='l'>naive (DR plug-in) <span class='hsub'>"
+                 "(&Gamma;-free)</span></td><td>%.3f</td><td>%.3f</td><td>%.3f</td>"
+                 "<td>&mdash;</td></tr>" % (naive, nz(naive), sd_n)))
+    rows.sort(key=lambda t: -t[0])
+    main_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method</th>"
+                "<th>E[Y] at &Gamma;* = 5</th><th>normalised</th><th>sd (norm)</th>"
+                "<th class='l'>best cell</th></tr>" + "".join(r[1] for r in rows)
+                + "</table></div>")
+    ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
+    chart = barchart(stats, "Rational-DM DGP at the matched Gamma* = 5, n=400 -- "
+                     "normalised value",
+                     methods=ordered, series=["rat"], colors={"rat": "#2d4a2d"},
+                     labels=lambda k: "matched Gamma*",
+                     note="0 = best constant policy, 1 = the x-measurable oracle; "
+                          "whisker = across-seed sd (%d seeds)" % len(seeds))
+
+    # ---- transport margin, paired at identical (c_eps, L), matched Gamma ----
+    tm = {}
+    for a_, b_ in (("IPW-O-W", "IPW-O-X"), ("DoublyRobust-O-W", "DoublyRobust-O-X")):
+        dd = [nz(surf[a_][ce][RAT_MATCH][L]) - nz(surf[b_][RAT_MATCH][L])
+              for ce in RAT_CES for L in Ls]
+        tm[RAT_LBL[a_]] = (float(np.mean(dd)), float(np.max(dd)))
+
+    # ---- per-Gamma sweep table (best cell per (method, Gamma), normalised) ----
+    sw = []
+    for m in RAT_OW:
+        cells_ = [max(surf[m][ce][g][L] for ce in RAT_CES for L in Ls) for g in RAT_GK]
+        sw.append((cells_[RAT_GK.index(RAT_MATCH)],
+                   "<tr class='hl'><td class='l'>%s</td>%s</tr>"
+                   % (RAT_LBL[m], "".join("<td>%.3f</td>" % nz(v) for v in cells_))))
+    for m in RAT_OX:
+        cells_ = [max(surf[m][g][L] for L in Ls) for g in RAT_GK]
+        sw.append((cells_[RAT_GK.index(RAT_MATCH)],
+                   "<tr><td class='l'>%s</td>%s</tr>"
+                   % (RAT_LBL[m], "".join("<td>%.3f</td>" % nz(v) for v in cells_))))
+    for lbl, dd in (("Hess (paper)", hess), ("Kallus (paper)", kal)):
+        sw.append((dd[RAT_MATCH], "<tr><td class='l'>%s</td>%s</tr>"
+                   % (lbl, "".join("<td>%.3f</td>" % nz(dd[g]) for g in RAT_GK))))
+    sw.sort(key=lambda t: -t[0])
+    hdrs = "".join("<th>&Gamma; = %s%s</th>" % (g, " (matched)" if g == RAT_MATCH else "")
+                   for g in RAT_GK)
+    sweep_tbl = ("<div class='scrollx'><table class='dt'><tr><th class='l'>method "
+                 "(best cell per &Gamma;)</th>" + hdrs + "</tr>"
+                 + "".join(r[1] for r in sw) + "</table></div>")
+
+    # ---- interactive per-Gamma line chart (JS prefix "rw") ----
+    series = []
+    for m in RAT_OW[:2] + RAT_OX + [RAT_OW[2]]:
+        if m.endswith("O-W"):
+            series.append({"lbl": RAT_LBL[m], "kind": "ow", "data": surf[m]})
+        else:
+            series.append({"lbl": RAT_LBL[m], "kind": "ox", "data": surf[m]})
+    for lbl, dd in xx.items():
+        series.append({"lbl": lbl, "kind": "xx", "data": dd})
+    series.append({"lbl": "Hess (paper)", "kind": "fixed", "data": hess})
+    series.append({"lbl": "Kallus (paper)", "kind": "fixed", "data": kal})
+    for s in series:
+        s["col"], s["dsh"], s["shape"] = DSHMAP.get(s["lbl"], ("#000", "", "circle"))
+    allv = ([v for m in RAT_OX for g in RAT_GK for v in surf[m][g].values()]
+            + [v for m in RAT_OW for ce in RAT_CES for g in RAT_GK
+               for v in surf[m][ce][g].values()]
+            + [v for dd in xx.values() for v in dd.values()]
+            + list(hess.values()) + list(kal.values()) + [naive] + list(refs.values()))
+    ylo, yhi = min(allv) - 0.06, max(allv) + 0.06
+    lines = ilines(
+        "rw", RAT_GK, RAT_MATCH, "5*", series,
+        [("oracle", "#111", refs["oracle"], "5 4"), ("all-treat", "#555", refs["all"], "3 3"),
+         ("never-treat", "#555", refs["never"], "3 3")],
+        Ls, RAT_CEOPT,
+        "Rational-DM DGP: all methods across the solver Gamma (n=400, %d seeds; "
+        "pick L and c_eps below)" % len(seeds),
+        "(X-X and naive are &Gamma;-free; X-X was solved on the FULL L grid here; "
+        "c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only; Hess/Kallus "
+        "have neither knob)",
+        ylo, yhi,
+        "Gamma assumed by the solver (* = matched Gamma) -- ordinal spacing")
+
+    # ---- interactive 3-D surface (JS prefix "r3") ----
+    S3 = {}
+    zlo, zhi = 1e9, -1e9
+    for ce in RAT_CES:
+        S3[ce] = {}
+        for m in RAT_OW[:2] + RAT_OX + [RAT_OW[2]]:
+            src = surf[m][ce] if m.endswith("O-W") else surf[m]
+            z = [[src[g][L] for L in Ls] for g in RAT_GK]
+            S3[ce][RAT_LBL[m]] = {"g": RAT_GK, "z": z}
+            for row in z:
+                zlo = min(zlo, min(row)); zhi = max(zhi, max(row))
+    zlo, zhi = zlo - 0.05, zhi + 0.05
+    s3d = isurf(
+        "r3", S3, Ls, zlo, zhi, RAT_CEOPT,
+        [RAT_LBL[m] for m in RAT_OW[:2] + RAT_OX + [RAT_OW[2]]],
+        RAT_MATCH, "5*",
+        "drag the plot to rotate; colour = height; X-X / Hess / Kallus have no "
+        "(&Gamma;, L) surface; every &Gamma; was solved at every c<sub>&epsilon;</sub> here")
+
+    return {"refs": refs, "chart": chart, "main_tbl": main_tbl, "tm": tm,
+            "sweep_tbl": sweep_tbl, "lines": lines, "s3d": s3d,
+            "seeds": len(seeds), "naive": naive}
+
+
+_RAT = _rat_tab()
+if _RAT:
+    RAT_CHART, RAT_MAIN, RAT_LINES, RAT_3DFIG = (_RAT["chart"], _RAT["main_tbl"],
+                                                 _RAT["lines"], _RAT["s3d"])
+    RAT_SWEEP = _RAT["sweep_tbl"]
+    RAT_REFS = ("oracle %.3f, all-treat %.3f, never-treat %.3f"
+                % (_RAT["refs"]["oracle"], _RAT["refs"]["all"], _RAT["refs"]["never"]))
+    RAT_TM = ("Transport margin, paired at identical (c<sub>&epsilon;</sub>, L) at the "
+              "matched &Gamma;: IPW <b>%+.3f</b> mean / %+.3f max; DR <b>%+.3f</b> mean / "
+              "%+.3f max (normalised units)."
+              % (_RAT["tm"]["IPW-O-W"][0], _RAT["tm"]["IPW-O-W"][1],
+                 _RAT["tm"]["DR-O-W"][0], _RAT["tm"]["DR-O-W"][1]))
+else:
+    RAT_CHART = RAT_MAIN = RAT_LINES = RAT_3DFIG = RAT_SWEEP = (
+        "<p class='muted'>The &Gamma; sweep for this DGP is still running on SLURM; "
+        "rebuild this report when assets/exp_rational/gsweep/ holds all 35 cells.</p>")
+    RAT_REFS = ""; RAT_TM = ""
 
 
 # ------------------------------------------------ semi tab: Gamma mis-specification sweep
@@ -1217,6 +1457,7 @@ sensitivity parameter. <b>Higher is better</b> throughout.</p></div>
 <div class="tb on" id="tb-semi" onclick="showTab('semi')">semi</div>
 <div class="tb" id="tb-rct" onclick="showTab('rct')">RCT</div>
 <div class="tb" id="tb-kmz" onclick="showTab('kmz')">KMZ</div>
+<div class="tb" id="tb-rational" onclick="showTab('rational')">rational</div>
 <div class="tb" id="tb-readme" onclick="showTab('readme')">read me</div>
 </div>
 
@@ -1491,6 +1732,40 @@ reference choice alone, with the estimator unchanged. Any Kallus number should b
 reference policy.</p>
 </div>
 
+<div id="tab-rational" class="tabpane">
+<h2>The rational-DM DGP <span class="hsub">&mdash; the synthetic benchmark whose decision
+maker is defensible</span></h2>
+<p>gstar's construction had a flaw a referee would find: the benefit of treatment rises in
+<i>x</i> while the historical propensity falls in <i>x</i>, so the units who benefit most were
+treated least &mdash; an <i>irrational</i> decision maker. Here the decision maker observes a
+private prognostic signal <i>S</i> that the analyst does not, and acts rationally on
+<b>both</b> <i>x</i> and <i>S</i>: treatment probability and treatment benefit both rise in
+both. The unobserved confounder is now a reason the decision maker was <i>right</i>. This is
+the recommended <span class="mono">nocouple</span> configuration (<i>S</i> a fair coin,
+independent of <i>x</i>).</p>
+{RAT_MATH}
+<p class="muted">&Gamma;* = 5 is exact by algebra with no clipping (odds-ratio error
+&lt; 10<sup>&minus;10</sup>, asserted by <span class="mono">dgp_rational.check()</span> in
+every run), overlap stays in [0.14, 0.86], and corr(e, benefit) &gt; 0 is the programmatic
+rationality check. n = 400 train / 4000 test, {_RAT["seeds"]} seeds ({RAT_REFS}). The Hess k-NN diagnostic
+arm is excluded throughout; Hess and Kallus are the authors' own code.</p>
+
+<h2>All methods at the matched &Gamma;* = 5</h2>
+{RAT_CHART}
+{RAT_MAIN}
+<p class="muted">{RAT_TM} The O-W&ndash;vs&ndash;X-X comparison is at matched policy class:
+X-X was swept over the same Lipschitz grid and still peaks below 0.1 normalised.</p>
+
+<h2>Across &Gamma; <span class="hsub">&mdash; the solver's &Gamma; varies, the DGP stays
+fixed at &Gamma;* = 5; X-X and naive are &Gamma;-free; best cell per point</span></h2>
+{RAT_LINES}
+{RAT_SWEEP}
+
+<h3>&Gamma; &times; L &times; E[Y] <span class="hsub">&mdash; the same surface in 3-D;
+drag to rotate</span></h3>
+{RAT_3DFIG}
+</div>
+
 <div id="tab-readme" class="tabpane">
 <h2>Read me <span class="hsub">&mdash; how the plots encode the methods</span></h2>
 <p>Every method is named <b>Estimator&ndash;UncertaintySet</b>. The estimator says how the policy
@@ -1534,8 +1809,8 @@ style/marker regardless of estimator.</p>
 <td class="l"><svg width="64" height="14" viewBox="0 0 64 14"><line x1="2" y1="7" x2="28" y2="7" stroke="#7d1f6a" stroke-width="2.4"/><rect x="12.4" y="4.4" width="5.2" height="5.2" fill="#7d1f6a" transform="rotate(45 15 7)"/><line x1="36" y1="7" x2="62" y2="7" stroke="#8c564b" stroke-width="2.4"/><path d="M 49 3.6 L 45.8 9.6 L 52.2 9.6 Z" fill="#8c564b"/></svg></td></tr>
 </table>
 
-<p class="muted">This code is used in the per-&Gamma; line chart on the KMZ tab (use its
-checkboxes to show or hide individual methods). Reference lines (oracle, all-treat, never-treat)
+<p class="muted">This code is used in the per-&Gamma; line charts on the KMZ and rational
+tabs (use their method menus to show or hide individual methods). Reference lines (oracle, all-treat, never-treat)
 are thin black/grey dashes and the matched &Gamma; is marked by a grey vertical dashed line.
 Bar charts elsewhere in the report list methods explicitly on their axes, so they keep their own
 per-panel colours.</p>
@@ -1543,7 +1818,7 @@ per-panel colours.</p>
 
 <script>
 function showTab(id){{
-  for (const t of ['semi','rct','kmz','readme']){{
+  for (const t of ['semi','rct','kmz','rational','readme']){{
     document.getElementById('tab-'+t).classList.toggle('on', t===id);
     document.getElementById('tb-'+t).classList.toggle('on', t===id);
   }}
