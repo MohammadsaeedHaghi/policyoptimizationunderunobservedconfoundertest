@@ -1507,9 +1507,12 @@ RAT_MATH = "".join([
       r"\quad\text{-- treatment probability RISES in } x \text{ and } S"),
     M(r"Y_0 = 2S + \varepsilon_0, \qquad Y_1 = Y_0 + 2x + S + \varepsilon_1, \qquad "
       r"\varepsilon \sim \mathcal{N}(0, 0.6^2) \ \Rightarrow\ \tau(x,S) = 2x + S"),
-    M(r"\Rightarrow\ \text{the } S\text{-odds ratio is } e^{\ln 5} = 5 \text{ at every } x: "
-      r"\ \Gamma^{\!*} = 5 \text{ exactly, no clipping; } E[\tau \mid x] = 2x, "
-      r"\text{ the oracle treats } x > 0"),
+    M(r"\Rightarrow\ \frac{e(x,+1)/(1-e(x,+1))}{e(x,-1)/(1-e(x,-1))} "
+      r"= \frac{\exp(2x + \tfrac12\ln 5)}{\exp(2x - \tfrac12\ln 5)} "
+      r"= e^{\ln 5} = 5 \quad\text{at every } x \text{ (the } 2x \text{ cancels): } "
+      r"\Gamma^{\!*} = 5 \text{ exactly, no clipping}"),
+    M(r"S \perp x,\ E[S \mid x] = 0 \ \Rightarrow\ E[\tau \mid x] = 2x: "
+      r"\text{ the } x\text{-measurable oracle treats } x > 0"),
 ])
 
 
