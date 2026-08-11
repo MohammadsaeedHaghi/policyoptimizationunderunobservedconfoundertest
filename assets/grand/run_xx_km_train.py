@@ -45,9 +45,16 @@ def shap(Xnew, sX, sp, block=200):
     return out
 
 
+def hx(vals):
+    v = np.clip(np.asarray(vals, float).ravel(), 0.0, 1.0)
+    return "".join("%02x" % int(round(x * 100)) for x in v)
+
+
 test_v = {m: {l: {} for l in LK} for m in S}
 train_v = {m: {l: {} for l in LK} for m in S}
 curves = {m: {l: {} for l in LK} for m in S}
+learned = {m: {l: {} for l in LK} for m in S}
+train_x = {}
 for sd in range(5):
     obs, ftr = d.generate(400, sd)
     X, T, Y = obs["X"], obs["T"], obs["Y"]
@@ -56,6 +63,7 @@ for sd in range(5):
     Xte = te["X"]; Y1, Y0 = ft["Y1"], ft["Y0"]
     w, _ = common.ipw_weights_from_data(X, T, 2)
     mu = common.outcome_means(X, T, Y, n_arms=2, cross_fit=True)
+    train_x[str(sd)] = [round(float(v), 4) for v in np.asarray(X, float).ravel()]
     for m, (fn, kind) in S.items():
         for L, lk in zip(LGRID, LK):
             if kind == "ipw":   r = fn(X, T, Y, w, n_arms=2, discretize=False, lipschitz=L)
@@ -63,6 +71,7 @@ for sd in range(5):
             else:               r = fn(X, T, Y, n_arms=2, discretize=False, lipschitz=L)
             pi = np.asarray(r.pi[1], float)
             train_v[m][lk][str(sd)] = round(float(np.mean(pi * Y1tr + (1 - pi) * Y0tr)), 4)
+            learned[m][lk][str(sd)] = hx(pi)
             sX, spv = extract_support(X, r.pi[1])
             sX = np.asarray(sX, float).reshape(-1, 1); spv = np.asarray(spv, float).ravel()
             pe = shap(Xte.ravel(), sX, spv)
@@ -72,6 +81,7 @@ for sd in range(5):
 
 out = {"n": 400, "seeds": 5, "Lgrid": LK, "policy_grid": [round(float(v), 4) for v in PG],
        "test": test_v, "train": train_v, "curves": curves,
+       "learned": learned, "train_x": train_x,
        "test_mean": {m: {l: round(float(np.mean(list(v.values()))), 4)
                          for l, v in ll.items()} for m, ll in test_v.items()},
        "train_mean": {m: {l: round(float(np.mean(list(v.values()))), 4)

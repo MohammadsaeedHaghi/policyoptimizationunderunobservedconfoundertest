@@ -584,6 +584,12 @@ SELSTY = ('font-size:13px;padding:2px 6px;margin-right:8px;border:1px solid #bbb
           'border-radius:4px;background:#fff;cursor:pointer')
 
 
+def hxpack(vals):
+    """Hex-pack a policy vector (2 chars per unit, 0..100 scale) for compact embedding."""
+    v = np.clip(np.asarray(vals, float).ravel(), 0.0, 1.0)
+    return "".join("%02x" % int(round(x * 100)) for x in v)
+
+
 def mkshape(x, y, col, shape):
     if shape == "circle":
         return '<circle cx="%.1f" cy="%.1f" r="3" fill="%s"/>' % (x, y, col)
@@ -903,15 +909,23 @@ _IPOL_JS = """
 <script>
 var PFXD=__DATA__;
 function PFXel(i){return document.getElementById(i);}
-function PFXcurves(m,g,L,ce){
- var s=PFXD.methods[m]; if(!s)return null;
- var d=s.data;
- if(s.kind=='flat')return d;
- if(s.kind=='fixed')return (g in d)?d[g]:null;
- if(s.kind=='xx')return (L in d)?d[L]:null;
- if(s.kind=='ow'){d=d[ce]; if(!d)return null;}
+function PFXnav(d,kind,g,L,ce){
+ if(!d)return null;
+ if(kind=='flat')return d;
+ if(kind=='fixed')return (g in d)?d[g]:null;
+ if(kind=='xx')return (L in d)?d[L]:null;
+ if(kind=='ow'){d=d[ce]; if(!d)return null;}
  if(!(g in d))return null;
  return (L in d[g])?d[g][L]:null;
+}
+function PFXcurves(m,g,L,ce){
+ var s=PFXD.methods[m]; if(!s)return null;
+ return PFXnav(s.data,s.kind,g,L,ce);
+}
+function PFXhx(s){
+ var a=[];
+ for(var i=0;i<s.length;i+=2)a.push(parseInt(s.substr(i,2),16)/100);
+ return a;
 }
 function PFXpath(xg,c,X_,Y_){
  var p='';
@@ -921,6 +935,8 @@ function PFXpath(xg,c,X_,Y_){
 function PFXdraw(){
  var m=PFXel('PFXm').value, g=PFXel('PFXg').value, L=PFXel('PFXL').value,
      ce=PFXel('PFXce').value, sd=PFXel('PFXsd').value;
+ var pme=document.querySelector('input[name=PFXpm]:checked');
+ var pm=pme?pme.value:'deployed';
  var W=1080,H=430,pL=58,pR=30,pT=30,pB=52;
  var xlo=PFXD.xlo,xhi=PFXD.xhi;
  var X_=function(x){return pL+(x-xlo)/(xhi-xlo)*(W-pL-pR);};
@@ -939,6 +955,30 @@ function PFXdraw(){
   var oc=PFXD.oracle;
   out.push('<polyline points="'+PFXpath(PFXD.grid,oc,X_,Y_)+'" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.7"/>');
  }
+ if(pm=='learned'){
+  var s2=PFXD.methods[m];
+  var le=(s2&&s2.lrn)?PFXnav(s2.lrn,s2.kind,g,L,ce):null;
+  if(le&&Object.keys(le).length==0)le=null;
+  if(!s2||!s2.lrn){
+   out.push('<text x="'+((pL+W-pR)/2)+'" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle">'+(s2&&s2.par?'parametric policy: the deployed curve IS the learned function (no LP extension)':'learned (training-point) policy not stored for this method')+'</text>');
+  }else if(!le){
+   out.push('<text x="'+((pL+W-pR)/2)+'" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle">no stored solution for this (method, Gamma, L, c_eps) combination</text>');
+  }else{
+   var sds=(sd=='mean')?Object.keys(le):[sd];
+   var ndots=0;
+   for(var q=0;q<sds.length;q++){
+    var hxs=le[sds[q]], lx=PFXD.lx[sds[q]];
+    if(!hxs||!lx)continue;
+    var pv=PFXhx(hxs);
+    var op=(sds.length>1)?0.3:0.85;
+    for(var i3=0;i3<pv.length;i3++){
+     out.push('<circle cx="'+X_(lx[i3]).toFixed(1)+'" cy="'+Y_(pv[i3]).toFixed(1)+'" r="2" fill="'+col+'" fill-opacity="'+op+'"/>');
+     ndots++;
+    }
+   }
+   out.push('<text x="'+(W-pR-4)+'" y="'+(pT+12)+'" class="tk" text-anchor="end">raw LP solution pi_i on the training points ('+ndots+' points'+(sds.length>1?', all seeds':', seed '+sd)+')</text>');
+  }
+ }else{
  var cs=PFXcurves(m,g,L,ce);
  if(cs&&Object.keys(cs).length==0)cs=null;
  if(!cs){
@@ -967,6 +1007,7 @@ function PFXdraw(){
    }
   }
  }
+ }
  out.push('<line x1="'+pL+'" y1="'+(H-pB)+'" x2="'+(W-pR)+'" y2="'+(H-pB)+'" class="ax"/>');
  out.push('<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(H-pB)+'" class="ax"/>');
  out.push('<text x="'+((pL+W-pR)/2)+'" y="'+(H-8)+'" class="al" text-anchor="middle">x (standardised index); dashed black = oracle policy</text>');
@@ -994,12 +1035,21 @@ def ipol(pfx, data, methods_order, gks, gmatch, Lgrid, ceopts, seedkeys, title, 
                      for L in (["3"] + [L for L in Lgrid if L != "3"])])
     cesel = sel("ce", ceopts)
     sdsel = sel("sd", [("mean", "all seeds + mean")] + [(s, "seed " + s) for s in seedkeys])
+    pmr = ""
+    if data.get("lx"):
+        pmr = ('<span class="hsub" style="margin-left:8px">view:</span>'
+               '<label style="cursor:pointer;font-size:13px;margin-right:6px">'
+               '<input type="radio" name="%spm" value="deployed" checked '
+               'onchange="%sdraw()"> deployed &pi;(x)</label>'
+               '<label style="cursor:pointer;font-size:13px">'
+               '<input type="radio" name="%spm" value="learned" onchange="%sdraw()"> '
+               'learned (raw LP output)</label>' % (pfx, pfx, pfx, pfx))
     ctl = ('<div style="margin:6px 0 2px 58px;display:flex;align-items:center;flex-wrap:wrap;'
            'gap:6px"><span class="hsub">method:</span>%s<span class="hsub">&Gamma;:</span>%s'
            '<span class="hsub">L:</span>%s<span class="hsub">c<sub>&epsilon;</sub>:</span>%s'
-           '<span class="hsub">seed:</span>%s</div>'
+           '<span class="hsub">seed:</span>%s%s</div>'
            '<div style="margin:0 0 2px 58px"><span class="hsub">%s</span></div>'
-           % (msel, gsel, lsel, cesel, sdsel, ctlnote))
+           % (msel, gsel, lsel, cesel, sdsel, pmr, ctlnote))
     js = (_IPOL_JS.replace("PFX", pfx).replace("__DATA__", json.dumps(data)))
     return ('<figure class="fig"><figcaption class="ct" style="margin-left:58px">%s'
             '</figcaption>%s<div class="scrollx chartbox">'
@@ -1363,34 +1413,48 @@ def _kmz_tab():
     def _polfig():
         seeds = sorted(KM["policies_by_seed"].keys())
         P0 = KM["policies_by_seed"]
+        SUP = {ce: KM_CE[ce].get("policies_support_by_seed") for ce in CES}
         methods = {}
         for m in ["IPW-O-W", "DoublyRobust-O-W"]:
-            data = {}
+            data, lrn = {}, {}
             for ce in CES:
                 Pce = KM_CE[ce]["policies_by_seed"]
-                dce = {}
+                dce, lce = {}, {}
                 for g in gks:
-                    gd = {}
+                    gd, lg = {}, {}
                     for L in KM["Lgrid"]:
                         sd_ = {s: Pce[s][m][g][L] for s in seeds
                                if g in Pce[s][m] and L in Pce[s][m][g]}
                         if sd_: gd[L] = sd_
+                        if SUP[ce]:
+                            ld = {s: hxpack(SUP[ce][s][m][g][L]) for s in seeds
+                                  if g in SUP[ce][s][m] and L in SUP[ce][s][m][g]}
+                            if ld: lg[L] = ld
                     if gd: dce[g] = gd
-                data[ce] = dce
-            methods[LBL2[m]] = {"kind": "ow", "data": data}
+                    if lg: lce[g] = lg
+                data[ce] = dce; lrn[ce] = lce
+            methods[LBL2[m]] = {"kind": "ow", "data": data, "lrn": lrn}
         for m in ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
-            data = {}
+            data, lrn = {}, {}
             for g in gks:
-                gd = {}
+                gd, lg = {}, {}
                 for L in KM["Lgrid"]:
                     sd_ = {s: P0[s][m][g][L] for s in seeds
                            if g in P0[s][m] and L in P0[s][m][g]}
                     if sd_: gd[L] = sd_
+                    if SUP["1.0"]:
+                        ld = {s: hxpack(SUP["1.0"][s][m][g][L]) for s in seeds
+                              if g in SUP["1.0"][s][m] and L in SUP["1.0"][s][m][g]}
+                        if ld: lg[L] = ld
                 if gd: data[g] = gd
-            methods[LBL2[m]] = {"kind": "ox", "data": data}
+                if lg: lrn[g] = lg
+            methods[LBL2[m]] = {"kind": "ox", "data": data, "lrn": lrn}
         if KM_XXTR and "curves" in KM_XXTR:
             for m, dd in KM_XXTR["curves"].items():          # per-seed curves, all 5 seeds
-                methods[m.replace("DoublyRobust", "DR")] = {"kind": "xx", "data": dd}
+                e = {"kind": "xx", "data": dd}
+                if "learned" in KM_XXTR:
+                    e["lrn"] = KM_XXTR["learned"][m]
+                methods[m.replace("DoublyRobust", "DR")] = e
         elif KM_XX and "curves" in KM_XX:
             for m, dd in KM_XX["curves"].items():
                 methods[m.replace("DoublyRobust", "DR")] = {
@@ -1411,15 +1475,22 @@ def _kmz_tab():
             d = json.loads(Path(f).read_text())
             hd[d["gamma"]] = d["curves"]
         if hd:
-            methods["Hess (paper)"] = {"kind": "fixed", "data": hd}
+            methods["Hess (paper)"] = {"kind": "fixed", "data": hd, "par": True}
+        if "Kallus (paper)" in methods:
+            methods["Kallus (paper)"]["par"] = True
         methods["naive (DR)"] = {"kind": "flat",
                                  "data": {s: P0[s]["_refs"]["naive_dr"] for s in seeds}}
+        if SUP["1.0"]:
+            methods["naive (DR)"]["lrn"] = {s: hxpack(SUP["1.0"][s]["_naive_dr"])
+                                            for s in seeds}
         for lbl in methods:
             methods[lbl]["col"] = DSHMAP.get(lbl, ("#334155",))[0]
         orc = np.mean([np.array(P0[s]["_refs"]["oracle"], float) for s in seeds], axis=0)
         data = {"grid": KM["policy_grid"], "xlo": -1.0, "xhi": 1.0,
                 "oracle": [round(float(v), 3) for v in orc],
                 "methods": methods}
+        if SUP["1.0"]:
+            data["lx"] = {s: SUP["1.0"][s]["_X"] for s in seeds}
         order = [m for m in ["IPW-O-W", "DR-O-W", "IPW-O-X", "DR-O-X", "Hajek-O-X",
                              "IPW-X-X", "DR-X-X", "Direct-X-X", "Hess (paper)",
                              "Kallus (paper)", "naive (DR)"] if m in methods]
@@ -1915,36 +1986,59 @@ def _rat_tab():
     c_any = by[(seeds[0], "1")]
     if "policies" in c_any:
         skeys = [str(s) for s in seeds]
+        has_lrn = all("policies_learned" in by[(s, g)] for s in seeds for g in RAT_GK)
         methods = {}
         for m in RAT_OW:
             data = {}
+            lrn = {}
             for ce in RAT_CES:
                 data[ce] = {g: {L: {str(s): by[(s, g)]["policies"][m][ce][L]
                                     for s in seeds
                                     if L in by[(s, g)].get("policies", {})
                                                       .get(m, {}).get(ce, {})}
                                 for L in Ls} for g in RAT_GK}
+                if has_lrn:
+                    lrn[ce] = {g: {L: {str(s): by[(s, g)]["policies_learned"][m][ce][L]
+                                       for s in seeds
+                                       if L in by[(s, g)]["policies_learned"]
+                                                          .get(m, {}).get(ce, {})}
+                                   for L in Ls} for g in RAT_GK}
             methods[RAT_LBL[m]] = {"kind": "ow", "data": data}
+            if has_lrn: methods[RAT_LBL[m]]["lrn"] = lrn
         for m in RAT_OX:
             methods[RAT_LBL[m]] = {"kind": "ox", "data": {
                 g: {L: {str(s): by[(s, g)]["policies"][m]["1"][L] for s in seeds
                         if L in by[(s, g)].get("policies", {}).get(m, {}).get("1", {})}
                     for L in Ls} for g in RAT_GK}}
+            if has_lrn:
+                methods[RAT_LBL[m]]["lrn"] = {
+                    g: {L: {str(s): by[(s, g)]["policies_learned"][m]["1"][L]
+                            for s in seeds
+                            if L in by[(s, g)]["policies_learned"].get(m, {}).get("1", {})}
+                        for L in Ls} for g in RAT_GK}
         for m in ("IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"):
-            methods[m.replace("DoublyRobust", "DR")] = {"kind": "xx", "data": {
+            e = {"kind": "xx", "data": {
                 L: {str(c["seed"]): c["xx_policies"][m][L] for c in g1
                     if L in c.get("xx_policies", {}).get(m, {})} for L in Ls}}
+            if has_lrn and all("xx_learned" in c for c in g1):
+                e["lrn"] = {L: {str(c["seed"]): c["xx_learned"][m][L] for c in g1
+                                if L in c["xx_learned"].get(m, {})} for L in Ls}
+            methods[m.replace("DoublyRobust", "DR")] = e
         for name, lbl in (("SharpHess", "Hess (paper)"), ("Kallus", "Kallus (paper)")):
-            methods[lbl] = {"kind": "fixed", "data": {
+            methods[lbl] = {"kind": "fixed", "par": True, "data": {
                 g: {str(s): by[(s, g)]["baseline_policies"][name] for s in seeds
                     if name in by[(s, g)].get("baseline_policies", {})} for g in RAT_GK}}
         methods["naive (DR)"] = {"kind": "flat",
                                  "data": {str(c["seed"]): c["naive_policy"] for c in g1
                                           if "naive_policy" in c}}
+        if has_lrn and all("naive_learned" in c for c in g1):
+            methods["naive (DR)"]["lrn"] = {str(c["seed"]): c["naive_learned"] for c in g1}
         for lbl in methods:
             methods[lbl]["col"] = DSHMAP.get(lbl, ("#334155",))[0]
         pdata = {"grid": c_any["policy_grid"], "xlo": -1.0, "xhi": 1.0,
                  "oracle": c_any["oracle_policy"], "methods": methods}
+        if has_lrn:
+            pdata["lx"] = {str(s): by[(s, "1")]["train_x"] for s in seeds}
         order = [m for m in ["IPW-O-W", "DR-O-W", "Hajek-O-W", "IPW-O-X", "DR-O-X",
                              "Hajek-O-X", "IPW-X-X", "DR-X-X", "Direct-X-X",
                              "Hess (paper)", "Kallus (paper)", "naive (DR)"]

@@ -101,15 +101,23 @@ def main():
         pi = np.clip(np.asarray(vals, float).ravel(), 0.0, 1.0)
         return float(np.mean(pi * Y1tr + (1 - pi) * Y0tr))
 
+    def hx(vals):
+        """Raw LEARNED policy on the training points, hex-packed (2 chars per unit,
+        0..100 scale) so the report can embed it compactly."""
+        pi = np.clip(np.asarray(vals, float).ravel(), 0.0, 1.0)
+        return "".join("%02x" % int(round(v * 100)) for v in pi)
+
     t0 = time.time()
     pol = {}
+    lrn = {}
     gtr = {}
     grid = {}
     for m in SR.OX + SR.OW:
-        grid[m] = {}; pol[m] = {}; gtr[m] = {}
+        grid[m] = {}; pol[m] = {}; gtr[m] = {}; lrn[m] = {}
         for ce in (CEPS if m in SR.OW else CEPS[:1]):
             eps = tuple(common.tight_epsilon(Dm, T, w, 2, is_distance=True, c_eps=ce))
-            ckey = "%g" % ce; grid[m][ckey] = {}; pol[m][ckey] = {}; gtr[m][ckey] = {}
+            ckey = "%g" % ce
+            grid[m][ckey] = {}; pol[m][ckey] = {}; gtr[m][ckey] = {}; lrn[m][ckey] = {}
             for L, lk in zip(LGRID, LK):
                 try:
                     kw = dict(n_arms=2, Gamma=G, discretize=False, lipschitz=L)
@@ -124,6 +132,7 @@ def main():
                     grid[m][ckey][lk] = val(r.pi[1])
                     pol[m][ckey][lk] = curve(r.pi[1])
                     gtr[m][ckey][lk] = val_tr(r.pi[1])
+                    lrn[m][ckey][lk] = hx(r.pi[1])
                 except Exception as ex:
                     print("FAIL %s ce=%s L=%s: %s" % (m, ckey, lk, str(ex)[:80]), flush=True)
 
@@ -154,12 +163,14 @@ def main():
            "policy_grid": [round(float(v), 4) for v in XG],
            "refs": refs, "refs_train": refs_tr, "bc": bc, "sc": sc, "grid": grid,
            "grid_train": gtr, "baselines": bl, "baselines_train": bltr,
-           "policies": pol, "baseline_policies": blpol}
+           "policies": pol, "baseline_policies": blpol,
+           "policies_learned": lrn,
+           "train_x": [round(float(v), 4) for v in X.ravel()]}
 
     if G == 1.0:      # the Gamma-free extras, once per seed
-        xx = {}; xxpol = {}; xxtr = {}
+        xx = {}; xxpol = {}; xxtr = {}; xxlrn = {}
         for m in SR.XX:
-            xx[m] = {}; xxpol[m] = {}; xxtr[m] = {}
+            xx[m] = {}; xxpol[m] = {}; xxtr[m] = {}; xxlrn[m] = {}
             for L, lk in zip(LGRID, LK):
                 try:
                     if m == "IPW-X-X":
@@ -171,15 +182,18 @@ def main():
                     xx[m][lk] = val(r.pi[1])
                     xxpol[m][lk] = curve(r.pi[1])
                     xxtr[m][lk] = val_tr(r.pi[1])
+                    xxlrn[m][lk] = hx(r.pi[1])
                 except Exception as ex:
                     print("FAIL %s L=%s: %s" % (m, lk, str(ex)[:80]), flush=True)
         out["xx"] = xx
         out["xx_policies"] = xxpol
         out["xx_train"] = xxtr
+        out["xx_learned"] = xxlrn
         nv = (mu[:, 1] - mu[:, 0] > 0).astype(float)
         out["naive"] = val(nv)
         out["naive_policy"] = curve(nv)
         out["naive_train"] = val_tr(nv)
+        out["naive_learned"] = hx(nv)
         out["oracle_policy"] = [1.0 if x > 0 else 0.0 for x in XG]
 
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
