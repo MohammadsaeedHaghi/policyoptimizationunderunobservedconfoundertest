@@ -590,6 +590,42 @@ def hxpack(vals):
     return "".join("%02x" % int(round(x * 100)) for x in v)
 
 
+def hxdec(s):
+    return np.array([int(s[i:i + 2], 16) / 100 for i in range(0, len(s), 2)])
+
+
+sys.path.insert(0, str(ROOT / "extensions" / "Shapley"))
+from shapley import extract_support as _extract_support
+
+_DENSE_X = np.linspace(-1.0, 1.0, 401)
+
+
+def _shapfast(Xnew, sX, sp, block=200):
+    """The pipeline's closed-form Shapley extension (verbatim from the runners)."""
+    Xnew = np.asarray(Xnew, float).reshape(-1, 1)
+    out = np.empty(len(Xnew)); dg = np.arange(len(sX))
+    for s0 in range(0, len(Xnew), block):
+        xb = Xnew[s0:s0 + block]
+        dd = np.sqrt(((xb[:, None, :] - sX[None, :, :]) ** 2).sum(-1))
+        Sm = dd[:, :, None] + dd[:, None, :]; Sm = np.where(Sm > 0, Sm, 1.0)
+        A = (dd[:, None, :] * sp[None, :, None] + dd[:, :, None] * sp[None, None, :]) / Sm
+        A[:, dg, dg] = sp[None, :]
+        v = A.max(axis=1).min(axis=1)
+        ex = dd.min(axis=1) <= 0
+        if ex.any(): v[ex] = sp[dd[ex].argmin(axis=1)]
+        out[s0:s0 + block] = v
+    return out
+
+
+def dense_hex(xtr, pi):
+    """Deployed curve on the 401-point grid, recomputed from a stored learned policy --
+    the anti-aliasing rendering the L = inf policies need."""
+    sX, sp = _extract_support(np.asarray(xtr, float).reshape(-1, 1),
+                              np.asarray(pi, float))
+    sX = np.asarray(sX, float).reshape(-1, 1); sp = np.asarray(sp, float).ravel()
+    return hxpack(_shapfast(_DENSE_X, sX, sp))
+
+
 def mkshape(x, y, col, shape):
     if shape == "circle":
         return '<circle cx="%.1f" cy="%.1f" r="3" fill="%s"/>' % (x, y, col)
@@ -927,6 +963,7 @@ function PFXhx(s){
  for(var i=0;i<s.length;i+=2)a.push(parseInt(s.substr(i,2),16)/100);
  return a;
 }
+function PFXcv(c){return (typeof c=='string')?PFXhx(c):c;}
 function PFXpath(xg,c,X_,Y_){
  var p='';
  for(var i=0;i<c.length;i++)p+=(i?' ':'')+X_(xg[i]).toFixed(1)+','+Y_(c[i]).toFixed(1);
@@ -980,30 +1017,37 @@ function PFXdraw(){
   }
  }else{
  var cs=PFXcurves(m,g,L,ce);
+ var xgd=xg;
+ var s4=PFXD.methods[m];
+ if(PFXD.grid2&&s4&&s4.dense){
+  var dn=PFXnav(s4.dense,s4.kind,g,L,ce);
+  if(dn&&Object.keys(dn).length>0){cs=dn;xgd=PFXD.grid2;}
+ }
  if(cs&&Object.keys(cs).length==0)cs=null;
  if(!cs){
   out.push('<text x="'+((pL+W-pR)/2)+'" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle">no stored policy for this (method, Gamma, L, c_eps) combination</text>');
  }else{
   var keys=Object.keys(cs);
   if(sd=='mean'){
-   var n=PFXD.grid.length, acc=null, cnt=0;
+   var acc=null, cnt=0;
    for(var k=0;k<keys.length;k++){
-    var c=cs[keys[k]]; if(!c)continue;
-    out.push('<polyline points="'+PFXpath(xg,c,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="1" opacity="0.25"/>');
+    var c=PFXcv(cs[keys[k]]); if(!c)continue;
+    out.push('<polyline points="'+PFXpath(xgd,c,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="1" opacity="0.25"/>');
     if(!acc){acc=c.slice();}else{for(var i=0;i<c.length;i++)acc[i]+=c[i];}
     cnt++;
    }
    if(acc){
     for(var i2=0;i2<acc.length;i2++)acc[i2]/=cnt;
-    out.push('<polyline points="'+PFXpath(xg,acc,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="2.6"/>');
+    out.push('<polyline points="'+PFXpath(xgd,acc,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="2.6"/>');
    }
-   out.push('<text x="'+(W-pR-4)+'" y="'+(pT+12)+'" class="tk" text-anchor="end">'+cnt+' seed'+(cnt>1?'s':'')+' (thin) + mean (bold)</text>');
+   out.push('<text x="'+(W-pR-4)+'" y="'+(pT+12)+'" class="tk" text-anchor="end">'+cnt+' seed'+(cnt>1?'s':'')+' (thin) + mean (bold)'+(xgd===PFXD.grid2?', dense 401-pt grid':'')+'</text>');
   }else{
-   var c2=cs[sd];
+   var c2=PFXcv(cs[sd]);
    if(!c2){
     out.push('<text x="'+((pL+W-pR)/2)+'" y="'+((pT+H-pB)/2)+'" class="al" text-anchor="middle">seed '+sd+' has no stored curve here</text>');
    }else{
-    out.push('<polyline points="'+PFXpath(xg,c2,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="2.4"/>');
+    out.push('<polyline points="'+PFXpath(xgd,c2,X_,Y_)+'" fill="none" stroke="'+col+'" stroke-width="2.4"/>');
+    if(xgd===PFXD.grid2)out.push('<text x="'+(W-pR-4)+'" y="'+(pT+12)+'" class="tk" text-anchor="end">dense 401-pt grid</text>');
    }
   }
  }
@@ -1483,6 +1527,29 @@ def _kmz_tab():
         if SUP["1.0"]:
             methods["naive (DR)"]["lrn"] = {s: hxpack(SUP["1.0"][s]["_naive_dr"])
                                             for s in seeds}
+        # dense (401-pt) deployed curves at L = inf, recomputed from the stored learned
+        # solutions -- the 41-pt campaign grid aliases the ~119-flip L=inf functions
+        if SUP["1.0"]:
+            for m in ["IPW-O-W", "DoublyRobust-O-W"]:
+                dn = {}
+                for ce in CES:
+                    if not SUP[ce]: continue
+                    dn[ce] = {g: {"inf": {s: dense_hex(SUP["1.0"][s]["_X"],
+                                                       SUP[ce][s][m][g]["inf"])
+                                          for s in seeds if g in SUP[ce][s][m]}}
+                              for g in gks if any(g in SUP[ce][s][m] for s in seeds)}
+                methods[LBL2[m]]["dense"] = dn
+            for m in ["IPW-O-X", "DoublyRobust-O-X", "Hajek-O-X"]:
+                methods[LBL2[m]]["dense"] = {
+                    g: {"inf": {s: dense_hex(SUP["1.0"][s]["_X"], SUP["1.0"][s][m][g]["inf"])
+                                for s in seeds if g in SUP["1.0"][s][m]}}
+                    for g in gks if any(g in SUP["1.0"][s][m] for s in seeds)}
+            if KM_XXTR and "learned" in KM_XXTR:
+                for m in KM_XXTR["learned"]:
+                    methods[m.replace("DoublyRobust", "DR")]["dense"] = {
+                        "inf": {s: dense_hex(KM_XXTR["train_x"][s],
+                                             hxdec(KM_XXTR["learned"][m]["inf"][s]))
+                                for s in KM_XXTR["learned"][m]["inf"]}}
         for lbl in methods:
             methods[lbl]["col"] = DSHMAP.get(lbl, ("#334155",))[0]
         orc = np.mean([np.array(P0[s]["_refs"]["oracle"], float) for s in seeds], axis=0)
@@ -1491,6 +1558,7 @@ def _kmz_tab():
                 "methods": methods}
         if SUP["1.0"]:
             data["lx"] = {s: SUP["1.0"][s]["_X"] for s in seeds}
+            data["grid2"] = [round(float(v), 4) for v in _DENSE_X]
         order = [m for m in ["IPW-O-W", "DR-O-W", "IPW-O-X", "DR-O-X", "Hajek-O-X",
                              "IPW-X-X", "DR-X-X", "Direct-X-X", "Hess (paper)",
                              "Kallus (paper)", "naive (DR)"] if m in methods]
@@ -2058,7 +2126,7 @@ def _rat_tab():
     c_any = by[(seeds[0], "1")]
     if "policies" in c_any:
         skeys = [str(s) for s in seeds]
-        has_lrn = all("policies_learned" in by[(s, g)] for s in seeds for g in RAT_GK)
+        has_lrn = any("policies_learned" in by[(s, g)] for s in seeds for g in RAT_GK)
         methods = {}
         for m in RAT_OW:
             data = {}
@@ -2070,9 +2138,9 @@ def _rat_tab():
                                                       .get(m, {}).get(ce, {})}
                                 for L in Ls} for g in RAT_GK}
                 if has_lrn:
-                    lrn[ce] = {g: {L: {str(s): by[(s, g)]["policies_learned"][m][ce][L]
+                    lrn[ce] = {g: {L: {str(s): by[(s, g)].get("policies_learned", {})[m][ce][L]
                                        for s in seeds
-                                       if L in by[(s, g)]["policies_learned"]
+                                       if L in by[(s, g)].get("policies_learned", {})
                                                           .get(m, {}).get(ce, {})}
                                    for L in Ls} for g in RAT_GK}
             methods[RAT_LBL[m]] = {"kind": "ow", "data": data}
@@ -2084,9 +2152,9 @@ def _rat_tab():
                     for L in Ls} for g in RAT_GK}}
             if has_lrn:
                 methods[RAT_LBL[m]]["lrn"] = {
-                    g: {L: {str(s): by[(s, g)]["policies_learned"][m]["1"][L]
+                    g: {L: {str(s): by[(s, g)].get("policies_learned", {})[m]["1"][L]
                             for s in seeds
-                            if L in by[(s, g)]["policies_learned"].get(m, {}).get("1", {})}
+                            if L in by[(s, g)].get("policies_learned", {}).get(m, {}).get("1", {})}
                         for L in Ls} for g in RAT_GK}
         for m in ("IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"):
             e = {"kind": "xx", "data": {
@@ -2107,10 +2175,36 @@ def _rat_tab():
             methods["naive (DR)"]["lrn"] = {str(c["seed"]): c["naive_learned"] for c in g1}
         for lbl in methods:
             methods[lbl]["col"] = DSHMAP.get(lbl, ("#334155",))[0]
+        if has_lrn:      # dense L=inf deployed curves from the stored learned solutions
+            for m in RAT_OW:
+                dn = {}
+                for ce in RAT_CES:
+                    dn[ce] = {g: {"inf": {str(s): dense_hex(
+                        by[(s, "1")]["train_x"],
+                        hxdec(by[(s, g)].get("policies_learned", {})[m][ce]["inf"]))
+                        for s in seeds
+                        if "inf" in by[(s, g)].get("policies_learned", {}).get(m, {}).get(ce, {})}}
+                        for g in RAT_GK}
+                methods[RAT_LBL[m]]["dense"] = dn
+            for m in RAT_OX:
+                methods[RAT_LBL[m]]["dense"] = {
+                    g: {"inf": {str(s): dense_hex(
+                        by[(s, "1")]["train_x"],
+                        hxdec(by[(s, g)].get("policies_learned", {})[m]["1"]["inf"]))
+                        for s in seeds
+                        if "inf" in by[(s, g)].get("policies_learned", {}).get(m, {}).get("1", {})}}
+                    for g in RAT_GK}
+            for m in ("IPW-X-X", "DoublyRobust-X-X", "Direct-X-X"):
+                if all("xx_learned" in c for c in g1):
+                    methods[m.replace("DoublyRobust", "DR")]["dense"] = {
+                        "inf": {str(c["seed"]): dense_hex(
+                            c["train_x"], hxdec(c["xx_learned"][m]["inf"])) for c in g1
+                            if "inf" in c["xx_learned"].get(m, {})}}
         pdata = {"grid": c_any["policy_grid"], "xlo": -1.0, "xhi": 1.0,
                  "oracle": c_any["oracle_policy"], "methods": methods}
         if has_lrn:
             pdata["lx"] = {str(s): by[(s, "1")]["train_x"] for s in seeds}
+            pdata["grid2"] = [round(float(v), 4) for v in _DENSE_X]
         order = [m for m in ["IPW-O-W", "DR-O-W", "Hajek-O-W", "IPW-O-X", "DR-O-X",
                              "Hajek-O-X", "IPW-X-X", "DR-X-X", "Direct-X-X",
                              "Hess (paper)", "Kallus (paper)", "naive (DR)"]
@@ -2123,7 +2217,9 @@ def _rat_tab():
             "ignore L and c<sub>&epsilon;</sub>. <b>At L = inf the LP is per-point "
             "separable and positive reweighting cannot flip a sign, so the IPW/Hajek "
             "family returns one identical policy at every &Gamma;</b> &mdash; pick "
-            "L &le; 10 to see the methods separate.")
+            "L &le; 10 to see the methods separate. At L = inf the deployed curve "
+            "is drawn from a dense 401-point grid recomputed from the stored "
+            "solutions (other L use the 41-point curves).")
 
     return {"refs": refs, "chart": chart, "main_tbl": main_tbl, "tm": tm,
             "sweep_tbl": sweep_tbl, "lines": lines, "s3d": s3d,

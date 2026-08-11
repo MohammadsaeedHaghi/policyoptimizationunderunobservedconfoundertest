@@ -1,0 +1,274 @@
+{
+ "dataset": "wine_quality",
+ "gamma": 1.0,
+ "matched_G": 7.38905609893065,
+ "risk_model": "ridge-logistic on FULL covariates, frozen; policy index = the risk score",
+ "risk_spread_q05_q95": 0.267,
+ "screen": [
+  {
+   "RRR": 0.2,
+   "hq": 0.4,
+   "h": 0.2135,
+   "headroom": 0.0078,
+   "oracle_treats": 0.6,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.095,
+    0.164
+   ]
+  },
+  {
+   "RRR": 0.2,
+   "hq": 0.5,
+   "h": 0.221,
+   "headroom": 0.0116,
+   "oracle_treats": 0.5,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.103,
+    0.156
+   ]
+  },
+  {
+   "RRR": 0.2,
+   "hq": 0.6,
+   "h": 0.2292,
+   "headroom": 0.0122,
+   "oracle_treats": 0.4,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.111,
+    0.148
+   ]
+  },
+  {
+   "RRR": 0.3,
+   "hq": 0.4,
+   "h": 0.3203,
+   "headroom": 0.0114,
+   "oracle_treats": 0.6,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.143,
+    0.246
+   ]
+  },
+  {
+   "RRR": 0.3,
+   "hq": 0.5,
+   "h": 0.3315,
+   "headroom": 0.0169,
+   "oracle_treats": 0.5,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.154,
+    0.235
+   ]
+  },
+  {
+   "RRR": 0.3,
+   "hq": 0.6,
+   "h": 0.3438,
+   "headroom": 0.0178,
+   "oracle_treats": 0.4,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.166,
+    0.222
+   ]
+  },
+  {
+   "RRR": 0.5,
+   "hq": 0.4,
+   "h": 0.5338,
+   "headroom": 0.0186,
+   "oracle_treats": 0.6,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.238,
+    0.41
+   ]
+  },
+  {
+   "RRR": 0.5,
+   "hq": 0.5,
+   "h": 0.5525,
+   "headroom": 0.0274,
+   "oracle_treats": 0.5,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.257,
+    0.391
+   ]
+  },
+  {
+   "RRR": 0.5,
+   "hq": 0.6,
+   "h": 0.573,
+   "headroom": 0.0291,
+   "oracle_treats": 0.4,
+   "corr_e_tau": 0.201,
+   "tau_range": [
+    -0.277,
+    0.37
+   ]
+  }
+ ],
+ "stageB": {
+  "RRR=0.3,hq=0.5": {
+   "h": 0.3315,
+   "rows": {
+    "IPW-O-X": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.031
+    },
+    "DoublyRobust-O-X": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.034
+    },
+    "Hajek-O-X": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.03
+    },
+    "IPW-O-W": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.031
+    },
+    "DoublyRobust-O-W": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.034
+    },
+    "Hajek-O-W": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.03
+    },
+    "IPW-X-X": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.031
+    },
+    "DoublyRobust-X-X": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.031
+    },
+    "Direct-X-X": {
+     "norm": -0.1,
+     "L": "inf",
+     "sd": 0.03
+    },
+    "naive": {
+     "norm": -0.124,
+     "L": "-",
+     "sd": 0.054
+    }
+   },
+   "margin": {
+    "IPW-O-W": {
+     "mean": 0.0058,
+     "max": 0.0131
+    },
+    "DoublyRobust-O-W": {
+     "mean": 0.024,
+     "max": 0.0497
+    }
+   },
+   "ow_best": -0.1,
+   "beat": {
+    "IPW-O-X": 0.0,
+    "DoublyRobust-O-X": 0.0,
+    "Hajek-O-X": 0.0,
+    "IPW-X-X": 0.0,
+    "DoublyRobust-X-X": 0.0,
+    "Direct-X-X": 0.0,
+    "naive": 0.024
+   },
+   "headroom": 0.0411,
+   "pass": false
+  },
+  "RRR=0.5,hq=0.5": {
+   "h": 0.5525,
+   "rows": {
+    "IPW-O-X": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.052
+    },
+    "DoublyRobust-O-X": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.057
+    },
+    "Hajek-O-X": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.053
+    },
+    "IPW-O-W": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.052
+    },
+    "DoublyRobust-O-W": {
+     "norm": -0.131,
+     "L": "3",
+     "sd": 0.139
+    },
+    "Hajek-O-W": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.053
+    },
+    "IPW-X-X": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.052
+    },
+    "DoublyRobust-X-X": {
+     "norm": -0.176,
+     "L": "inf",
+     "sd": 0.052
+    },
+    "Direct-X-X": {
+     "norm": -0.175,
+     "L": "inf",
+     "sd": 0.052
+    },
+    "naive": {
+     "norm": -0.214,
+     "L": "-",
+     "sd": 0.077
+    }
+   },
+   "margin": {
+    "IPW-O-W": {
+     "mean": 0.0262,
+     "max": 0.0589
+    },
+    "DoublyRobust-O-W": {
+     "mean": 0.0684,
+     "max": 0.1429
+    }
+   },
+   "ow_best": -0.131,
+   "beat": {
+    "IPW-O-X": 0.045,
+    "DoublyRobust-O-X": 0.045,
+    "Hajek-O-X": 0.045,
+    "IPW-X-X": 0.045,
+    "DoublyRobust-X-X": 0.045,
+    "Direct-X-X": 0.044,
+    "naive": 0.083
+   },
+   "headroom": 0.0462,
+   "pass": false
+  }
+ },
+ "seeds": 3
+}
