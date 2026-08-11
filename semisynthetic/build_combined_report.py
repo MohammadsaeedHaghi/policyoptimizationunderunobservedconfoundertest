@@ -1895,7 +1895,7 @@ def _rat_tab():
                 "<th class='l'>best cell</th></tr>" + "".join(r[1] for r in rows)
                 + "</table></div>")
     ordered = [k[0] for k in sorted(stats, key=lambda k: -stats[k][0])]
-    chart = barchart(stats, "Rational-DM DGP at the matched Gamma* = 5, n=400 -- "
+    chart = barchart(stats, "Our DGP at the matched Gamma* = 5, n=400 -- "
                      "normalised value",
                      methods=ordered, series=["rat"], colors={"rat": "#2d4a2d"},
                      labels=lambda k: "matched Gamma*",
@@ -1924,7 +1924,7 @@ def _rat_tab():
         pv = [nzt(c["naive_train"]) for c in g1]
         stats_tr[("naive", "rat")] = (float(np.mean(pv)), float(np.std(pv)))
         chart_tr = barchart(
-            stats_tr, "Rational-DM DGP at the matched Gamma* = 5 -- TRAIN (in-sample) "
+            stats_tr, "Our DGP at the matched Gamma* = 5 -- TRAIN (in-sample) "
             "value, same cells",
             methods=[m for m in ordered if any(k[0] == m for k in stats_tr)],
             series=["rat"], colors={"rat": "#6b4a2d"}, labels=lambda k: "matched Gamma*",
@@ -2015,7 +2015,7 @@ def _rat_tab():
         [("oracle", "#111", refs["oracle"], "5 4"), ("all-treat", "#555", refs["all"], "3 3"),
          ("never-treat", "#555", refs["never"], "3 3")],
         Ls, RAT_CEOPT,
-        "Rational-DM DGP: all methods across the solver Gamma (n=400, %d seeds; "
+        "Our DGP: all methods across the solver Gamma (n=400, %d seeds; "
         "pick L and c_eps below)" % len(seeds),
         "(X-X and naive are &Gamma;-free; X-X was solved on the FULL L grid here; "
         "c<sub>&epsilon;</sub> scales the Wasserstein radius, so O-W only; Hess/Kallus "
@@ -2117,7 +2117,7 @@ def _rat_tab():
                  if m in methods]
         polfig = ipol(
             "rp", pdata, order, RAT_GK, RAT_MATCH, Ls, RAT_CEOPT, skeys,
-            "Rational-DM DGP: deployed policy pi(x) (n=400; oracle treats x > 0)",
+            "Our DGP: deployed policy pi(x) (n=400; oracle treats x > 0)",
             "&Gamma; applies to O-X/O-W/Hess/Kallus; L to the LP methods (X-X included "
             "-- full L grid); c<sub>&epsilon;</sub> moves O-W only; Hess/Kallus/naive "
             "ignore L and c<sub>&epsilon;</sub>. <b>At L = inf the LP is per-point "
@@ -2238,7 +2238,7 @@ sensitivity parameter. <b>Higher is better</b> throughout.</p></div>
 <!-- RCT tab hidden per 2026-08-11 request; pane kept in the page, restore by
 re-adding: <div class="tb" id="tb-rct" onclick="showTab('rct')">RCT</div> -->
 <div class="tb" id="tb-kmz" onclick="showTab('kmz')">KMZ</div>
-<div class="tb" id="tb-rational" onclick="showTab('rational')">rational</div>
+<div class="tb" id="tb-rational" onclick="showTab('rational')">Our DGP</div>
 <div class="tb" id="tb-readme" onclick="showTab('readme')">read me</div>
 </div>
 
@@ -2524,8 +2524,8 @@ reference policy.</p>
 </div>
 
 <div id="tab-rational" class="tabpane">
-<h2>The rational-DM DGP <span class="hsub">&mdash; the synthetic benchmark whose decision
-maker is defensible</span></h2>
+<h2>Our DGP <span class="hsub">&mdash; the synthetic benchmark whose decision
+maker is defensible (a rational, privately informed decision maker)</span></h2>
 <p>gstar's construction had a flaw a referee would find: the benefit of treatment rises in
 <i>x</i> while the historical propensity falls in <i>x</i>, so the units who benefit most were
 treated least &mdash; an <i>irrational</i> decision maker. Here the decision maker observes a
@@ -2618,8 +2618,9 @@ per-panel colours.</p>
 <script>
 function showTab(id){{
   for (const t of ['semi','rct','kmz','rational','readme']){{
-    document.getElementById('tab-'+t).classList.toggle('on', t===id);
-    document.getElementById('tb-'+t).classList.toggle('on', t===id);
+    const p = document.getElementById('tab-'+t), b = document.getElementById('tb-'+t);
+    if (p) p.classList.toggle('on', t===id);
+    if (b) b.classList.toggle('on', t===id);
   }}
   window.scrollTo(0,0);
 }}
