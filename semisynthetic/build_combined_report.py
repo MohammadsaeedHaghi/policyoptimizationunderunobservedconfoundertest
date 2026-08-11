@@ -1426,10 +1426,13 @@ def _kmz_tab():
         return ipol(
             "kp", data, order, gks, KMGK, KM["Lgrid"], CEOPT, seeds,
             "KMZ: deployed policy pi(x) on the standardised index (n=400)",
-            "&Gamma; applies to O-X/O-W/Hess/Kallus only; L to the LP methods only "
-            "(X-X curves are stored for seed 0 at L = inf, 3, 1); c<sub>&epsilon;</sub> "
-            "moves O-W only; Hess/Kallus/naive ignore L and c<sub>&epsilon;</sub>. "
-            "Kallus curves are stored on a coarser 7-point grid.")
+            "&Gamma; applies to O-X/O-W/Hess/Kallus only; L to the LP methods only; "
+            "c<sub>&epsilon;</sub> moves O-W only; Hess/Kallus/naive ignore L and "
+            "c<sub>&epsilon;</sub>. Kallus curves are stored on a coarser 7-point grid. "
+            "<b>At L = inf the LP is per-point separable and positive reweighting cannot "
+            "flip a sign, so the whole IPW/Hajek family returns the identical policy "
+            "1{Y_i &gt; 0} at every &Gamma;</b> (only DR differs) &mdash; pick L &le; 10 "
+            "to see the methods and &Gamma; separate.")
 
     polfig = _polfig()
 
@@ -1951,7 +1954,10 @@ def _rat_tab():
             "Rational-DM DGP: deployed policy pi(x) (n=400; oracle treats x > 0)",
             "&Gamma; applies to O-X/O-W/Hess/Kallus; L to the LP methods (X-X included "
             "-- full L grid); c<sub>&epsilon;</sub> moves O-W only; Hess/Kallus/naive "
-            "ignore L and c<sub>&epsilon;</sub>.")
+            "ignore L and c<sub>&epsilon;</sub>. <b>At L = inf the LP is per-point "
+            "separable and positive reweighting cannot flip a sign, so the IPW/Hajek "
+            "family returns one identical policy at every &Gamma;</b> &mdash; pick "
+            "L &le; 10 to see the methods separate.")
 
     return {"refs": refs, "chart": chart, "main_tbl": main_tbl, "tm": tm,
             "sweep_tbl": sweep_tbl, "lines": lines, "s3d": s3d,
