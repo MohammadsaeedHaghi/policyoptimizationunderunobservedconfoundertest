@@ -1715,6 +1715,78 @@ def _rat_dgp_figs():
 RAT_DGPFIGS = _rat_dgp_figs()
 
 
+def _kmz_dgp_figs():
+    """Same explainer set for KMZ, computed from the DGP module's own functions
+    (dgp_g15: the Gamma* = e^1.5 = 4.4817 instance every KMZ table uses)."""
+    import importlib.util as _iu
+    _sp = _iu.spec_from_file_location(
+        "dgp_km_fig", str(ROOT / "assets" / "exp_msmbench" / "dgp_g15.py"))
+    _dm = _iu.module_from_spec(_sp); sys.modules["dgp_km_fig"] = _dm
+    _sp.loader.exec_module(_dm)
+    xs = np.linspace(-1, 1, 241)
+    SP, SM, GREY = "#b0620b", "#2b6cb0", "#666"
+    f1 = linefig(
+        "True propensity e(x, S): the MSM extremal around the nominal e(x)",
+        [{"x": xs, "y": _dm.propensity(xs, np.ones_like(xs)), "col": SP, "lbl": "S = +1"},
+         {"x": xs, "y": _dm.propensity(xs, -np.ones_like(xs)), "col": SM, "lbl": "S = -1"},
+         {"x": xs, "y": _dm.e_nom(xs), "col": GREY, "dsh": "5 4",
+          "lbl": "nominal e(x) (what the analyst estimates)"}],
+        "x = X/2", "P(T = 1 | x, S)", hline=0.5,
+        note="Each S-arm sits exactly at the MSM extremal: its odds are Gamma* = 4.48 "
+             "times (S = +1) or 1/Gamma* times (S = -1) the NOMINAL odds at every x, so "
+             "the sensitivity model holds exactly with the declared Gamma*; between the "
+             "two hidden arms the ratio is Gamma*^2 = 20. Note the DIRECTION: S = +1 "
+             "units are treated MORE, yet S = +1 LOWERS outcomes (next panel) -- this "
+             "decision maker harms itself, the exact irrationality the rational-DM DGP "
+             "was built to remove.")
+    f2 = linefig(
+        "Expected outcome under each arm  E[Y_a | x, S]",
+        [{"x": xs, "y": _dm.mu1(xs, np.ones_like(xs)), "col": SP,
+          "lbl": "E[Y1 | x, S=+1]"},
+         {"x": xs, "y": _dm.mu0(xs, np.ones_like(xs)), "col": SP, "dsh": "6 4",
+          "lbl": "E[Y0 | x, S=+1]"},
+         {"x": xs, "y": _dm.mu1(xs, -np.ones_like(xs)), "col": SM,
+          "lbl": "E[Y1 | x, S=-1]"},
+         {"x": xs, "y": _dm.mu0(xs, -np.ones_like(xs)), "col": SM, "dsh": "6 4",
+          "lbl": "E[Y0 | x, S=-1]"}],
+        "x = X/2", "E[Y_a | x, S]",
+        note="Solid = treated, dashed = control; colour = the hidden S. The -2S(1 + X/2) "
+             "term shifts BOTH arms by the same amount, which is why the CATE below is "
+             "S-free; the sin terms make the effect non-monotone in x.")
+    f3 = linefig(
+        "CATE(x) = 2X + 2 - 4 sin(2X)  (X = 2x; independent of S)",
+        [{"x": xs, "y": _dm.cate(xs), "col": "#111", "w": 2.8,
+          "lbl": "CATE(x) -- same for every S"}],
+        "x = X/2", "treatment effect", hline=0.0,
+        note="Unlike the rational DGP, the hidden signal moves the LEVEL of both potential "
+             "outcomes but not the EFFECT. The oracle treats wherever the curve is above "
+             "zero: everything except the interior band where 4 sin(2X) beats 2X + 2.")
+    dd_o, dd_f = _dm.generate(400000, 7)
+    xr, Yr, Tr = dd_o["X"].ravel(), dd_o["Y"], dd_o["T"]
+    edges = np.linspace(-1, 1, 41); mids = (edges[:-1] + edges[1:]) / 2
+    app = np.full(len(mids), np.nan)
+    for j in range(len(mids)):
+        inb = (xr >= edges[j]) & (xr < edges[j + 1])
+        t1, t0 = inb & (Tr == 1), inb & (Tr == 0)
+        if t1.sum() > 30 and t0.sum() > 30:
+            app[j] = Yr[t1].mean() - Yr[t0].mean()
+    ok = ~np.isnan(app)
+    f4 = linefig(
+        "What the naive analyst measures vs the truth",
+        [{"x": mids[ok], "y": app[ok], "col": "#c0392b",
+          "lbl": "apparent CATE (naive, 400k draws)"},
+         {"x": xs, "y": _dm.cate(xs), "col": "#111", "dsh": "6 4", "lbl": "true CATE(x)"}],
+        "x = X/2", "difference in means", hline=0.0,
+        note="Here selection biases the comparison DOWNWARD: the treated arm is enriched "
+             "in S = +1 (low-outcome) patients, so the naive analyst UNDER-treats -- the "
+             "mirror image of the rational DGP's upward bias, and the reason its naive "
+             "row sits below every robust method.")
+    return f1 + f2 + f3 + f4
+
+
+KMZ_DGPFIGS = _kmz_dgp_figs()
+
+
 def _rat_tab():
     import glob
     fs = sorted(glob.glob(str(ROOT / "assets" / "exp_rational" / "gsweep"
@@ -2374,6 +2446,11 @@ own synthetic experiment on it. The label plays no role here; the confounder <i>
 coin independent of <i>X</i>, and the true propensity is the <b>MSM extremal</b> around the
 nominal one, so the sensitivity model holds exactly with a known odds ratio.</p>
 {KMZ_MATH}
+
+<h2>The DGP in pictures <span class="hsub">&mdash; assignment, outcomes, effect, and the
+bias a naive analyst inherits</span></h2>
+{KMZ_DGPFIGS}
+
 <p>Because the true propensity is the extremal itself, the matched &Gamma; is known by
 construction &mdash; nothing is tuned. We run the paper's own strength sweep, each experiment at
 its matched &Gamma;. Protocol: n&nbsp;=&nbsp;400 train / 4,000 test, 5 seeds, Shapley deployment,
